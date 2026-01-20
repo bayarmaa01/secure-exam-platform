@@ -1,0 +1,28 @@
+name: CI-CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build Frontend Image
+      run: |
+        docker build -t ${{secrets.DOCKER_USER}}/frontend ./frontend
+        docker push ${{secrets.DOCKER_USER}}/frontend
+
+    - name: Build Backend Image
+      run: |
+        docker build -t ${{secrets.DOCKER_USER}}/backend ./backend
+        docker push ${{secrets.DOCKER_USER}}/backend
+
+    - name: Build AI Image
+      run: |
+        docker build -t ${{secrets.DOCKER_USER}}/ai-proctor ./ai-proctor
+        docker push ${{secrets.DOCKER_USER}}/ai-proctor
