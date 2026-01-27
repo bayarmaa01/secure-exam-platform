@@ -2,9 +2,17 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: exam-ingress
+  namespace: exam-platform
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+      - bayarmaa01.dpdns.org
+    secretName: exam-tls
   rules:
-  - host: exam.yourdomain.dpdns.org
+  - host: bayarmaa01.dpdns.org
     http:
       paths:
       - path: /

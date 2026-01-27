@@ -6,23 +6,37 @@ on:
       - main
 
 jobs:
-  build:
+  build-secure:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
 
-    - name: Build Frontend Image
+    # ---- SAST ----
+    - name: SonarQube Scan
+      uses: sonarsource/sonarqube-scan-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST }}
+
+    # ---- Build Images ----
+    - name: Build & Push Images
       run: |
         docker build -t ${{secrets.DOCKER_USER}}/frontend ./frontend
-        docker push ${{secrets.DOCKER_USER}}/frontend
-
-    - name: Build Backend Image
-      run: |
         docker build -t ${{secrets.DOCKER_USER}}/backend ./backend
-        docker push ${{secrets.DOCKER_USER}}/backend
-
-    - name: Build AI Image
-      run: |
         docker build -t ${{secrets.DOCKER_USER}}/ai-proctor ./ai-proctor
+        docker push ${{secrets.DOCKER_USER}}/frontend
+        docker push ${{secrets.DOCKER_USER}}/backend
         docker push ${{secrets.DOCKER_USER}}/ai-proctor
+
+    # ---- Container Vulnerability Scan ----
+    - name: Trivy Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{secrets.DOCKER_USER}}/backend
+
+    # ---- DAST ----
+    - name: OWASP ZAP Scan
+      uses: zaproxy/action-full-scan@v0.8.0
+      with:
+        target: https://bayarmaa01.dpdns.org
