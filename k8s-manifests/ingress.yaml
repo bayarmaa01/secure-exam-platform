@@ -4,13 +4,15 @@ metadata:
   name: exam-ingress
   namespace: exam-platform
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
+
   tls:
   - hosts:
-      - bayarmaa01.dpdns.org
+    - bayarmaa01.dpdns.org
     secretName: exam-tls
+
   rules:
   - host: bayarmaa01.dpdns.org
     http:
