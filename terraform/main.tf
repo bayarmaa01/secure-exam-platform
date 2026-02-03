@@ -1,5 +1,5 @@
 provider "aws" {
-  region = "ap-south-1"
+  region = "ap-east-1"
 }
 
 resource "aws_instance" "exam_server" {

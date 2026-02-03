@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: exam-platform
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_USERNAME/secure-exam-platform.git
+    targetRevision: main
+    path: k8s-manifests/app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: exam-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
