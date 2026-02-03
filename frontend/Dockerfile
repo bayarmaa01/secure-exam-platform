@@ -1,6 +1,22 @@
-FROM node:20
+FROM node:20-alpine
+
 WORKDIR /app
+
+# Copy dependency files first
+COPY package*.json ./
+
+RUN npm install
+
+# Copy source
 COPY . .
-RUN npm install && npm run build
+
+# ✅ FIX: run Vite via Node (bypasses permission issues)
+RUN node node_modules/vite/bin/vite.js build
+
+# Serve static build
 RUN npm install -g serve
-CMD ["serve","-s","dist","-l","3000"]
+
+EXPOSE 3000
+
+CMD ["serve", "-s", "dist", "-l", "3000"]
+
