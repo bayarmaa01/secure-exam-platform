@@ -26,6 +26,6 @@ spec:
   selector:
     app: frontend
   ports:
-  - port: 80
-    targetPort: 3000
+    - port: 80          # Service port
+      targetPort: 3000  # 🔥 Container port
 
