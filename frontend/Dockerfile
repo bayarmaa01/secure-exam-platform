@@ -1,22 +1,23 @@
-FROM node:20-alpine
-
+# -------- Build stage --------
+FROM node:20-alpine AS build
 WORKDIR /app
 
-# Copy dependency files first
 COPY package*.json ./
-
 RUN npm install
 
-# Copy source
 COPY . .
 
-# ✅ FIX: run Vite via Node (bypasses permission issues)
-RUN node node_modules/vite/bin/vite.js build
+# FIX: explicitly call vite via npx
+RUN npx vite build
 
-# Serve static build
-RUN npm install -g serve
+# -------- Runtime stage --------
+FROM python:3.10-slim
+WORKDIR /app
 
-EXPOSE 3000
+COPY --from=build /app/dist ./dist
+COPY app.py .
 
-CMD ["serve", "-s", "dist", "-l", "3000"]
+RUN pip install flask
 
+EXPOSE 6000
+CMD ["python", "app.py"]
