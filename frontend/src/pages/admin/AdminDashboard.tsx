@@ -9,16 +9,27 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { examStats, monthlyAttempts } from "./AdminStats";
 
 const COLORS = ["#22c55e", "#ef4444"];
+
+// ✅ Define data here
+const examStats = [
+  { name: "Pass", value: 75 },
+  { name: "Fail", value: 25 },
+];
+
+const monthlyAttempts = [
+  { month: "Jan", attempts: 40 },
+  { month: "Feb", attempts: 55 },
+  { month: "Mar", attempts: 70 },
+  { month: "Apr", attempts: 60 },
+];
 
 export default function AdminDashboard() {
   return (
     <div className="p-6 space-y-8">
       <h1 className="text-2xl font-bold">Admin Dashboard</h1>
 
-      {/* STATS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* PASS / FAIL PIE */}
         <div className="bg-white p-4 rounded shadow">
