@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: exam_pass
       POSTGRES_DB: exam_db
     ports:
-      - "5433:5433"
+      - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
 
