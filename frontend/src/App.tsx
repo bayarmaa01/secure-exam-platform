@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -7,6 +7,9 @@ import RoleRoute from "./components/RoleRoute";
 export default function App() {
   return (
     <Routes>
+      {/* DEFAULT ROUTE */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+
       <Route path="/login" element={<Login />} />
 
       {/* ADMIN */}
