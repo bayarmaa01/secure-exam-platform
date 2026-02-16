@@ -1,10 +1,8 @@
-export const createExam = async (req, res) => {
-  const { title, duration } = req.body;
+import express from "express";
+import { createExam } from "../controllers/exam.controller.js";
 
-  const exam = await pool.query(
-    "INSERT INTO exams(id,title,duration,created_by) VALUES($1,$2,$3,$4) RETURNING *",
-    [uuid(), title, duration, req.user.id]
-  );
+const router = express.Router();
 
-  res.status(201).json(exam.rows[0]);
-};
+router.post("/", createExam);
+
+export default router;
