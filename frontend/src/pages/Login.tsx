@@ -1,11 +1,29 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 export default function Login() {
   const navigate = useNavigate();
 
-  const login = () => {
-    localStorage.setItem("token", "mock-jwt-token");
-    navigate("/");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const login = async () => {
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/auth/login`,
+        { email, password }
+      );
+
+      const { token } = response.data;
+
+      localStorage.setItem("token", token);
+
+      navigate("/");
+    } catch (error) {
+      console.error(error);
+      alert("Invalid email or password");
+    }
   };
 
   return (
@@ -19,11 +37,15 @@ export default function Login() {
           <input
             type="email"
             placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <input
             type="password"
             placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
