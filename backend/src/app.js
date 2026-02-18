@@ -14,7 +14,11 @@ dotenv.config();
 
 const app = express();   // ✅ CREATE APP FIRST
 
-app.use(cors());
+app.use(cors({
+  origin: "http://localhost:3000",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 app.use(express.json());
 app.use(morgan("dev"));
 
