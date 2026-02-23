@@ -16,6 +16,7 @@ export const submitExam = async (req, res) => {
 
   res.json({ message: "Exam submitted" });
 };
+
 export const createExam = async (req, res) => {
   const { title, duration } = req.body;
 
