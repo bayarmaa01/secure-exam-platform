@@ -1,9 +1,8 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
     container_name: exam_db
+    restart: always
     environment:
       POSTGRES_USER: exam_user
       POSTGRES_PASSWORD: exam_pass
@@ -12,21 +11,35 @@ services:
       - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U exam_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: ./backend
     container_name: backend
+    restart: always
     env_file:
       - ./backend/.env
     ports:
       - "5000:5000"
     depends_on:
-      - db
-      - ai-service
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     build: ./frontend
     container_name: frontend
+    restart: always
     ports:
       - "3000:80"
     depends_on:
@@ -35,8 +48,14 @@ services:
   ai-service:
     build: ./ai-service
     container_name: ai-service
+    restart: always
     ports:
       - "7000:7000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   db_data:
