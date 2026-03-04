@@ -1,0 +1,5 @@
+apiVersion: v2
+name: exam-platform
+description: Secure Online Exam Platform
+version: 1.0.0
+appVersion: "1.0.0"

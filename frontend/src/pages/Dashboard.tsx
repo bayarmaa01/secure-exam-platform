@@ -1,25 +1,61 @@
-import { Link } from "react-router-dom";
-import Container from "../components/Container";
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { examsApi, Exam } from '../api/exams'
 
 export default function Dashboard() {
-  return (
-    <Container>
-      <h1 className="text-2xl font-bold mb-6">Student Dashboard</h1>
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const [exams, setExams] = useState<Exam[]>([])
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow p-5">
-          <h2 className="font-semibold mb-2">Cloud Computing</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Duration: 60 minutes
-          </p>
-          <Link
-            to="/exam/1"
-            className="inline-block text-primary font-medium hover:underline"
-          >
-            Start Exam →
-          </Link>
+  useEffect(() => {
+    examsApi.list()
+      .then((r) => setExams((r.data as unknown as Exam[]) || []))
+      .catch(() => setExams([]))
+  }, [])
+
+  const available = exams.filter((e) => e.status === 'published')
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white">
+      <nav className="border-b border-slate-700 px-6 py-4 flex justify-between items-center">
+        <span className="font-semibold">Secure Exam Platform</span>
+        <div className="flex items-center gap-4">
+          <span className="text-slate-400">{user?.name}</span>
+          {user?.role === 'admin' && (
+            <Link to="/admin" className="text-blue-400 hover:underline">Admin</Link>
+          )}
+          <button onClick={() => { logout(); navigate('/login'); }} className="text-red-400 hover:underline">
+            Logout
+          </button>
         </div>
-      </div>
-    </Container>
-  );
+      </nav>
+      <main className="max-w-4xl mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-6">Available Exams</h1>
+        <div className="space-y-4">
+          {available.length === 0 ? (
+            <p className="text-slate-400">No exams available at the moment.</p>
+          ) : (
+            available.map((exam) => (
+              <div key={exam.id} className="bg-slate-800 rounded-lg p-4 flex justify-between items-center">
+                <div>
+                  <h2 className="font-semibold">{exam.title}</h2>
+                  <p className="text-slate-400 text-sm">{exam.description}</p>
+                  <p className="text-slate-500 text-xs mt-1">
+                    Duration: {exam.durationMinutes} min | Scheduled: {new Date(exam.scheduledAt).toLocaleString()}
+                  </p>
+                </div>
+                <Link
+                  to={`/exam/${exam.id}`}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium"
+                >
+                  Start Exam
+                </Link>
+              </div>
+            ))
+          )}
+        </div>
+      </main>
+    </div>
+  )
 }

@@ -1,11 +1,60 @@
-provider "aws" {
-  region = "ap-east-1"
+terraform {
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.23"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.11"
+    }
+  }
 }
 
-resource "aws_instance" "exam_server" {
-  ami           = "ami-0f5ee92e2d63afc18"
-  instance_type = "t2.micro"
-  tags = {
-    Name = "exam-k8s-node"
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+}
+
+provider "helm" {
+  kubernetes {
+    config_path = "~/.kube/config"
   }
+}
+
+resource "kubernetes_namespace" "exam_platform" {
+  metadata {
+    name = "exam-platform"
+    labels = {
+      "app.kubernetes.io/name" = "exam-platform"
+    }
+  }
+}
+
+resource "helm_release" "exam_platform" {
+  name       = "exam-platform"
+  repository = "https://charts.bitnami.com/bitnami"
+  chart      = "postgresql"
+  namespace  = kubernetes_namespace.exam_platform.metadata[0].name
+  wait       = true
+
+  set {
+    name  = "auth.username"
+    value = "postgres"
+  }
+
+  set_sensitive {
+    name  = "auth.password"
+    value = var.db_password
+  }
+
+  set {
+    name  = "auth.database"
+    value = "exam_platform"
+  }
+}
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+  default   = "changeme"
 }

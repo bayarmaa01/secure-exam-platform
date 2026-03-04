@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-proctoring
+  namespace: exam-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-proctoring
+  template:
+    metadata:
+      labels:
+        app: ai-proctoring
+    spec:
+      containers:
+        - name: ai-proctoring
+          image: exam-platform/ai-proctoring:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-proctoring
+  namespace: exam-platform
+spec:
+  selector:
+    app: ai-proctoring
+  ports:
+    - port: 5000
+      targetPort: 5000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-proctoring-hpa
+  namespace: exam-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-proctoring
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
