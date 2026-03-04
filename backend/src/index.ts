@@ -9,6 +9,9 @@ import { adminRoutes } from './routes/admin'
 
 const app = express()
 
+// 🔥 IMPORTANT FIX
+app.set('trust proxy', 1)
+
 initDb().catch(console.error)
 
 app.use(helmet())
