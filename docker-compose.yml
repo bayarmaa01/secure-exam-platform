@@ -4,8 +4,7 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     environment:
       - VITE_API_URL=http://backend:4000/api
       - VITE_AI_URL=http://ai-proctoring:5000
@@ -27,16 +26,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - CORS_ORIGIN=http://localhost:3000
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - postgres
+      - redis
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "nc", "-z", "localhost", "4000"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   ai-proctoring:
     build: ./ai-proctoring
