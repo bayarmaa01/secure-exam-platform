@@ -6,6 +6,7 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [role, setRole] = useState('student')
   const [err, setErr] = useState('')
   const { register } = useAuth()
   const navigate = useNavigate()
@@ -14,7 +15,7 @@ export default function Register() {
     e.preventDefault()
     setErr('')
     try {
-      await register(email, password, name)
+      await register(email, password, name, role)
       navigate('/dashboard')
     } catch (e: unknown) {
       setErr((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Registration failed')
@@ -34,6 +35,15 @@ export default function Register() {
             required
             className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:ring-2 focus:ring-blue-500"
           />
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            required
+            className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="student">Student</option>
+            <option value="teacher">Teacher</option>
+          </select>
           <input
             type="email"
             placeholder="Email"
