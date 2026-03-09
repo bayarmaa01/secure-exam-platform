@@ -1,5 +1,4 @@
 node_modules/
-.env
 .env.local
 .env.*.local
 dist/
@@ -17,3 +16,8 @@ venv/
 .vscode/
 coverage/
 .nyc_output/
+
+# Production environment files (keep these out of repo)
+.env.production
+.env.staging
+.env.prod
