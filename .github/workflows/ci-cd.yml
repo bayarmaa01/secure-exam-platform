@@ -27,6 +27,9 @@ jobs:
       - name: Install Backend Dependencies
         run: cd backend && npm ci
 
+      - name: Build Backend
+        run: cd backend && npm run build
+
       - name: Run Backend Tests
         run: cd backend && npm test --if-present
 
@@ -65,8 +68,14 @@ jobs:
       - name: Install Backend Dependencies
         run: cd backend && npm ci
 
+      - name: Build Backend
+        run: cd backend && npm run build
+
       - name: Install Frontend Dependencies
         run: cd frontend && npm ci
+
+      - name: Build Frontend
+        run: cd frontend && npm run build
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@master

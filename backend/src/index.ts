@@ -49,3 +49,6 @@ async function start() {
 }
 
 start()
+
+// Export app for testing
+export { app }
