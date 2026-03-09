@@ -82,7 +82,10 @@ router.post(
   [
     body('email').isEmail(),
     body('password').isLength({ min: 8 }),
-    body('name').notEmpty()
+    body('name').notEmpty(),
+    body('role').optional().isIn(['student', 'teacher', 'admin']),
+    body('student_id').optional().isString(),
+    body('teacher_id').optional().isString()
   ],
   async (req, res) => {
     try {
@@ -91,15 +94,15 @@ router.post(
         return res.status(400).json({ errors: errors.array() })
       }
 
-      const { email, password, name } = req.body
+      const { email, password, name, role = 'student', student_id, teacher_id } = req.body
 
       const hash = await bcrypt.hash(password, 10)
 
       const r = await pool.query(
-        `INSERT INTO users (email, password_hash, name, role)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, email, name, role`,
-        [email, hash, name, 'student']
+        `INSERT INTO users (email, password_hash, name, role, student_id, teacher_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, email, name, role, student_id, teacher_id`,
+        [email, hash, name, role, student_id || null, teacher_id || null]
       )
 
       const user = r.rows[0]
@@ -185,7 +188,7 @@ router.get('/me', auth, async (req, res) => {
     const u = (req as any).user
 
     const r = await pool.query(
-      'SELECT id, email, name, role FROM users WHERE id = $1',
+      'SELECT id, email, name, role, student_id, teacher_id FROM users WHERE id = $1',
       [u.userId]
     )
 

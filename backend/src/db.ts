@@ -19,7 +19,11 @@ export async function initDb() {
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
-        role VARCHAR(20) DEFAULT 'student'
+        role VARCHAR(20) DEFAULT 'student' CHECK (role IN ('student', 'teacher', 'admin')),
+        student_id VARCHAR(50),
+        teacher_id VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
       )
     `)
     await client.query(`
@@ -35,18 +39,23 @@ export async function initDb() {
         title VARCHAR(255) NOT NULL,
         description TEXT,
         duration_minutes INT NOT NULL,
+        teacher_id UUID REFERENCES users(id),
         scheduled_at TIMESTAMP NOT NULL,
-        status VARCHAR(20) DEFAULT 'draft'
+        status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'ongoing', 'completed')),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
       )
     `)
     await client.query(`
       CREATE TABLE IF NOT EXISTS questions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         exam_id UUID REFERENCES exams(id),
-        text TEXT NOT NULL,
+        question_text TEXT NOT NULL,
         options JSONB,
         correct_answer TEXT,
-        type VARCHAR(20) DEFAULT 'mcq'
+        type VARCHAR(20) DEFAULT 'mcq' CHECK (type IN ('mcq', 'text')),
+        points INT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT NOW()
       )
     `)
     await client.query(`
