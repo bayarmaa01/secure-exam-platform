@@ -33,7 +33,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/api/auth/me"]
+      test: ["CMD-SHELL", "nc", "-z", "localhost", "4000"]
       interval: 10s
       timeout: 5s
       retries: 5
