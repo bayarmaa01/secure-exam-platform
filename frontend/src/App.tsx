@@ -17,7 +17,7 @@ import AddQuestions from './pages/teacher/AddQuestions'
 import ViewResults from './pages/teacher/ViewResults'
 
 // Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminDashboard from './pages/AdminDashboard'
 import UserManagement from './pages/admin/UserManagement'
 import AdminExams from './pages/admin/AdminExams'
 import AdminResults from './pages/admin/AdminResults'
