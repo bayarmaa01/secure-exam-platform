@@ -32,7 +32,12 @@ function ProtectedRoute({
   const { user, loading } = useAuth()
   if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   if (!user) return <Navigate to="/login" replace />
-  if (!allowedRoles.includes(user.role)) return <Navigate to="/dashboard" replace />
+  if (!allowedRoles.includes(user.role)) {
+    // Redirect to appropriate dashboard based on role
+    if (user.role === 'admin') return <Navigate to="/admin-dashboard" replace />
+    if (user.role === 'teacher') return <Navigate to="/teacher-dashboard" replace />
+    return <Navigate to="/dashboard" replace />
+  }
   return <>{children}</>
 }
 
@@ -122,7 +127,7 @@ function AppRoutes() {
 
       {/* Admin Routes */}
       <Route 
-        path="/admin/dashboard" 
+        path="/admin-dashboard" 
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminDashboard />

@@ -56,7 +56,7 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-8">
             <Link
-              to="/admin/dashboard"
+              to="/admin-dashboard"
               className="border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600"
             >
               Dashboard

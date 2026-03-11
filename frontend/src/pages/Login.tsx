@@ -13,8 +13,16 @@ export default function Login() {
     e.preventDefault()
     setErr('')
     try {
-      await login(email, password)
-      navigate('/dashboard')
+      const u = await login(email, password)
+      
+      // Role-based redirect
+      if (u?.role === 'admin') {
+        navigate('/admin-dashboard')
+      } else if (u?.role === 'teacher') {
+        navigate('/teacher-dashboard')
+      } else {
+        navigate('/dashboard')
+      }
     } catch (e: unknown) {
       const ex = e as { response?: { data?: { message?: string } } }
       setErr(ex?.response?.data?.message || 'Login failed')
