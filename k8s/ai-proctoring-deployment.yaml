@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: ai-proctoring
-        image: bayarmaa/exam-ai:latest
+        image: bayarmaa/exam-platform-ai-proctoring:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 5000
 ---
@@ -30,3 +31,4 @@ spec:
   ports:
   - port: 5000
     targetPort: 5000
+  type: ClusterIP
