@@ -19,7 +19,7 @@ export default function Login() {
       if (u?.role === 'admin') {
         navigate('/admin-dashboard')
       } else if (u?.role === 'teacher') {
-        navigate('/teacher-dashboard')
+        navigate('/teacher/dashboard')
       } else {
         navigate('/dashboard')
       }
