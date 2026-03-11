@@ -10,7 +10,7 @@ import ExamRoom from './pages/student/ExamRoom'
 import StudentResults from './pages/student/StudentResults'
 
 // Teacher Pages
-import TeacherDashboard from './pages/teacher/TeacherDashboard'
+import TeacherDashboard from './pages/TeacherDashboard'
 import CreateExam from './pages/teacher/CreateExam'
 import ManageExams from './pages/teacher/ManageExams'
 import AddQuestions from './pages/teacher/AddQuestions'
