@@ -29,7 +29,7 @@ spec:
         - name: DB_PASSWORD
           value: exam_pass
         - name: DB_NAME
-          value: exam_db
+          value: exam_platform
         - name: REDIS_HOST
           value: redis
         - name: REDIS_PORT
