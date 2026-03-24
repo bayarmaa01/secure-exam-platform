@@ -51,7 +51,7 @@ export default function ExamRoom() {
       if (timerRef.current) clearInterval(timerRef.current)
       stopWebcam()
     }
-  }, [id])
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -65,7 +65,7 @@ export default function ExamRoom() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [timeLeft, attemptId])
+  }, [timeLeft, attemptId, submitExam]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadExam = async () => {
     try {
@@ -212,7 +212,7 @@ export default function ExamRoom() {
     }
   }
 
-  const handleAnswerChange = (questionId: string, answer: any) => {
+  const handleAnswerChange = (questionId: string, answer: string | string[]) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }))
     
     // Auto-save answer

@@ -47,7 +47,7 @@ export default function AddQuestions() {
               <div>
                 <h3 className="text-lg font-medium mb-4">Questions</h3>
                 <div className="space-y-4">
-                  {questions.map((q: any) => (
+                  {questions.map((q: { id: string; text: string; type: string }) => (
                     <div key={q.id} className="border rounded p-4">
                       <p>{q.text}</p>
                       <p className="text-sm text-gray-500">Type: {q.type}</p>

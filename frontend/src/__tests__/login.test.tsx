@@ -2,6 +2,13 @@ import { render, screen } from '@testing-library/react';
 import { describe, test, expect, vi } from 'vitest';
 import Login from '../pages/Login';
 
+// Define proper types
+interface MockLinkProps {
+  children: React.ReactNode;
+  to: string;
+  [key: string]: unknown;
+}
+
 // Mock useAuth hook
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -16,7 +23,7 @@ vi.mock('../contexts/AuthContext', () => ({
 // Mock useNavigate
 vi.mock('react-router-dom', async () => ({
   useNavigate: () => vi.fn(),
-  Link: ({ children, to, ...props }: any) => <a href={to} {...props}>{children}</a>,
+  Link: ({ children, to, ...props }: MockLinkProps) => <a href={to} {...props}>{children}</a>,
 }));
 
 describe('Login Component', () => {

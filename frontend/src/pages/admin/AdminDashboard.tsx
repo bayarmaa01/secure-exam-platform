@@ -3,9 +3,28 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 
+interface AnalyticsData {
+  totalUsers: number
+  totalExams: number
+  totalAttempts: number
+  activeUsers: number
+  users: { count: number }[]
+  exams: { count: number }[]
+  attempts: {
+    total_attempts: number
+    completed_attempts: number
+  }
+  recentActivity: {
+    description: string
+    user_name: string
+    timestamp: string
+  }[]
+  [key: string]: unknown
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth()
-  const [analytics, setAnalytics] = useState<any>(null)
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -100,7 +119,7 @@ export default function AdminDashboard() {
                     <dl>
                       <dt className="text-sm font-medium text-gray-500 truncate">Total Users</dt>
                       <dd className="text-lg font-medium text-gray-900">
-                        {analytics?.users?.reduce((sum: number, user: any) => sum + user.count, 0) || 0}
+                        {analytics?.users?.reduce((sum: number, user: { count: number }) => sum + user.count, 0) || 0}
                       </dd>
                     </dl>
                   </div>
@@ -122,7 +141,7 @@ export default function AdminDashboard() {
                     <dl>
                       <dt className="text-sm font-medium text-gray-500 truncate">Total Exams</dt>
                       <dd className="text-lg font-medium text-gray-900">
-                        {analytics?.exams?.reduce((sum: number, exam: any) => sum + exam.count, 0) || 0}
+                        {analytics?.exams?.reduce((sum: number, exam: { count: number }) => sum + exam.count, 0) || 0}
                       </dd>
                     </dl>
                   </div>
@@ -179,7 +198,7 @@ export default function AdminDashboard() {
             <div className="px-4 py-5 sm:p-6">
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Recent Activity</h3>
               <div className="space-y-4">
-                {analytics?.recentActivity?.map((activity: any, index: number) => (
+                {analytics?.recentActivity?.map((activity: { description: string; user_name: string; timestamp: string }, index: number) => (
                   <div key={index} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>

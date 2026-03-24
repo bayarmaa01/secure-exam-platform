@@ -49,7 +49,7 @@ export default function TeacherDashboard() {
       // Get attempts data for stats
       const attemptsRes = await api.get('/teacher/results')
       const totalAttempts = attemptsRes.data.length
-      const activeStudents = new Set(attemptsRes.data.map((attempt: any) => attempt.studentId)).size
+      const activeStudents = new Set(attemptsRes.data.map((attempt: { studentId: string }) => attempt.studentId)).size
       
       setStats({
         totalExams,

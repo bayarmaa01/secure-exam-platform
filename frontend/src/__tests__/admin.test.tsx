@@ -2,6 +2,13 @@ import { render, screen } from '@testing-library/react';
 import { describe, test, expect, vi } from 'vitest';
 import AdminDashboard from '../pages/AdminDashboard';
 
+// Define proper types
+interface MockLinkProps {
+  children: React.ReactNode;
+  to: string;
+  [key: string]: unknown;
+}
+
 // Mock useAuth hook
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -18,7 +25,7 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    Link: ({ children, to, ...props }: any) => <a href={to} {...props}>{children}</a>,
+    Link: ({ children, to, ...props }: MockLinkProps) => <a href={to} {...props}>{children}</a>,
   };
 });
 

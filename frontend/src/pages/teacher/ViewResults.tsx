@@ -46,7 +46,7 @@ export default function ViewResults() {
               <div>
                 <h3 className="text-lg font-medium mb-4">Student Results</h3>
                 <div className="space-y-4">
-                  {results.map((result: any) => (
+                  {results.map((result: { id: string; examTitle: string; studentName: string; submittedAt: string }) => (
                     <div key={result.id} className="border rounded p-4">
                       <p><strong>{result.examTitle}</strong></p>
                       <p className="text-sm text-gray-500">Student: {result.studentName}</p>
