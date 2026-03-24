@@ -1,18 +1,12 @@
 # FREE AI PROCTORING SERVICE
 # No OpenAI API required - uses local OpenCV models
 
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for OpenCV
+# Install minimal system dependencies
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
