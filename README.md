@@ -21,8 +21,9 @@ A production-ready AI-proctored online examination system with role-based access
 ### AI Proctoring (Python + FastAPI)
 - **Framework**: FastAPI with async support
 - **Computer Vision**: OpenCV for face detection
-- **Face Recognition**: Built-in face detection algorithms
+- **AI Models**: 100% free local models (no API costs)
 - **Frame Processing**: Real-time video analysis
+- **Privacy**: All processing done locally
 
 ### Infrastructure
 - **Database**: PostgreSQL 16 with persistent volumes
@@ -69,8 +70,8 @@ npm run dev
 
 # AI Proctoring development
 cd ai-proctoring
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 5000 --reload
+pip install -r requirements-free.txt  # Use free requirements
+uvicorn main-free:app --host 0.0.0.0 --port 5000 --reload
 ```
 
 ## 📱 Features
@@ -78,7 +79,7 @@ uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 ### 🎓 Student Features
 - **Dashboard**: View available exams and recent attempts
 - **Exam Room**: Secure exam interface with anti-cheating
-- **Real-time Proctoring**: Webcam monitoring with AI detection
+- **Real-time Proctoring**: Webcam monitoring with free AI detection
 - **Results**: View exam scores and proctoring reports
 - **Navigation**: Seamless question and exam navigation
 
@@ -100,16 +101,18 @@ uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 - **Role-Based Access**: Student, Teacher, Admin roles
 - **JWT Authentication**: Secure token-based auth with refresh
 - **Anti-Cheating**: Copy/paste prevention, tab detection
-- **Webcam Monitoring**: Real-time AI-powered proctoring
+- **Webcam Monitoring**: Real-time free AI-powered proctoring
 - **Input Validation**: Comprehensive input sanitization
 - **Rate Limiting**: Prevent brute force attacks
 
-### 🤖 AI Proctoring
-- **Face Detection**: OpenCV-based face recognition
+### 🤖 Free AI Proctoring
+- **Face Detection**: OpenCV-based face recognition (100% free)
 - **Motion Tracking**: Monitor suspicious movements
 - **Frame Analysis**: Real-time cheating detection
 - **Alert System**: Immediate proctoring notifications
 - **Risk Scoring**: Automated cheating probability scoring
+- **Zero Cost**: No API fees, completely free
+- **Privacy**: All processing done locally
 
 ## 🔧 Configuration
 
@@ -137,7 +140,9 @@ VITE_AI_URL=http://localhost:5000
 
 #### AI Proctoring (.env)
 ```bash
-OPENAI_API_KEY=your-openai-key-for-enhanced-detection
+# No API keys required - uses free local models
+AI_PROVIDER=local_opencv
+MODEL_TYPE=free_open_source
 ```
 
 ## 📊 Database Schema
@@ -327,6 +332,28 @@ npm run test:api
 3. Submit pull request with description
 4. Code review and merge
 5. Tag releases for production
+
+## 🆓 Free AI Setup
+
+### Quick Start with Free AI
+```bash
+# Use free AI proctoring (no API costs)
+cd ai-proctoring
+cp .env.free.example .env
+pip install -r requirements-free.txt
+python main-free.py
+
+# Test the free AI
+python test-free-ai.py
+```
+
+### Free AI Benefits
+- **💰 Zero Cost**: No API fees ever
+- **🔐 Privacy**: All processing local
+- **🚀 Fast**: Sub-second processing
+- **🛡️ Secure**: No data leaves your server
+
+See [FREE-AI-SETUP.md](FREE-AI-SETUP.md) for complete guide.
 
 ## 🤝 Contributing
 
