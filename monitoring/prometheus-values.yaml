@@ -1,0 +1,14 @@
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+grafana:
+  enabled: true
+  adminPassword: admin
+  ingress:
+    enabled: false

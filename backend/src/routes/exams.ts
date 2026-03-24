@@ -1,0 +1,462 @@
+import { Router } from 'express'
+import { body, validationResult } from 'express-validator'
+import { pool } from '../db'
+import { auth, AuthRequest, requireTeacher, requireStudent, requireAdmin } from '../middleware/auth'
+
+const router = Router()
+
+// Student: Get available exams
+router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, title, description, duration_minutes, scheduled_at, status 
+       FROM exams 
+       WHERE status = 'published' AND scheduled_at <= NOW()
+       ORDER BY scheduled_at ASC`
+    )
+    res.json(r.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      durationMinutes: row.duration_minutes,
+      scheduledAt: row.scheduled_at,
+      status: row.status
+    })))
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Teacher: Get all my exams
+router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, title, description, duration_minutes, scheduled_at, status, created_at
+       FROM exams 
+       WHERE teacher_id = $1
+       ORDER BY created_at DESC`,
+      [req.user!.id]
+    )
+    res.json(r.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      durationMinutes: row.duration_minutes,
+      scheduledAt: row.scheduled_at,
+      status: row.status,
+      createdAt: row.created_at
+    })))
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Admin: Get all exams
+router.get('/admin/exams', auth, requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT e.*, u.name as teacher_name 
+       FROM exams e 
+       JOIN users u ON e.teacher_id = u.id
+       ORDER BY e.created_at DESC`
+    )
+    res.json(r.rows)
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Get specific exam details
+router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT e.*, u.name as teacher_name 
+       FROM exams e 
+       JOIN users u ON e.teacher_id = u.id
+       WHERE e.id = $1`,
+      [req.params.id]
+    )
+    const row = r.rows[0]
+    if (!row) return res.status(404).json({ message: 'Exam not found' })
+    
+    // Check permissions
+    if (req.user!.role === 'student' && row.status !== 'published') {
+      return res.status(403).json({ message: 'Exam not available' })
+    }
+    if (req.user!.role === 'teacher' && row.teacher_id !== req.user!.id) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+    
+    res.json({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      durationMinutes: row.duration_minutes,
+      scheduledAt: row.scheduled_at,
+      status: row.status,
+      teacherName: row.teacher_name,
+      createdAt: row.created_at
+    })
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Teacher: Create new exam
+router.post('/exams', 
+  auth, 
+  requireTeacher,
+  [
+    body('title').notEmpty().trim(),
+    body('description').optional().trim(),
+    body('durationMinutes').isInt({ min: 1, max: 480 }),
+    body('scheduledAt').isISO8601().toDate()
+  ],
+  async (req: AuthRequest, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() })
+      }
+
+      const { title, description, durationMinutes, scheduledAt } = req.body
+
+      const r = await pool.query(
+        `INSERT INTO exams (title, description, duration_minutes, teacher_id, scheduled_at, status)
+         VALUES ($1, $2, $3, $4, $5, 'draft')
+         RETURNING *`,
+        [title, description, durationMinutes, req.user!.id, scheduledAt]
+      )
+
+      res.status(201).json(r.rows[0])
+    } catch (error) {
+      res.status(500).json({ message: 'Internal server error' })
+    }
+  }
+)
+
+// Teacher: Update exam
+router.put('/exams/:id', 
+  auth, 
+  requireTeacher,
+  [
+    body('title').optional().notEmpty().trim(),
+    body('description').optional().trim(),
+    body('durationMinutes').optional().isInt({ min: 1, max: 480 }),
+    body('scheduledAt').optional().isISO8601().toDate(),
+    body('status').optional().isIn(['draft', 'published', 'ongoing', 'completed'])
+  ],
+  async (req: AuthRequest, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() })
+      }
+
+      const examId = req.params.id
+      const { title, description, durationMinutes, scheduledAt, status } = req.body
+
+      // Check ownership
+      const examCheck = await pool.query(
+        'SELECT teacher_id FROM exams WHERE id = $1',
+        [examId]
+      )
+      if (examCheck.rows.length === 0) {
+        return res.status(404).json({ message: 'Exam not found' })
+      }
+      if (examCheck.rows[0].teacher_id !== req.user!.id) {
+        return res.status(403).json({ message: 'Access denied' })
+      }
+
+      const updates = []
+      const values = []
+      let paramIndex = 1
+
+      if (title !== undefined) {
+        updates.push(`title = $${paramIndex++}`)
+        values.push(title)
+      }
+      if (description !== undefined) {
+        updates.push(`description = $${paramIndex++}`)
+        values.push(description)
+      }
+      if (durationMinutes !== undefined) {
+        updates.push(`duration_minutes = $${paramIndex++}`)
+        values.push(durationMinutes)
+      }
+      if (scheduledAt !== undefined) {
+        updates.push(`scheduled_at = $${paramIndex++}`)
+        values.push(scheduledAt)
+      }
+      if (status !== undefined) {
+        updates.push(`status = $${paramIndex++}`)
+        values.push(status)
+      }
+
+      updates.push(`updated_at = NOW()`)
+      values.push(examId)
+
+      const r = await pool.query(
+        `UPDATE exams SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+        values
+      )
+
+      res.json(r.rows[0])
+    } catch (error) {
+      res.status(500).json({ message: 'Internal server error' })
+    }
+  }
+)
+
+// Get exam questions
+router.get('/exams/:id/questions', auth, async (req: AuthRequest, res) => {
+  try {
+    const examId = req.params.id
+
+    // Check exam access
+    const examCheck = await pool.query(
+      'SELECT teacher_id, status FROM exams WHERE id = $1',
+      [examId]
+    )
+    if (examCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Exam not found' })
+    }
+
+    const exam = examCheck.rows[0]
+
+    // Permission checks
+    if (req.user!.role === 'student' && exam.status !== 'published') {
+      return res.status(403).json({ message: 'Exam not available' })
+    }
+    if (req.user!.role === 'teacher' && exam.teacher_id !== req.user!.id) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+
+    const r = await pool.query(
+      'SELECT id, question_text, options, type, points FROM questions WHERE exam_id = $1 ORDER BY created_at',
+      [examId]
+    )
+
+    // For students, don't send correct answers
+    const questions = r.rows.map((row) => {
+      const question: any = {
+        id: row.id,
+        text: row.question_text,
+        options: row.options || [],
+        type: row.type || 'mcq',
+        points: row.points || 1
+      }
+      
+      if (req.user!.role !== 'student') {
+        question.correctAnswer = row.correct_answer
+      }
+      
+      return question
+    })
+
+    res.json(questions)
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Teacher: Add question to exam
+router.post('/exams/:id/questions',
+  auth,
+  requireTeacher,
+  [
+    body('questionText').notEmpty().trim(),
+    body('type').isIn(['mcq', 'text']),
+    body('options').optional().isArray(),
+    body('correctAnswer').notEmpty(),
+    body('points').optional().isInt({ min: 1, max: 100 })
+  ],
+  async (req: AuthRequest, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() })
+      }
+
+      const examId = req.params.id
+      const { questionText, type, options, correctAnswer, points = 1 } = req.body
+
+      // Check ownership
+      const examCheck = await pool.query(
+        'SELECT teacher_id FROM exams WHERE id = $1',
+        [examId]
+      )
+      if (examCheck.rows.length === 0) {
+        return res.status(404).json({ message: 'Exam not found' })
+      }
+      if (examCheck.rows[0].teacher_id !== req.user!.id) {
+        return res.status(403).json({ message: 'Access denied' })
+      }
+
+      const r = await pool.query(
+        `INSERT INTO questions (exam_id, question_text, options, correct_answer, type, points)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [examId, questionText, JSON.stringify(options), correctAnswer, type, points]
+      )
+
+      res.status(201).json(r.rows[0])
+    } catch (error) {
+      res.status(500).json({ message: 'Internal server error' })
+    }
+  }
+)
+
+// Student: Start exam attempt
+router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, res) => {
+  try {
+    const examId = req.params.id
+    const userId = req.user!.id
+
+    // Check if exam is available
+    const examCheck = await pool.query(
+      'SELECT status, scheduled_at FROM exams WHERE id = $1',
+      [examId]
+    )
+    if (examCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Exam not found' })
+    }
+
+    const exam = examCheck.rows[0]
+    if (exam.status !== 'published') {
+      return res.status(403).json({ message: 'Exam not available' })
+    }
+
+    // Check if already attempted
+    const existingAttempt = await pool.query(
+      'SELECT id FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
+      [examId, userId]
+    )
+    if (existingAttempt.rows.length > 0) {
+      return res.status(400).json({ message: 'Exam already attempted' })
+    }
+
+    const r = await pool.query(
+      'INSERT INTO exam_attempts (exam_id, user_id) VALUES ($1, $2) RETURNING id',
+      [examId, userId]
+    )
+
+    res.json({ attemptId: r.rows[0].id })
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Save answer
+router.post('/exams/attempts/:attemptId/answers', auth, requireStudent, async (req: AuthRequest, res) => {
+  try {
+    const { questionId, answer } = req.body
+    const attemptId = req.params.attemptId
+
+    // Verify attempt ownership
+    const attemptCheck = await pool.query(
+      'SELECT user_id, submitted_at FROM exam_attempts WHERE id = $1',
+      [attemptId]
+    )
+    if (attemptCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Attempt not found' })
+    }
+
+    const attempt = attemptCheck.rows[0]
+    if (attempt.user_id !== req.user!.id) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+    if (attempt.submitted_at) {
+      return res.status(400).json({ message: 'Exam already submitted' })
+    }
+
+    const answerText = Array.isArray(answer) ? JSON.stringify(answer) : String(answer)
+
+    await pool.query(
+      `INSERT INTO answers (attempt_id, question_id, answer) 
+       VALUES ($1, $2, $3) 
+       ON CONFLICT (attempt_id, question_id) 
+       DO UPDATE SET answer = $3`,
+      [attemptId, questionId, answerText]
+    )
+
+    res.json({ ok: true })
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Submit exam
+router.post('/exams/attempts/:attemptId/submit', auth, requireStudent, async (req: AuthRequest, res) => {
+  try {
+    const attemptId = req.params.attemptId
+
+    // Verify attempt ownership
+    const attemptCheck = await pool.query(
+      'SELECT user_id, submitted_at FROM exam_attempts WHERE id = $1',
+      [attemptId]
+    )
+    if (attemptCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Attempt not found' })
+    }
+
+    const attempt = attemptCheck.rows[0]
+    if (attempt.user_id !== req.user!.id) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+    if (attempt.submitted_at) {
+      return res.status(400).json({ message: 'Exam already submitted' })
+    }
+
+    await pool.query(
+      'UPDATE exam_attempts SET submitted_at = NOW() WHERE id = $1',
+      [attemptId]
+    )
+
+    res.json({ ok: true })
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Get attempt details
+router.get('/exams/attempts/:attemptId', auth, async (req: AuthRequest, res) => {
+  try {
+    const attemptId = req.params.attemptId
+
+    const r = await pool.query(
+      `SELECT ea.*, e.title as exam_title, u.name as student_name
+       FROM exam_attempts ea
+       JOIN exams e ON ea.exam_id = e.id
+       JOIN users u ON ea.user_id = u.id
+       WHERE ea.id = $1`,
+      [attemptId]
+    )
+
+    if (r.rows.length === 0) {
+      return res.status(404).json({ message: 'Attempt not found' })
+    }
+
+    const attempt = r.rows[0]
+
+    // Permission checks
+    if (req.user!.role === 'student' && attempt.user_id !== req.user!.id) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+    if (req.user!.role === 'teacher') {
+      const examCheck = await pool.query(
+        'SELECT teacher_id FROM exams WHERE id = $1',
+        [attempt.exam_id]
+      )
+      if (examCheck.rows[0].teacher_id !== req.user!.id) {
+        return res.status(403).json({ message: 'Access denied' })
+      }
+    }
+
+    res.json(attempt)
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+export { router as examRoutes }

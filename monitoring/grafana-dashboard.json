@@ -1,0 +1,119 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "AI Proctoring Metrics",
+    "tags": ["ai-proctoring", "exam-platform"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Suspicious Events Total",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(suspicious_events_total[5m])) by (event_type)",
+            "legendFormat": "{{event_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Face Detection Issues",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(face_not_detected_total[5m]))",
+            "legendFormat": "Face Not Detected"
+          },
+          {
+            "expr": "sum(rate(multiple_faces_detected_total[5m]))",
+            "legendFormat": "Multiple Faces"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Tab Switch Count",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(tab_switch_count_total[5m])) by (student_id)",
+            "legendFormat": "Student {{student_id}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Active Exam Sessions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "exam_sessions_active",
+            "legendFormat": "Active Sessions"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}
