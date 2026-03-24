@@ -216,8 +216,8 @@ show_access() {
     
     echo ""
     print_info "🔐 Credentials:"
-    echo "   • ArgoCD Password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d"
-    echo "   • Grafana Login:   admin / prom-operator"
+    echo "   • Grafana:         admin / admin123"
+    echo "   • ArgoCD:          admin / $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d 2>/dev/null || echo 'password')"
     echo ""
     
     print_success "🚀 All access URLs ready!"
