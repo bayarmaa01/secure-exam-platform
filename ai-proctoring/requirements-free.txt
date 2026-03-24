@@ -2,29 +2,21 @@
 # No OpenAI API required - uses local OpenCV models
 
 # Core Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+fastapi==0.110.0
+uvicorn[standard]==0.28.0
+python-multipart==0.0.9
 
 # Computer Vision (Free & Open Source)
-opencv-python-headless==4.8.1.78
-numpy==1.24.3
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
 
 # Image Processing
-Pillow==10.0.1
-
-# Optional: Enhanced ML Models (Free)
-# Uncomment if you want more advanced features
-# scikit-learn==1.3.2
-# tensorflow==2.15.0  # For neural network models
-# torch==2.1.0  # For PyTorch models
-# transformers==4.35.2  # For Hugging Face models (free local models)
+Pillow==10.2.0
 
 # Utilities
-python-dotenv==1.0.0
-logging==0.4.9.6
+python-dotenv==1.0.1
 
 # Development & Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.2
+pytest==8.1.1
+pytest-asyncio==0.23.6
+httpx==0.27.0
