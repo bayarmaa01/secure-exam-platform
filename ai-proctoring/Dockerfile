@@ -1,7 +1,7 @@
 # FREE AI PROCTORING SERVICE
 # No OpenAI API required - uses local OpenCV models
 
-FROM python:3.11-slim
+FROM python:3.11-slim-bullseye
 
 WORKDIR /app
 
@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libgomp1 \
     libgthread-2.0-0 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy free requirements
