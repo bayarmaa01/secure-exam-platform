@@ -57,6 +57,9 @@ print_step "Deploying application services..."
 kubectl apply -f k8s/backend-deployment.yaml
 kubectl apply -f k8s/ai-proctoring-deployment.yaml
 kubectl apply -f k8s/frontend-deployment.yaml
+kubectl apply -f k8s/frontend-service.yaml
+kubectl apply -f k8s/backend-service.yaml
+kubectl apply -f k8s/ai-proctoring-service.yaml
 kubectl wait --for=condition=ready pod -l app=backend -n exam-platform --timeout=300s
 kubectl wait --for=condition=ready pod -l app=ai-proctoring -n exam-platform --timeout=300s
 kubectl wait --for=condition=ready pod -l app=frontend -n exam-platform --timeout=300s
@@ -66,6 +69,9 @@ print_success "Application services ready"
 print_step "Setting up monitoring..."
 # Apply ServiceMonitor for Prometheus
 kubectl apply -f monitoring/servicemonitor.yaml 2>/dev/null || print_info "No ServiceMonitor found"
+# Apply Grafana and ArgoCD
+kubectl apply -f k8s/grafana.yaml 2>/dev/null || print_info "Grafana config not found"
+kubectl apply -f k8s/argocd.yaml 2>/dev/null || print_info "ArgoCD config not found"
 print_success "Monitoring configured"
 
 # Step 7: Setup ArgoCD (optional)
@@ -81,6 +87,8 @@ MINIKUBE_IP=$(minikube ip)
 echo "   • Frontend:        http://$MINIKUBE_IP:30010"
 echo "   • Backend API:    http://$MINIKUBE_IP:30011"
 echo "   • AI Proctoring:  http://$MINIKUBE_IP:30012"
+echo "   • Grafana:         http://$MINIKUBE_IP:30020 (admin/admin123)"
+echo "   • ArgoCD:          http://$MINIKUBE_IP:30030"
 echo ""
 print_info "🔧 Management Commands:"
 echo "   • Check pods:       kubectl get pods -n exam-platform"
