@@ -28,7 +28,7 @@ export default function ExamRoom() {
   const [exam, setExam] = useState<Exam | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -39,6 +39,24 @@ export default function ExamRoom() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const intervalRef = useRef<number | null>(null)
   const timerRef = useRef<number | null>(null)
+
+  const submitExam = async () => {
+    if (!attemptId || submitting) return
+    
+    setSubmitting(true)
+    
+    try {
+      await api.post(`/exams/attempts/${attemptId}/submit`, {
+        answers,
+        cheatingWarnings
+      })
+      
+      navigate(`/results/${attemptId}`)
+    } catch (error) {
+      console.error('Failed to submit exam:', error)
+      setSubmitting(false)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -221,20 +239,6 @@ export default function ExamRoom() {
         questionId,
         answer
       }).catch(error => console.error('Failed to save answer:', error))
-    }
-  }
-
-  const submitExam = async () => {
-    if (!attemptId || submitting) return
-    
-    setSubmitting(true)
-    
-    try {
-      await api.post(`/exams/attempts/${attemptId}/submit`)
-      navigate('/results', { replace: true })
-    } catch (error) {
-      console.error('Failed to submit exam:', error)
-      setSubmitting(false)
     }
   }
 
