@@ -38,14 +38,14 @@ command -v minikube >/dev/null 2>&1 || { print_error "minikube required"; exit 1
 command -v docker >/dev/null 2>&1 || { print_error "docker required"; exit 1; }
 print_success "All tools found"
 
-# Step 2: Start Minikube (docker driver, no recreate if running)
+# Step 2: Start Minikube (docker driver, clean start)
 print_step "Starting Minikube..."
-if ! minikube status | grep -q "Running"; then
-    print_info "Starting Minikube with docker driver..."
-    minikube start --driver=docker --cpus=4 --memory=4096
-else
-    print_info "Minikube already running"
-fi
+print_info "Starting fresh Minikube cluster..."
+minikube start --driver=docker --cpus=4 --memory=4096
+# Wait for Minikube to be ready
+sleep 15
+# Verify Minikube is running
+minikube status
 print_success "Minikube ready"
 
 # Step 3: Create namespaces (idempotent)

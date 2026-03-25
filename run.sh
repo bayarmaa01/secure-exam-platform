@@ -35,7 +35,8 @@ KUBECTL="minikube kubectl --"
 print_step "Checking Minikube..."
 if ! minikube status | grep -q "Running"; then
     print_info "Starting Minikube..."
-    minikube start --driver=docker
+    minikube start --driver=docker --cpus=4 --memory=4096
+    sleep 15
 fi
 print_success "Minikube ready"
 
