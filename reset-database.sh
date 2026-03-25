@@ -58,9 +58,11 @@ print_step "Deleting PostgreSQL deployment..."
 $KUBECTL delete deployment postgres -n exam-platform --ignore-not-found=true
 $KUBECTL delete service postgres -n exam-platform --ignore-not-found=true
 
-# Step 3: Delete persistent volume
-print_step "Deleting persistent volume..."
+# Step 3: Delete persistent volume and claim
+print_step "Deleting persistent volume and claim..."
 $KUBECTL delete pvc postgres-pvc -n exam-platform --ignore-not-found=true
+$KUBECTL delete pv postgres-pv -n exam-platform --ignore-not-found=true
+sleep 5
 
 # Step 4: Wait for cleanup
 print_step "Waiting for cleanup to complete..."
