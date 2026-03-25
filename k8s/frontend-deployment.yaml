@@ -19,16 +19,8 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: frontend
-  namespace: exam-platform
-spec:
-  selector:
-    app: frontend
-  ports:
-  - port: 80
-    targetPort: 80
-  type: ClusterIP
+        env:
+        - name: VITE_API_URL
+          value: "http://backend:4000/api"
+        - name: VITE_AI_PROCTORING_URL
+          value: "http://ai-proctoring:5000/api"
