@@ -28,6 +28,9 @@ print_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+# Use minikube kubectl to avoid context issues
+KUBECTL="minikube kubectl --"
+
 # Step 1: Check prerequisites
 print_step "Checking prerequisites..."
 command -v kubectl >/dev/null 2>&1 || { print_error "kubectl required"; exit 1; }
@@ -47,36 +50,36 @@ print_success "Minikube ready"
 
 # Step 3: Create namespaces (idempotent)
 print_step "Creating namespaces..."
-kubectl create namespace exam-platform --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+$KUBECTL create namespace exam-platform --dry-run=client -o yaml | $KUBECTL apply -f -
+$KUBECTL create namespace monitoring --dry-run=client -o yaml | $KUBECTL apply -f -
+$KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
 print_success "Namespaces ready"
 
 # Step 4: Deploy databases
 print_step "Deploying databases..."
-kubectl apply -f k8s/postgres-deployment.yaml
-kubectl apply -f k8s/redis-deployment.yaml
+$KUBECTL apply -f k8s/postgres-deployment.yaml
+$KUBECTL apply -f k8s/redis-deployment.yaml
 print_success "Databases deployed"
 
 # Step 5: Deploy application services
 print_step "Deploying application services..."
-kubectl apply -f k8s/backend-deployment.yaml
-kubectl apply -f k8s/ai-proctoring-deployment.yaml
-kubectl apply -f k8s/frontend-deployment.yaml
+$KUBECTL apply -f k8s/backend-deployment.yaml
+$KUBECTL apply -f k8s/ai-proctoring-deployment.yaml
+$KUBECTL apply -f k8s/frontend-deployment.yaml
 print_success "Application services deployed"
 
 # Step 6: Install ArgoCD (stable version)
 print_step "Installing ArgoCD..."
-if ! kubectl get pods -n argocd | grep -q "argocd-server"; then
+if ! $KUBECTL get pods -n argocd | grep -q "argocd-server"; then
     print_info "Cleaning old ArgoCD resources..."
-    kubectl delete crd applications.argoproj.io 2>/dev/null || true
-    kubectl delete crd appprojects.argoproj.io 2>/dev/null || true
-    kubectl delete namespace argocd 2>/dev/null || true
+    $KUBECTL delete crd applications.argoproj.io 2>/dev/null || true
+    $KUBECTL delete crd appprojects.argoproj.io 2>/dev/null || true
+    $KUBECTL delete namespace argocd 2>/dev/null || true
     sleep 5
     print_info "Installing ArgoCD v2.11.3..."
-    kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-    kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml
-    kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
+    $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
+    $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml
+    $KUBECTL wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
     print_success "ArgoCD installed"
 else
     print_success "ArgoCD already installed"
@@ -105,19 +108,19 @@ print_step "Waiting for all pods to be ready..."
 
 # exam-platform namespace
 print_info "Waiting for exam-platform pods..."
-kubectl wait --for=condition=ready pod -l app=postgres -n exam-platform --timeout=300s
-kubectl wait --for=condition=ready pod -l app=redis -n exam-platform --timeout=300s
-kubectl wait --for=condition=ready pod -l app=backend -n exam-platform --timeout=300s
-kubectl wait --for=condition=ready pod -l app=ai-proctoring -n exam-platform --timeout=300s
-kubectl wait --for=condition=ready pod -l app=frontend -n exam-platform --timeout=300s
+$KUBECTL wait --for=condition=ready pod -l app=postgres -n exam-platform --timeout=300s
+$KUBECTL wait --for=condition=ready pod -l app=redis -n exam-platform --timeout=300s
+$KUBECTL wait --for=condition=ready pod -l app=backend -n exam-platform --timeout=300s
+$KUBECTL wait --for=condition=ready pod -l app=ai-proctoring -n exam-platform --timeout=300s
+$KUBECTL wait --for=condition=ready pod -l app=frontend -n exam-platform --timeout=300s
 
 # monitoring namespace
 print_info "Waiting for monitoring pods..."
-kubectl wait --for=condition=ready pod -l app=grafana -n monitoring --timeout=300s
+$KUBECTL wait --for=condition=ready pod -l app=grafana -n monitoring --timeout=300s
 
 # argocd namespace
 print_info "Waiting for ArgoCD pods..."
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
+$KUBECTL wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
 
 print_success "All pods ready"
 
@@ -131,23 +134,23 @@ print_success "Old port-forwards cleaned up"
 print_step "Starting port-forward services..."
 
 # Frontend → localhost:3005
-kubectl port-forward svc/frontend -n exam-platform 3005:80 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/frontend -n exam-platform 3005:80 > /dev/null 2>&1 &
 FRONTEND_PID=$!
 
 # Backend → localhost:4005
-kubectl port-forward svc/backend -n exam-platform 4005:4000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/backend -n exam-platform 4005:4000 > /dev/null 2>&1 &
 BACKEND_PID=$!
 
 # AI Proctoring → localhost:5005
-kubectl port-forward svc/ai-proctoring -n exam-platform 5005:5000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/ai-proctoring -n exam-platform 5005:5000 > /dev/null 2>&1 &
 AI_PID=$!
 
 # Grafana → localhost:3002
-kubectl port-forward svc/grafana -n monitoring 3002:3000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/prometheus-grafana -n monitoring 3002:3000 > /dev/null 2>&1 &
 GRAFANA_PID=$!
 
 # ArgoCD → localhost:18081
-kubectl port-forward svc/argocd-server -n argocd 18081:443 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/argocd-server -n argocd 18081:443 > /dev/null 2>&1 &
 ARGOCD_PID=$!
 
 print_success "All port-forwards started"
@@ -158,7 +161,7 @@ sleep 5
 
 # Step 12: Fetch ArgoCD admin password
 print_step "Fetching credentials..."
-ARGOCD_PASSWORD=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "argocd")
+ARGOCD_PASSWORD=$($KUBECTL get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "argocd")
 
 # Step 13: Print clean output with URLs and credentials
 echo ""
