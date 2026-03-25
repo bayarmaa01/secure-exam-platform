@@ -19,6 +19,7 @@ spec:
           ports:
             - containerPort: 5432
           env:
+            # PostgreSQL native environment variables
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -34,13 +35,71 @@ spec:
                 secretKeyRef:
                   name: exam-platform-secret
                   key: POSTGRES_DB
+            # Additional configuration
+            - name: POSTGRES_INITDB_ARGS
+              value: "--auth-host=scram-sha-256"
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - exam_user
+                - -d
+                - exam_platform
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - exam_user
+                - -d
+                - exam_platform
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: postgres-pvc
+        - name: init-scripts
+          configMap:
+            name: postgres-init
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: exam-platform
+data:
+  01-init.sql: |
+    -- Initialize database with proper permissions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    
+    -- Create additional schemas if needed
+    -- CREATE SCHEMA IF NOT EXISTS exam_schema;
+    
+    -- Set default permissions
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO exam_user;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO exam_user;
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -63,6 +122,6 @@ spec:
   selector:
     app: postgres
   ports:
-    - port: 5432
-      targetPort: 5432
+  - port: 5432
+    targetPort: 5432
   type: ClusterIP

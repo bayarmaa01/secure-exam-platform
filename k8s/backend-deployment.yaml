@@ -20,6 +20,27 @@ spec:
         ports:
         - containerPort: 4000
         env:
+        # Standardized database credentials
+        - name: DB_HOST
+          value: postgres
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: exam-platform-secret
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: exam-platform-secret
+              key: DB_PASSWORD
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: exam-platform-secret
+              key: DB_NAME
+        # Connection URLs (fallback)
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -30,6 +51,7 @@ spec:
             secretKeyRef:
               name: exam-platform-secret
               key: REDIS_URL
+        # JWT secrets
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
@@ -40,8 +62,11 @@ spec:
             secretKeyRef:
               name: exam-platform-secret
               key: JWT_REFRESH_SECRET
+        # Environment
         - name: NODE_ENV
           value: "production"
+        - name: PORT
+          value: "4000"
         command: ["/bin/sh", "-c"]
         args:
         - |
@@ -49,6 +74,11 @@ spec:
           until nc -z postgres 5432; do
             echo "Database not ready, waiting..."
             sleep 2
+          done
+          echo "Database port is ready, testing connection..."
+          until PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT 1;" >/dev/null 2>&1; do
+            echo "Database connection not ready, waiting..."
+            sleep 3
           done
           echo "Database is ready! Starting backend..."
           npm start
