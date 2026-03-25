@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, APIRouter
+from fastapi import FastAPI, File, UploadFile, APIRouter, Response
 from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import numpy as np
@@ -7,10 +7,16 @@ import os
 import logging
 from typing import Dict, Any
 import time
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Prometheus Metrics
+CHEATING_SCORE_GAUGE = Gauge('ai_proctoring_cheating_score', 'Current cheating detection score', ['exam_id'])
+MULTIPLE_FACES_DETECTED = Counter('ai_proctoring_multiple_faces_detected_total', 'Total multiple face detections', ['exam_id'])
+TAB_SWITCH_COUNT = Counter('ai_proctoring_tab_switch_total', 'Total tab switches detected', ['exam_id'])
 
 app = FastAPI(title="AI Proctoring Service - Free AI Models")
 
@@ -255,6 +261,14 @@ app.add_api_route("/analyze", analyze, methods=["POST"])
 @app.get("/health")
 async def health():
     return {"status": "ok", "ai_models": "free_open_source"}
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint"""
+    if 'prometheus_client' in globals():
+        return Response(generate_latest(), headers={"Content-Type": CONTENT_TYPE_LATEST})
+    else:
+        return {"status": "metrics not available"}
 
 @app.get("/models/info")
 async def models_info():

@@ -21,6 +21,6 @@ spec:
         - containerPort: 80
         env:
         - name: VITE_API_URL
-          value: "http://backend:4000/api"
+          value: "http://localhost:4005/api"
         - name: VITE_AI_PROCTORING_URL
-          value: "http://ai-proctoring:5000/api"
+          value: "http://localhost:5005/api"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 🚀 Secure Exam Platform - First-Time Setup Script
-# Production deployment with proper separation of concerns
+# 🚀 Secure Exam Platform - Production Deployment Script
+# One-command full deployment for Minikube with port-forward access
 
 set -e
 
@@ -12,45 +12,78 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-print_ok() { echo -e "${GREEN}[OK]${NC} $1"; }
-print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+print_step() {
+    echo -e "${BLUE}🔧 $1${NC}"
+}
+
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_info() {
+    echo -e "${YELLOW}ℹ️  $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
 
 # Step 1: Check prerequisites
-print_info "Checking prerequisites..."
+print_step "Checking prerequisites..."
 command -v kubectl >/dev/null 2>&1 || { print_error "kubectl required"; exit 1; }
 command -v minikube >/dev/null 2>&1 || { print_error "minikube required"; exit 1; }
-command -v helm >/dev/null 2>&1 || { print_error "helm required"; exit 1; }
-print_ok "All tools found"
+command -v docker >/dev/null 2>&1 || { print_error "docker required"; exit 1; }
+print_success "All tools found"
 
-# Step 2: Start Minikube
-print_info "Starting Minikube..."
+# Step 2: Start Minikube (docker driver, no recreate if running)
+print_step "Starting Minikube..."
 if ! minikube status | grep -q "Running"; then
+    print_info "Starting Minikube with docker driver..."
     minikube start --driver=docker --cpus=4 --memory=4096
 else
-    print_ok "Minikube already running"
+    print_info "Minikube already running"
 fi
+print_success "Minikube ready"
 
-# Step 3: Create namespaces
-print_info "Creating namespaces..."
+# Step 3: Create namespaces (idempotent)
+print_step "Creating namespaces..."
 kubectl create namespace exam-platform --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-print_ok "Namespaces created"
+print_success "Namespaces ready"
 
-# Step 4: Install ArgoCD (official manifest only)
-print_info "Installing ArgoCD..."
-if ! kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server 2>/dev/null | grep -q "Running"; then
-    print_info "Installing ArgoCD from official manifest..."
+# Step 4: Deploy databases
+print_step "Deploying databases..."
+kubectl apply -f k8s/postgres-deployment.yaml
+kubectl apply -f k8s/redis-deployment.yaml
+print_success "Databases deployed"
+
+# Step 5: Deploy application services
+print_step "Deploying application services..."
+kubectl apply -f k8s/backend-deployment.yaml
+kubectl apply -f k8s/ai-proctoring-deployment.yaml
+kubectl apply -f k8s/frontend-deployment.yaml
+print_success "Application services deployed"
+
+# Step 6: Install ArgoCD (stable version)
+print_step "Installing ArgoCD..."
+if ! kubectl get pods -n argocd | grep -q "argocd-server"; then
+    print_info "Cleaning old ArgoCD resources..."
+    kubectl delete crd applications.argoproj.io 2>/dev/null || true
+    kubectl delete crd appprojects.argoproj.io 2>/dev/null || true
+    kubectl delete namespace argocd 2>/dev/null || true
+    sleep 5
+    print_info "Installing ArgoCD v2.11.3..."
+    kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml
     kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
-    print_ok "ArgoCD installed"
+    print_success "ArgoCD installed"
 else
-    print_ok "ArgoCD already installed"
+    print_success "ArgoCD already installed"
 fi
 
-# Step 5: Install kube-prometheus-stack (Helm)
-print_info "Installing monitoring stack..."
+# Step 7: Install kube-prometheus-stack (Helm)
+print_step "Installing monitoring stack..."
 if ! helm list -n monitoring | grep -q "prometheus"; then
     print_info "Installing kube-prometheus-stack via Helm..."
     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -60,69 +93,102 @@ if ! helm list -n monitoring | grep -q "prometheus"; then
         --create-namespace \
         --set grafana.adminPassword=admin123 \
         --set grafana.service.type=ClusterIP \
-        --set prometheus.service.type=ClusterIP
+        --set prometheus.service.type=ClusterIP \
+        --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
     print_ok "Monitoring stack installed"
 else
     print_ok "Monitoring stack already installed"
 fi
 
-# Step 6: Remove ArgoCD/Grafana manifests from k8s folder
-print_info "Cleaning up conflicting manifests..."
-rm -f k8s/argocd.yaml k8s/grafana.yaml 2>/dev/null || true
+# Step 8: Wait for all pods to be READY
+print_step "Waiting for all pods to be ready..."
 
-# Step 7: Deploy application services only
-print_info "Deploying application services..."
-kubectl apply -f k8s/
-print_ok "Application services deployed"
-
-# Step 8: Wait for application pods
-print_info "Waiting for application pods..."
+# exam-platform namespace
+print_info "Waiting for exam-platform pods..."
 kubectl wait --for=condition=ready pod -l app=postgres -n exam-platform --timeout=300s
 kubectl wait --for=condition=ready pod -l app=redis -n exam-platform --timeout=300s
 kubectl wait --for=condition=ready pod -l app=backend -n exam-platform --timeout=300s
 kubectl wait --for=condition=ready pod -l app=ai-proctoring -n exam-platform --timeout=300s
 kubectl wait --for=condition=ready pod -l app=frontend -n exam-platform --timeout=300s
-print_ok "All application pods ready"
 
-# Step 9: Get credentials
-print_info "Fetching credentials..."
-ARGOCD_PASSWORD=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "argocd")
-GRAFANA_PASSWORD=$(kubectl get secret -n monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 -d 2>/dev/null || echo "admin123")
+# monitoring namespace
+print_info "Waiting for monitoring pods..."
+kubectl wait --for=condition=ready pod -l app=grafana -n monitoring --timeout=300s
 
-# Step 10: Start port-forwards
-print_info "Starting port-forwards..."
+# argocd namespace
+print_info "Waiting for ArgoCD pods..."
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
+
+print_success "All pods ready"
+
+# Step 9: Kill old port-forward processes
+print_step "Cleaning up old port-forward processes..."
 pkill -f "port-forward" || true
 sleep 2
+print_success "Old port-forwards cleaned up"
 
-# ArgoCD → 18081
+# Step 10: Start port-forward with FIXED ports (background)
+print_step "Starting port-forward services..."
+
+# Frontend → localhost:3005
+kubectl port-forward svc/frontend -n exam-platform 3005:80 > /dev/null 2>&1 &
+FRONTEND_PID=$!
+
+# Backend → localhost:4005
+kubectl port-forward svc/backend -n exam-platform 4005:4000 > /dev/null 2>&1 &
+BACKEND_PID=$!
+
+# AI Proctoring → localhost:5005
+kubectl port-forward svc/ai-proctoring -n exam-platform 5005:5000 > /dev/null 2>&1 &
+AI_PID=$!
+
+# Grafana → localhost:3002
+kubectl port-forward svc/grafana -n monitoring 3002:3000 > /dev/null 2>&1 &
+GRAFANA_PID=$!
+
+# ArgoCD → localhost:18081
 kubectl port-forward svc/argocd-server -n argocd 18081:443 > /dev/null 2>&1 &
 ARGOCD_PID=$!
 
-# Grafana → 13000
-kubectl port-forward svc/prometheus-grafana -n monitoring 13000:80 > /dev/null 2>&1 &
-GRAFANA_PID=$!
+print_success "All port-forwards started"
 
-# Frontend via minikube service
-MINIKUBE_IP=$(minikube ip)
-FRONTEND_URL="http://$MINIKUBE_IP:$(kubectl get svc frontend -n exam-platform -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo '30010')"
+# Step 11: Wait for port-forwards to be ready
+print_step "Waiting for port-forwards to initialize..."
+sleep 5
 
-sleep 3
+# Step 12: Fetch ArgoCD admin password
+print_step "Fetching credentials..."
+ARGOCD_PASSWORD=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "argocd")
 
-# Step 11: Print access information
+# Step 13: Print clean output with URLs and credentials
 echo ""
-print_ok "🚀 Deployment Complete!"
+echo -e "${GREEN}🚀 Deployment Complete! All services ready.${NC}"
 echo ""
 print_info "📱 Access URLs:"
+echo "   • Frontend:        http://localhost:3005"
+echo "   • Backend API:    http://localhost:4005"
+echo "   • AI Proctoring:  http://localhost:5005"
+echo "   • Grafana:         http://localhost:3002"
 echo "   • ArgoCD:          https://localhost:18081"
-echo "   • Grafana:         http://localhost:13000"
-echo "   • Frontend:        $FRONTEND_URL"
 echo ""
-print_info "🔐 Credentials:"
+print_info "🔐 Login Credentials:"
+echo "   • Grafana:         admin / admin123"
 echo "   • ArgoCD:          admin / $ARGOCD_PASSWORD"
-echo "   • Grafana:         admin / $GRAFANA_PASSWORD"
 echo ""
-print_ok "✅ All services ready!"
+print_info "🔧 Management Commands:"
+echo "   • Check pods:       kubectl get pods -A"
+echo "   • Check services:   kubectl get svc -A"
+echo "   • View logs:        kubectl logs -f deployment/<name> -n <namespace>"
+echo ""
+print_info "🛑 To stop:       pkill -f 'port-forward' && minikube stop"
+echo ""
+print_success "🎉 Your Secure Exam Platform is ready!"
 
-# Save PIDs for cleanup
-echo $ARGOCD_PID > /tmp/argocd-port-forward.pid
+# Store PIDs for cleanup
+echo $FRONTEND_PID > /tmp/frontend-port-forward.pid
+echo $BACKEND_PID > /tmp/backend-port-forward.pid
+echo $AI_PID > /tmp/ai-port-forward.pid
 echo $GRAFANA_PID > /tmp/grafana-port-forward.pid
+echo $ARGOCD_PID > /tmp/argocd-port-forward.pid
+
+print_info "📝 Port-forward PIDs saved to /tmp/*-port-forward.pid"

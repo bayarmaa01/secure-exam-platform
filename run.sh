@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 🏃 Secure Exam Platform - Daily Run Script
-# Fast restart without reinstalling monitoring/ArgoCD
+# 🏃 Secure Exam Platform - Daily Usage Script
+# Fast startup without redeployment
 
 set -e
 
@@ -12,57 +12,89 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-print_ok() { echo -e "${GREEN}[OK]${NC} $1"; }
-print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+print_step() {
+    echo -e "${BLUE}🔧 $1${NC}"
+}
 
-# Step 1: Start Minikube if needed
-print_info "Checking Minikube..."
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# Step 1: Start Minikube if stopped
+print_step "Checking Minikube..."
 if ! minikube status | grep -q "Running"; then
+    print_info "Starting Minikube..."
     minikube start --driver=docker
+fi
+print_success "Minikube ready"
+
+# Step 2: Check pods status
+print_step "Checking pods..."
+
+# exam-platform namespace
+if kubectl get pods -n exam-platform | grep -q "Running"; then
+    print_success "exam-platform pods running"
 else
-    print_ok "Minikube already running"
+    print_warning "exam-platform pods not ready"
 fi
 
-# Step 2: Apply only application manifests (ignore ArgoCD/monitoring)
-print_info "Updating application services..."
-kubectl apply -f k8s/
+# monitoring namespace  
+if kubectl get pods -n monitoring | grep -q "Running"; then
+    print_success "monitoring pods running"
+else
+    print_warning "monitoring pods not ready"
+fi
 
-# Step 3: Restart deployments if needed
-print_info "Restarting application deployments..."
-kubectl rollout restart deployment/backend -n exam-platform 2>/dev/null || true
-kubectl rollout restart deployment/ai-proctoring -n exam-platform 2>/dev/null || true
-kubectl rollout restart deployment/frontend -n exam-platform 2>/dev/null || true
+# argocd namespace
+if kubectl get pods -n argocd | grep -q "Running"; then
+    print_success "argocd pods running"
+else
+    print_warning "argocd pods not ready"
+fi
 
-# Step 4: Wait for application pods
-print_info "Waiting for application pods..."
-kubectl wait --for=condition=ready pod -l app=backend -n exam-platform --timeout=120s 2>/dev/null || true
-kubectl wait --for=condition=ready pod -l app=ai-proctoring -n exam-platform --timeout=120s 2>/dev/null || true
-kubectl wait --for=condition=ready pod -l app=frontend -n exam-platform --timeout=120s 2>/dev/null || true
+# Step 3: Kill existing port-forward processes
+print_step "Cleaning up port-forwards..."
+pkill -f "port-forward" || true
+sleep 1
 
-# Step 5: Start application port-forwards only
-print_info "Starting application port-forwards..."
-pkill -f "port-forward.*frontend\|port-forward.*backend\|port-forward.*ai-proctoring" 2>/dev/null || true
-sleep 2
+# Step 4: Start port-forward with FIXED ports (background)
+print_step "Starting port-forwards..."
 
-# Frontend → minikube service (no port-forward needed)
-MINIKUBE_IP=$(minikube ip)
-FRONTEND_URL="http://$MINIKUBE_IP:$(kubectl get svc frontend -n exam-platform -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo '30010')"
+# Frontend → localhost:3005
+kubectl port-forward svc/frontend -n exam-platform 3005:80 > /dev/null 2>&1 &
 
-# Backend & AI via port-forward (optional, for development)
+# Backend → localhost:4005
 kubectl port-forward svc/backend -n exam-platform 4005:4000 > /dev/null 2>&1 &
+
+# AI Proctoring → localhost:5005
 kubectl port-forward svc/ai-proctoring -n exam-platform 5005:5000 > /dev/null 2>&1 &
 
+# Grafana → localhost:3002
+kubectl port-forward svc/grafana -n monitoring 3002:3000 > /dev/null 2>&1 &
+
+# ArgoCD → localhost:18081
+kubectl port-forward svc/argocd-server -n argocd 18081:443 > /dev/null 2>&1 &
+
+# Step 5: Wait for port-forwards to initialize
 sleep 3
 
-# Step 6: Print service URLs only
+# Step 6: Print clean output with URLs only
 echo ""
-print_ok "🚀 Application Services Ready!"
+echo -e "${GREEN}🚀 Platform Ready!${NC}"
 echo ""
-print_info "📱 Service URLs:"
-echo "   • Frontend:        $FRONTEND_URL"
-echo "   • Backend API:    http://localhost:4005 (dev access)"
-echo "   • AI Proctoring:  http://localhost:5005 (dev access)"
+print_success "📱 Access URLs:"
+echo "   • Frontend:        http://localhost:3005"
+echo "   • Backend API:    http://localhost:4005"
+echo "   • AI Proctoring:  http://localhost:5005"
+echo "   • Grafana:         http://localhost:3002"
+echo "   • ArgoCD:          https://localhost:18081"
 echo ""
-print_info "💡 Note: ArgoCD and Grafana are managed separately"
-print_ok "✅ Application services accessible!"
+print_success "✅ All services accessible!"
