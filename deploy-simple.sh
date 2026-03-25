@@ -95,9 +95,9 @@ if ! helm list -n monitoring | grep -q "prometheus"; then
         --set grafana.service.type=ClusterIP \
         --set prometheus.service.type=ClusterIP \
         --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
-    print_ok "Monitoring stack installed"
+    print_success "Monitoring stack installed"
 else
-    print_ok "Monitoring stack already installed"
+    print_success "Monitoring stack already installed"
 fi
 
 # Step 8: Wait for all pods to be READY
