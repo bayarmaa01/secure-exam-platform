@@ -13,6 +13,54 @@ spec:
       labels:
         app: ai-proctoring
     spec:
+      initContainers:
+      - name: wait-for-db
+        image: busybox:1.35
+        envFrom:
+        - secretRef:
+            name: exam-platform-secret
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "=== AI Proctoring Init Container ==="
+          echo "Waiting for PostgreSQL to be ready..."
+          
+          # Wait for PostgreSQL port
+          until nc -z $DB_HOST $DB_PORT; do
+            echo "PostgreSQL not ready (port $DB_PORT), waiting..."
+            sleep 2
+          done
+          echo "PostgreSQL port is open!"
+          
+          # Wait for database connection
+          for i in {1..10}; do
+            if PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT 1;" >/dev/null 2>&1; then
+              echo "PostgreSQL connection successful on attempt $i"
+              exit 0
+            else
+              echo "PostgreSQL connection failed on attempt $i, retrying..."
+              sleep 3
+            fi
+          done
+          
+          echo "ERROR: Could not connect to PostgreSQL after 10 attempts"
+          exit 1
+      - name: wait-for-redis
+        image: busybox:1.35
+        envFrom:
+        - secretRef:
+            name: exam-platform-secret
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for Redis to be ready..."
+          until nc -z $REDIS_HOST $REDIS_PORT; do
+            echo "Redis not ready (port $REDIS_PORT), waiting..."
+            sleep 2
+          done
+          echo "Redis is ready!"
       containers:
       - name: ai-proctoring
         image: bayarmaa/exam-platform-ai-proctoring:latest
@@ -21,48 +69,66 @@ spec:
         - containerPort: 5000
         - containerPort: 8001
           name: metrics
+        envFrom:
+        - secretRef:
+            name: exam-platform-secret
         env:
-        # Standardized database credentials
-        - name: DB_HOST
-          value: postgres
-        - name: DB_PORT
-          value: "5432"
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: exam-platform-secret
-              key: DB_USER
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: exam-platform-secret
-              key: DB_PASSWORD
-        - name: DB_NAME
-          valueFrom:
-            secretKeyRef:
-              name: exam-platform-secret
-              key: DB_NAME
-        # Connection URLs (fallback)
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: exam-platform-secret
-              key: DATABASE_URL
-        - name: REDIS_URL
-          valueFrom:
-            secretKeyRef:
-              name: exam-platform-secret
-              key: REDIS_URL
-        command: ["/bin/sh", "-c"]
-        args:
-        - |
-          echo "Waiting for database to be ready..."
-          until nc -z postgres 5432; do
-            echo "Database not ready, waiting..."
-            sleep 2
-          done
-          echo "Database is ready! Starting AI proctoring..."
-          python main-free.py
+          # Override specific env vars from secret
+          - name: DB_HOST
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: DB_HOST
+          - name: DB_PORT
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: DB_PORT
+          - name: DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: DB_USER
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: DB_PASSWORD
+          - name: DB_NAME
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: DB_NAME
+          - name: REDIS_HOST
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: REDIS_HOST
+          - name: REDIS_PORT
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: REDIS_PORT
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: DATABASE_URL
+          - name: REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: exam-platform-secret
+                key: REDIS_URL
+          # Database connection retry settings
+          - name: DB_RETRY_ATTEMPTS
+            value: "10"
+          - name: DB_RETRY_DELAY
+            value: "3000"
+          # AI Proctoring settings
+          - name: CHEATING_THRESHOLD
+            value: "0.8"
+          - name: METRICS_PORT
+            value: "8001"
         readinessProbe:
           httpGet:
             path: /health
@@ -70,7 +136,7 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
-          failureThreshold: 3
+          failureThreshold: 5
         livenessProbe:
           httpGet:
             path: /health
@@ -98,4 +164,8 @@ spec:
   ports:
   - port: 5000
     targetPort: 5000
+    name: http
+  - port: 8001
+    targetPort: 8001
+    name: metrics
   type: ClusterIP
