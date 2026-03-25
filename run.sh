@@ -28,6 +28,9 @@ print_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+# Use minikube kubectl to avoid context issues
+KUBECTL="minikube kubectl --"
+
 # Step 1: Start Minikube if stopped
 print_step "Checking Minikube..."
 if ! minikube status | grep -q "Running"; then
@@ -40,21 +43,21 @@ print_success "Minikube ready"
 print_step "Checking pods..."
 
 # exam-platform namespace
-if kubectl get pods -n exam-platform | grep -q "Running"; then
+if $KUBECTL get pods -n exam-platform | grep -q "Running"; then
     print_success "exam-platform pods running"
 else
     print_warning "exam-platform pods not ready"
 fi
 
 # monitoring namespace  
-if kubectl get pods -n monitoring | grep -q "Running"; then
+if $KUBECTL get pods -n monitoring | grep -q "Running"; then
     print_success "monitoring pods running"
 else
     print_warning "monitoring pods not ready"
 fi
 
 # argocd namespace
-if kubectl get pods -n argocd | grep -q "Running"; then
+if $KUBECTL get pods -n argocd | grep -q "Running"; then
     print_success "argocd pods running"
 else
     print_warning "argocd pods not ready"
@@ -69,19 +72,19 @@ sleep 1
 print_step "Starting port-forwards..."
 
 # Frontend → localhost:3005
-kubectl port-forward svc/frontend -n exam-platform 3005:80 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/frontend -n exam-platform 3005:80 > /dev/null 2>&1 &
 
 # Backend → localhost:4005
-kubectl port-forward svc/backend -n exam-platform 4005:4000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/backend -n exam-platform 4005:4000 > /dev/null 2>&1 &
 
 # AI Proctoring → localhost:5005
-kubectl port-forward svc/ai-proctoring -n exam-platform 5005:5000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/ai-proctoring -n exam-platform 5005:5000 > /dev/null 2>&1 &
 
 # Grafana → localhost:3002
-kubectl port-forward svc/grafana -n monitoring 3002:3000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/prometheus-grafana -n monitoring 3002:3000 > /dev/null 2>&1 &
 
 # ArgoCD → localhost:18081
-kubectl port-forward svc/argocd-server -n argocd 18081:443 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/argocd-server -n argocd 18081:443 > /dev/null 2>&1 &
 
 # Step 5: Wait for port-forwards to initialize
 sleep 3
