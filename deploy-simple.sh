@@ -68,7 +68,12 @@ $KUBECTL apply -f k8s/ai-proctoring-deployment.yaml
 $KUBECTL apply -f k8s/frontend-deployment.yaml
 print_success "Application services deployed"
 
-# Step 6: Install ArgoCD (stable version)
+# Step 6: Deploy monitoring rules
+print_step "Deploying monitoring rules..."
+$KUBECTL apply -f k8s/monitoring-rules.yaml
+print_success "Monitoring rules deployed"
+
+# Step 7: Install ArgoCD (stable version)
 print_step "Installing ArgoCD..."
 if ! $KUBECTL get pods -n argocd | grep -q "argocd-server"; then
     print_info "Cleaning old ArgoCD resources..."
@@ -85,7 +90,7 @@ else
     print_success "ArgoCD already installed"
 fi
 
-# Step 7: Install kube-prometheus-stack (Helm)
+# Step 8: Install kube-prometheus-stack (Helm)
 print_step "Installing monitoring stack..."
 if ! helm list -n monitoring | grep -q "prometheus"; then
     print_info "Installing kube-prometheus-stack via Helm..."
@@ -103,7 +108,7 @@ else
     print_success "Monitoring stack already installed"
 fi
 
-# Step 8: Wait for all pods to be READY
+# Step 9: Wait for all pods to be READY
 print_step "Waiting for all pods to be ready..."
 
 # exam-platform namespace
@@ -124,13 +129,13 @@ $KUBECTL wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server 
 
 print_success "All pods ready"
 
-# Step 9: Kill old port-forward processes
+# Step 10: Kill old port-forward processes
 print_step "Cleaning up old port-forward processes..."
 pkill -f "port-forward" || true
 sleep 2
 print_success "Old port-forwards cleaned up"
 
-# Step 10: Start port-forward with FIXED ports (background)
+# Step 11: Start port-forward with FIXED ports (background)
 print_step "Starting port-forward services..."
 
 # Frontend → localhost:3005
@@ -155,15 +160,15 @@ ARGOCD_PID=$!
 
 print_success "All port-forwards started"
 
-# Step 11: Wait for port-forwards to be ready
+# Step 12: Wait for port-forwards to be ready
 print_step "Waiting for port-forwards to initialize..."
 sleep 5
 
-# Step 12: Fetch ArgoCD admin password
+# Step 13: Fetch ArgoCD admin password
 print_step "Fetching credentials..."
 ARGOCD_PASSWORD=$($KUBECTL get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "argocd")
 
-# Step 13: Print clean output with URLs and credentials
+# Step 14: Print clean output with URLs and credentials
 echo ""
 echo -e "${GREEN}🚀 Deployment Complete! All services ready.${NC}"
 echo ""

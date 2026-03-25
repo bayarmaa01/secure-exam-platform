@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: exam-platform
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/bayarmaa01/secure-exam-platform.git
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: exam-platform
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    retryLimit: 5
+  ignoreDifferences:
+  - jsonPointers:
+    - /spec/replicas
+  - group: apps
+    kind: Deployment
+    name: backend
+  - group: apps
+    kind: Deployment
+    name: ai-proctoring
+  - group: apps
+    kind: Deployment
+    name: postgres
+  - group: apps
+    kind: Deployment
+    name: redis
+  - group: apps
+    kind: Deployment
+    name: frontend

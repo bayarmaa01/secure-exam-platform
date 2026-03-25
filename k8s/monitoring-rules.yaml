@@ -1,0 +1,110 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: backend-metrics
+  namespace: exam-platform
+  labels:
+    app: backend
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+    honorLabels: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ai-proctoring-metrics
+  namespace: exam-platform
+  labels:
+    app: ai-proctoring
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: ai-proctoring
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    honorLabels: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: exam-platform-alerts
+  namespace: exam-platform
+  labels:
+    release: prometheus
+spec:
+  groups:
+  - name: exam-platform.rules
+    rules:
+    - alert: HighCheatingScore
+      expr: ai_proctoring_cheating_score > 0.8
+      for: 10s
+      labels:
+        severity: warning
+        service: ai-proctoring
+      annotations:
+        summary: "High cheating score detected"
+        description: "Cheating score {{ $value }} detected for exam {{ $labels.exam_id }}"
+    - alert: MultipleFacesDetected
+      expr: rate(ai_proctoring_multiple_faces_detected_total[5m]) > 0.1
+      for: 30s
+      labels:
+        severity: critical
+        service: ai-proctoring
+      annotations:
+        summary: "Multiple faces detected"
+        description: "Multiple faces detected at rate {{ $value }} per second"
+    - alert: TabSwitchingDetected
+      expr: rate(ai_proctoring_tab_switch_total[5m]) > 0.05
+      for: 30s
+      labels:
+        severity: warning
+        service: ai-proctoring
+      annotations:
+        summary: "Tab switching detected"
+        description: "Tab switching detected at rate {{ $value }} per second"
+    - alert: BackendDown
+      expr: up{job="backend"} == 0
+      for: 30s
+      labels:
+        severity: critical
+        service: backend
+      annotations:
+        summary: "Backend service is down"
+        description: "Backend service has been down for more than 30 seconds"
+    - alert: AIProctoringDown
+      expr: up{job="ai-proctoring"} == 0
+      for: 30s
+      labels:
+        severity: critical
+        service: ai-proctoring
+      annotations:
+        summary: "AI Proctoring service is down"
+        description: "AI Proctoring service has been down for more than 30 seconds"
+    - alert: DatabaseDown
+      expr: up{job="postgres"} == 0
+      for: 30s
+      labels:
+        severity: critical
+        service: postgres
+      annotations:
+        summary: "PostgreSQL database is down"
+        description: "PostgreSQL database has been down for more than 30 seconds"
+    - alert: RedisDown
+      expr: up{job="redis"} == 0
+      for: 30s
+      labels:
+        severity: critical
+        service: redis
+      annotations:
+        summary: "Redis cache is down"
+        description: "Redis cache has been down for more than 30 seconds"

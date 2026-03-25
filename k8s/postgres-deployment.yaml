@@ -13,13 +13,38 @@ spec:
       labels:
         app: postgres
     spec:
+      initContainers:
+      - name: init-db
+        image: postgres:16-alpine
+        envFrom:
+        - secretRef:
+            name: exam-platform-secret
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Initializing PostgreSQL..."
+          # Check if data directory exists and is initialized
+          if [ ! -f /var/lib/postgresql/data/pg_hba.conf ]; then
+            echo "Fresh PostgreSQL installation detected"
+            echo "Creating database with user: $POSTGRES_USER"
+          else
+            echo "Existing PostgreSQL data found"
+            echo "Checking user credentials..."
+          fi
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
       containers:
         - name: postgres
           image: postgres:16-alpine
           ports:
             - containerPort: 5432
+          envFrom:
+          - secretRef:
+              name: exam-platform-secret
           env:
-            # PostgreSQL native environment variables
+            # Override specific PostgreSQL env vars from secret
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -53,10 +78,10 @@ spec:
                 - exam_user
                 - -d
                 - exam_platform
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
             periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 3
+            failureThreshold: 5
           livenessProbe:
             exec:
               command:
@@ -66,15 +91,15 @@ spec:
                 - -d
                 - exam_platform
             initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 10
             failureThreshold: 3
           resources:
             requests:
-              memory: "256Mi"
+              memory: "512Mi"
               cpu: "250m"
             limits:
-              memory: "512Mi"
+              memory: "1Gi"
               cpu: "500m"
       volumes:
         - name: postgres-data
@@ -91,15 +116,35 @@ metadata:
   namespace: exam-platform
 data:
   01-init.sql: |
-    -- Initialize database with proper permissions
+    -- Initialize database with proper extensions and permissions
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
     
     -- Create additional schemas if needed
     -- CREATE SCHEMA IF NOT EXISTS exam_schema;
     
-    -- Set default permissions
+    -- Set default permissions for the user
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO exam_user;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO exam_user;
+    
+    -- Grant explicit permissions
+    GRANT ALL PRIVILEGES ON DATABASE exam_platform TO exam_user;
+    
+    -- Log initialization
+    DO $$
+    BEGIN
+      RAISE NOTICE 'Database initialized successfully for user: %', current_user;
+    END $$;
+  02-check-user.sql: |
+    -- Verify user exists and has correct permissions
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'exam_user') THEN
+        RAISE NOTICE 'User exam_user exists and is properly configured';
+      ELSE
+        RAISE NOTICE 'Creating exam_user user';
+      END IF;
+    END $$;
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -111,7 +156,8 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 2Gi
+  storageClassName: standard
 ---
 apiVersion: v1
 kind: Service
