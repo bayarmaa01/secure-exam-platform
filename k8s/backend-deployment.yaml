@@ -20,26 +20,61 @@ spec:
         ports:
         - containerPort: 4000
         env:
-        - name: DB_HOST
-          value: postgres
-        - name: DB_PORT
-          value: "5432"
-        - name: DB_NAME
-          value: exam_platform
-        - name: REDIS_HOST
-          value: redis
-        - name: REDIS_PORT
-          value: "6379"
-        - name: DB_USER
+        - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: exam-platform-secret
-              key: DB_USER
-        - name: DB_PASSWORD
+              key: DATABASE_URL
+        - name: REDIS_URL
           valueFrom:
             secretKeyRef:
               name: exam-platform-secret
-              key: DB_PASSWORD
+              key: REDIS_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: exam-platform-secret
+              key: JWT_SECRET
+        - name: JWT_REFRESH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: exam-platform-secret
+              key: JWT_REFRESH_SECRET
+        - name: NODE_ENV
+          value: "production"
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "Waiting for database to be ready..."
+          until nc -z postgres 5432; do
+            echo "Database not ready, waiting..."
+            sleep 2
+          done
+          echo "Database is ready! Starting backend..."
+          npm start
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service
