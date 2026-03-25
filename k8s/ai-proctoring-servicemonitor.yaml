@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ai-proctoring-metrics
+  namespace: exam-platform
+  labels:
+    app: ai-proctoring
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: ai-proctoring
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics

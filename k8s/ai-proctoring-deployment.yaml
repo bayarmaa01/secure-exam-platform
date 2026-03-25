@@ -19,6 +19,26 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 5000
+        - containerPort: 8001
+          name: metrics
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: exam-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: exam-secrets
+              key: redis-url
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service
