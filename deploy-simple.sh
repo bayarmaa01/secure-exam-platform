@@ -55,20 +55,34 @@ $KUBECTL create namespace monitoring --dry-run=client -o yaml | $KUBECTL apply -
 $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
 print_success "Namespaces ready"
 
-# Step 4: Deploy databases
+# Step 4: Create application secrets
+print_step "Creating application secrets..."
+# Ensure namespace exists before creating secret
+$KUBECTL create namespace exam-platform --dry-run=client -o yaml | $KUBECTL apply -f -
+# Create the required secret idempotently
+$KUBECTL create secret generic exam-platform-secret \
+  --from-literal=POSTGRES_USER=exam_user \
+  --from-literal=POSTGRES_PASSWORD=exam_password \
+  --from-literal=POSTGRES_DB=exam_platform \
+  --from-literal=DATABASE_URL=postgresql://exam_user:exam_password@postgres:5432/exam_platform \
+  --namespace=exam-platform \
+  --dry-run=client -o yaml | $KUBECTL apply -f -
+print_success "Application secrets created"
+
+# Step 5: Deploy databases
 print_step "Deploying databases..."
 $KUBECTL apply -f k8s/postgres-deployment.yaml
 $KUBECTL apply -f k8s/redis-deployment.yaml
 print_success "Databases deployed"
 
-# Step 5: Deploy application services
+# Step 6: Deploy application services
 print_step "Deploying application services..."
 $KUBECTL apply -f k8s/backend-deployment.yaml
 $KUBECTL apply -f k8s/ai-proctoring-deployment.yaml
 $KUBECTL apply -f k8s/frontend-deployment.yaml
 print_success "Application services deployed"
 
-# Step 6: Install kube-prometheus-stack (Helm)
+# Step 7: Install kube-prometheus-stack (Helm)
 print_step "Installing monitoring stack..."
 if ! helm list -n monitoring | grep -q "prometheus"; then
     print_info "Installing kube-prometheus-stack via Helm..."
@@ -86,12 +100,12 @@ else
     print_success "Monitoring stack already installed"
 fi
 
-# Step 7: Deploy monitoring rules (after CRDs are installed)
+# Step 8: Deploy monitoring rules (after CRDs are installed)
 print_step "Deploying monitoring rules..."
 $KUBECTL apply -f k8s/monitoring-rules.yaml
 print_success "Monitoring rules deployed"
 
-# Step 8: Install ArgoCD (stable version)
+# Step 9: Install ArgoCD (stable version)
 print_step "Installing ArgoCD..."
 if ! $KUBECTL get pods -n argocd 2>/dev/null | grep -q "argocd-server"; then
     print_info "Cleaning old ArgoCD resources..."
@@ -168,7 +182,7 @@ else
     print_success "ArgoCD already installed"
 fi
 
-# Step 9: Wait for all pods to be READY
+# Step 10: Wait for all pods to be READY
 print_step "Waiting for all pods to be ready..."
 
 # exam-platform namespace
@@ -189,13 +203,13 @@ $KUBECTL wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server 
 
 print_success "All pods ready"
 
-# Step 10: Kill old port-forward processes
+# Step 11: Kill old port-forward processes
 print_step "Cleaning up old port-forward processes..."
 pkill -f "port-forward" || true
 sleep 2
 print_success "Old port-forwards cleaned up"
 
-# Step 11: Start port-forward with FIXED ports (background)
+# Step 12: Start port-forward with FIXED ports (background)
 print_step "Starting port-forward services..."
 
 # Frontend → localhost:3005
@@ -220,15 +234,15 @@ ARGOCD_PID=$!
 
 print_success "All port-forwards started"
 
-# Step 12: Wait for port-forwards to be ready
+# Step 13: Wait for port-forwards to be ready
 print_step "Waiting for port-forwards to initialize..."
 sleep 5
 
-# Step 13: Fetch ArgoCD admin password
+# Step 14: Fetch ArgoCD admin password
 print_step "Fetching credentials..."
 ARGOCD_PASSWORD=$($KUBECTL get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "argocd")
 
-# Step 14: Print clean output with URLs and credentials
+# Step 15: Print clean output with URLs and credentials
 echo ""
 echo -e "${GREEN}🚀 Deployment Complete! All services ready.${NC}"
 echo ""
