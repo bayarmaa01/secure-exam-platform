@@ -93,18 +93,77 @@ print_success "Monitoring rules deployed"
 
 # Step 8: Install ArgoCD (stable version)
 print_step "Installing ArgoCD..."
-if ! $KUBECTL get pods -n argocd | grep -q "argocd-server"; then
+if ! $KUBECTL get pods -n argocd 2>/dev/null | grep -q "argocd-server"; then
     print_info "Cleaning old ArgoCD resources..."
     $KUBECTL delete crd applications.argoproj.io 2>/dev/null || true
     $KUBECTL delete crd appprojects.argoproj.io 2>/dev/null || true
     $KUBECTL delete namespace argocd 2>/dev/null || true
-    sleep 5
+    
+    # Wait for namespace to be fully deleted
+    print_info "Waiting for namespace deletion..."
+    while $KUBECTL get namespace argocd >/dev/null 2>&1; do
+        echo -n "."
+        sleep 2
+    done
+    echo " Done"
+    
+    # Safe re-creation
     print_info "Installing ArgoCD v2.11.3..."
     $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
-    $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml
-    sleep 10
-    $KUBECTL wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
-    print_success "ArgoCD installed"
+    
+    # Install ArgoCD with retry logic
+    local max_retries=3
+    local retry_count=0
+    local install_success=false
+    
+    while [ $retry_count -lt $max_retries ] && [ "$install_success" = false ]; do
+        print_info "Installation attempt $((retry_count + 1)) of $max_retries..."
+        
+        if $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml; then
+            sleep 15
+            
+            # Validate installation
+            print_info "Validating ArgoCD installation..."
+            if $KUBECTL get deployments -n argocd | grep -q "argocd-server"; then
+                print_info "Waiting for ArgoCD to be ready..."
+                
+                # Wait for ALL ArgoCD deployments to be available
+                if $KUBECTL wait --for=condition=available deployment --all -n argocd --timeout=180s; then
+                    # Final verification
+                    if $KUBECTL get deployment argocd-server -n argocd >/dev/null 2>&1; then
+                        install_success=true
+                        print_success "ArgoCD successfully installed"
+                    else
+                        print_error "argocd-server deployment not found after installation"
+                    fi
+                else
+                    print_error "Timeout waiting for ArgoCD deployments to be ready"
+                fi
+            else
+                print_error "argocd-server deployment not found in namespace"
+            fi
+        else
+            print_error "Failed to apply ArgoCD manifests"
+        fi
+        
+        if [ "$install_success" = false ]; then
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+                print_info "Cleaning up for retry..."
+                $KUBECTL delete namespace argocd 2>/dev/null || true
+                while $KUBECTL get namespace argocd >/dev/null 2>&1; do
+                    sleep 2
+                done
+                $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
+                sleep 5
+            fi
+        fi
+    done
+    
+    if [ "$install_success" = false ]; then
+        print_error "Failed to install ArgoCD after $max_retries attempts"
+        exit 1
+    fi
 else
     print_success "ArgoCD already installed"
 fi
