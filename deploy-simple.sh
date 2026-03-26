@@ -65,8 +65,12 @@ print_success "Minikube ready"
 print_step "Cleaning up old deployments..."
 $KUBECTL delete namespace exam-platform --ignore-not-found
 $KUBECTL delete namespace career-coach-prod --ignore-not-found
-# Also delete PostgreSQL PVC to force fresh initialization
-$KUBECTL delete pvc postgres-pvc -n exam-platform --ignore-not-found
+
+# Clean persistent data (Postgres) to prevent credential mismatch
+echo "🧹 Cleaning persistent data (Postgres)..."
+$KUBECTL delete pvc -n exam-platform postgres-pvc 2>/dev/null || true
+echo "✅ PVC cleaned"
+
 sleep 5
 print_success "Cleanup completed"
 
