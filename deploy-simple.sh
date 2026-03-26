@@ -108,49 +108,17 @@ print_success "Monitoring rules deployed"
 # Step 9: Install ArgoCD (stable version)
 print_step "Installing ArgoCD..."
 if ! $KUBECTL get pods -n argocd 2>/dev/null | grep -q "argocd-server"; then
-    print_info "Cleaning old ArgoCD resources..."
-    $KUBECTL delete crd applications.argoproj.io 2>/dev/null || true
-    $KUBECTL delete crd appprojects.argoproj.io 2>/dev/null || true
-    $KUBECTL delete namespace argocd 2>/dev/null || true
+    print_info "Installing ArgoCD (version v2.11.3)..."
     
-    # Wait for namespace to be fully deleted
-    print_info "Waiting for namespace deletion..."
-    while $KUBECTL get namespace argocd >/dev/null 2>&1; do
-        echo -n "."
-        sleep 2
-    done
-    echo " Done"
-    
-    # Safe re-creation
-    print_info "Installing ArgoCD stable version..."
+    # Create namespace if it doesn't exist
     $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
     
-    # Install ArgoCD manifests
+    # Install ArgoCD manifests (v2.11.3 for Kubernetes 1.34 compatibility)
     print_info "Applying ArgoCD manifests..."
-    if $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml; then
+    if $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml; then
         print_info "Waiting for ArgoCD components to be ready..."
         
-        # Wait for critical deployments to be ready
-        print_info "Waiting for argocd-server deployment..."
-        $KUBECTL rollout status deployment/argocd-server -n argocd --timeout=120s || {
-            print_error "argocd-server rollout failed"
-            exit 1
-        }
-        
-        print_info "Waiting for argocd-repo-server deployment..."
-        $KUBECTL rollout status deployment/argocd-repo-server -n argocd --timeout=120s || {
-            print_error "argocd-repo-server rollout failed"
-            exit 1
-        }
-        
-        print_info "Waiting for argocd-application-controller statefulset..."
-        $KUBECTL rollout status statefulset/argocd-application-controller -n argocd --timeout=120s || {
-            print_error "argocd-application-controller rollout failed"
-            exit 1
-        }
-        
         # Wait for all deployments to be available
-        print_info "Waiting for all ArgoCD deployments to be available..."
         $KUBECTL wait --for=condition=available deployment --all -n argocd --timeout=180s || {
             print_error "Not all ArgoCD deployments became available"
             exit 1
