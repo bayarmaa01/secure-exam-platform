@@ -126,9 +126,9 @@ if ! $KUBECTL get pods -n argocd 2>/dev/null | grep -q "argocd-server"; then
     $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
     
     # Install ArgoCD with retry logic
-    local max_retries=3
-    local retry_count=0
-    local install_success=false
+    max_retries=3
+    retry_count=0
+    install_success=false
     
     while [ $retry_count -lt $max_retries ] && [ "$install_success" = false ]; do
         print_info "Installation attempt $((retry_count + 1)) of $max_retries..."
