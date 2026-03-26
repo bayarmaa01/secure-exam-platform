@@ -76,16 +76,18 @@ print_step "Starting port-forwards..."
 $KUBECTL port-forward svc/frontend -n exam-platform 3005:80 > /dev/null 2>&1 &
 
 # Backend → localhost:4005
-$KUBECTL port-forward svc/backend -n exam-platform 4005:4000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/backend -n exam-platform 4005:80 > /dev/null 2>&1 &
 
 # AI Proctoring → localhost:5005
-$KUBECTL port-forward svc/ai-proctoring -n exam-platform 5005:5000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/ai-proctoring -n exam-platform 5005:80 > /dev/null 2>&1 &
 
 # Grafana → localhost:3002
-$KUBECTL port-forward svc/prometheus-grafana -n monitoring 3002:3000 > /dev/null 2>&1 &
+$KUBECTL port-forward svc/prometheus-grafana -n monitoring 3002:80 > /dev/null 2>&1 &
 
-# ArgoCD → localhost:18081
-$KUBECTL port-forward svc/argocd-server -n argocd 18081:443 > /dev/null 2>&1 &
+# ArgoCD → localhost:18081 (only if ArgoCD is installed)
+if $KUBECTL get namespace argocd >/dev/null 2>&1; then
+    $KUBECTL port-forward svc/argocd-server -n argocd 18081:443 > /dev/null 2>&1 &
+fi
 
 # Step 5: Wait for port-forwards to initialize
 sleep 3
@@ -95,10 +97,12 @@ echo ""
 echo -e "${GREEN}🚀 Platform Ready!${NC}"
 echo ""
 print_success "📱 Access URLs:"
-echo "   • Frontend:        http://localhost:3005"
-echo "   • Backend API:    http://localhost:4005"
-echo "   • AI Proctoring:  http://localhost:5005"
-echo "   • Grafana:         http://localhost:3002"
-echo "   • ArgoCD:          https://localhost:18081"
+echo "   Frontend: http://localhost:3005"
+echo "   Backend:  http://localhost:4005"
+echo "   AI:       http://localhost:5005"
+echo "   Grafana:  http://localhost:3002"
+if $KUBECTL get namespace argocd >/dev/null 2>&1; then
+    echo "   ArgoCD:   https://localhost:18081"
+fi
 echo ""
 print_success "✅ All services accessible!"
