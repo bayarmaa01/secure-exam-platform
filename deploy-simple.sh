@@ -29,7 +29,18 @@ print_error() {
 }
 
 # Use minikube kubectl to avoid context issues
-KUBECTL="minikube kubectl --"
+KUBECTL="kubectl"
+
+# Ensure we're using the correct context
+echo "Setting kubectl context to minikube..."
+kubectl config use-context docker-desktop || {
+    echo "Warning: Could not set docker-desktop context, using current context"
+}
+# If minikube context exists, switch to it
+if kubectl config get-contexts | grep -q "minikube"; then
+    echo "Switching to minikube context..."
+    kubectl config use-context minikube || echo "Could not switch to minikube context"
+fi
 
 # Step 1: Check prerequisites
 print_step "Checking prerequisites..."
@@ -54,6 +65,8 @@ print_success "Minikube ready"
 print_step "Cleaning up old deployments..."
 $KUBECTL delete namespace exam-platform --ignore-not-found
 $KUBECTL delete namespace career-coach-prod --ignore-not-found
+# Also delete PostgreSQL PVC to force fresh initialization
+$KUBECTL delete pvc postgres-pvc -n exam-platform --ignore-not-found
 sleep 5
 print_success "Cleanup completed"
 
