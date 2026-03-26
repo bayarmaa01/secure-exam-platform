@@ -73,11 +73,9 @@ spec:
           readinessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - exam_user
-                - -d
-                - exam_platform
+                - /bin/sh
+                - -c
+                - "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
             initialDelaySeconds: 15
             periodSeconds: 5
             timeoutSeconds: 5
@@ -85,11 +83,9 @@ spec:
           livenessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - exam_user
-                - -d
-                - exam_platform
+                - /bin/sh
+                - -c
+                - "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 10
@@ -124,11 +120,11 @@ data:
     -- CREATE SCHEMA IF NOT EXISTS exam_schema;
     
     -- Set default permissions for the user
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO exam_user;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO exam_user;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;
     
     -- Grant explicit permissions
-    GRANT ALL PRIVILEGES ON DATABASE exam_platform TO exam_user;
+    GRANT ALL PRIVILEGES ON DATABASE exam_db TO postgres;
     
     -- Log initialization
     DO $$
@@ -139,10 +135,10 @@ data:
     -- Verify user exists and has correct permissions
     DO $$
     BEGIN
-      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'exam_user') THEN
-        RAISE NOTICE 'User exam_user exists and is properly configured';
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+        RAISE NOTICE 'User postgres exists and is properly configured';
       ELSE
-        RAISE NOTICE 'Creating exam_user user';
+        RAISE NOTICE 'Creating postgres user';
       END IF;
     END $$;
 ---
