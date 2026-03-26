@@ -111,6 +111,9 @@ $KUBECTL create secret generic exam-platform-secret \
     --from-literal=REDIS_URL=redis://redis:6379 \
     --from-literal=JWT_SECRET=supersecret \
     --from-literal=JWT_REFRESH_SECRET=supersecret \
+    --from-literal=POSTGRES_USER=postgres \
+    --from-literal=POSTGRES_PASSWORD=postgres \
+    --from-literal=POSTGRES_DB=exam_db \
     -n exam-platform
 
 print_success "Application secrets configured successfully"
