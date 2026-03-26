@@ -15,7 +15,7 @@ spec:
     spec:
       initContainers:
       - name: wait-for-db
-        image: busybox:1.35
+        image: postgres:16-alpine
         envFrom:
         - secretRef:
             name: exam-platform-secret
@@ -63,8 +63,8 @@ spec:
           echo "Redis is ready!"
       containers:
       - name: ai-proctoring
-        image: bayarmaa/exam-platform-ai-proctoring:latest
-        imagePullPolicy: Always
+        image: ai-proctoring:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 5000
         - containerPort: 8001
