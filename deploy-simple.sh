@@ -68,29 +68,7 @@ $KUBECTL apply -f k8s/ai-proctoring-deployment.yaml
 $KUBECTL apply -f k8s/frontend-deployment.yaml
 print_success "Application services deployed"
 
-# Step 6: Deploy monitoring rules
-print_step "Deploying monitoring rules..."
-$KUBECTL apply -f k8s/monitoring-rules.yaml
-print_success "Monitoring rules deployed"
-
-# Step 7: Install ArgoCD (stable version)
-print_step "Installing ArgoCD..."
-if ! $KUBECTL get pods -n argocd | grep -q "argocd-server"; then
-    print_info "Cleaning old ArgoCD resources..."
-    $KUBECTL delete crd applications.argoproj.io 2>/dev/null || true
-    $KUBECTL delete crd appprojects.argoproj.io 2>/dev/null || true
-    $KUBECTL delete namespace argocd 2>/dev/null || true
-    sleep 5
-    print_info "Installing ArgoCD v2.11.3..."
-    $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
-    $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml
-    $KUBECTL wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
-    print_success "ArgoCD installed"
-else
-    print_success "ArgoCD already installed"
-fi
-
-# Step 8: Install kube-prometheus-stack (Helm)
+# Step 6: Install kube-prometheus-stack (Helm)
 print_step "Installing monitoring stack..."
 if ! helm list -n monitoring | grep -q "prometheus"; then
     print_info "Installing kube-prometheus-stack via Helm..."
@@ -106,6 +84,28 @@ if ! helm list -n monitoring | grep -q "prometheus"; then
     print_success "Monitoring stack installed"
 else
     print_success "Monitoring stack already installed"
+fi
+
+# Step 7: Deploy monitoring rules (after CRDs are installed)
+print_step "Deploying monitoring rules..."
+$KUBECTL apply -f k8s/monitoring-rules.yaml
+print_success "Monitoring rules deployed"
+
+# Step 8: Install ArgoCD (stable version)
+print_step "Installing ArgoCD..."
+if ! $KUBECTL get pods -n argocd | grep -q "argocd-server"; then
+    print_info "Cleaning old ArgoCD resources..."
+    $KUBECTL delete crd applications.argoproj.io 2>/dev/null || true
+    $KUBECTL delete crd appprojects.argoproj.io 2>/dev/null || true
+    $KUBECTL delete namespace argocd 2>/dev/null || true
+    sleep 5
+    print_info "Installing ArgoCD v2.11.3..."
+    $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
+    $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml
+    $KUBECTL wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
+    print_success "ArgoCD installed"
+else
+    print_success "ArgoCD already installed"
 fi
 
 # Step 9: Wait for all pods to be READY
