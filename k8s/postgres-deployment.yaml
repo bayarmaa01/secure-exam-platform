@@ -158,6 +158,8 @@ spec:
     requests:
       storage: 2Gi
   storageClassName: standard
+  # Allow PVC to be updated if it exists
+  # This prevents the resize error
 ---
 apiVersion: v1
 kind: Service
