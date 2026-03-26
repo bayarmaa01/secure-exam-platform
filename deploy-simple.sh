@@ -89,17 +89,31 @@ print_success "Namespaces ready"
 
 # Step 6: Create application secrets
 print_step "Creating application secrets..."
-# Ensure namespace exists before creating secret
-$KUBECTL create namespace exam-platform --dry-run=client -o yaml | $KUBECTL apply -f -
-# Create the required secret idempotently
+# 🔐 Create or Update Secret (idempotent)
+echo "🔐 Setting up secrets..."
+
+# Check if secret exists
+if $KUBECTL get secret exam-platform-secret -n exam-platform >/dev/null 2>&1; then
+    echo "ℹ️ Secret already exists → updating..."
+    $KUBECTL delete secret exam-platform-secret -n exam-platform
+fi
+
+# Create fresh secret with correct values
 $KUBECTL create secret generic exam-platform-secret \
-  --from-literal=POSTGRES_USER=exam_user \
-  --from-literal=POSTGRES_PASSWORD=exam_password \
-  --from-literal=POSTGRES_DB=exam_platform \
-  --from-literal=DATABASE_URL=postgresql://exam_user:exam_password@postgres:5432/exam_platform \
-  --namespace=exam-platform \
-  --dry-run=client -o yaml | $KUBECTL apply -f -
-print_success "Application secrets created"
+    --from-literal=DB_HOST=postgres \
+    --from-literal=DB_PORT=5432 \
+    --from-literal=DB_USER=postgres \
+    --from-literal=DB_PASSWORD=postgres \
+    --from-literal=DB_NAME=exam_db \
+    --from-literal=REDIS_HOST=redis \
+    --from-literal=REDIS_PORT=6379 \
+    --from-literal=DATABASE_URL=postgresql://postgres:postgres@postgres:5432/exam_db \
+    --from-literal=REDIS_URL=redis://redis:6379 \
+    --from-literal=JWT_SECRET=supersecret \
+    --from-literal=JWT_REFRESH_SECRET=supersecret \
+    -n exam-platform
+
+print_success "Application secrets configured successfully"
 
 # Step 7: Deploy databases
 print_step "Deploying databases..."
