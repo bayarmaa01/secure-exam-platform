@@ -122,60 +122,49 @@ if ! $KUBECTL get pods -n argocd 2>/dev/null | grep -q "argocd-server"; then
     echo " Done"
     
     # Safe re-creation
-    print_info "Installing ArgoCD v2.11.3..."
+    print_info "Installing ArgoCD stable version..."
     $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
     
-    # Install ArgoCD with retry logic
-    max_retries=3
-    retry_count=0
-    install_success=false
-    
-    while [ $retry_count -lt $max_retries ] && [ "$install_success" = false ]; do
-        print_info "Installation attempt $((retry_count + 1)) of $max_retries..."
+    # Install ArgoCD manifests
+    print_info "Applying ArgoCD manifests..."
+    if $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml; then
+        print_info "Waiting for ArgoCD components to be ready..."
         
-        if $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml; then
-            sleep 15
-            
-            # Validate installation
-            print_info "Validating ArgoCD installation..."
-            if $KUBECTL get deployments -n argocd | grep -q "argocd-server"; then
-                print_info "Waiting for ArgoCD to be ready..."
-                
-                # Wait for ALL ArgoCD deployments to be available
-                if $KUBECTL wait --for=condition=available deployment --all -n argocd --timeout=180s; then
-                    # Final verification
-                    if $KUBECTL get deployment argocd-server -n argocd >/dev/null 2>&1; then
-                        install_success=true
-                        print_success "ArgoCD successfully installed"
-                    else
-                        print_error "argocd-server deployment not found after installation"
-                    fi
-                else
-                    print_error "Timeout waiting for ArgoCD deployments to be ready"
-                fi
-            else
-                print_error "argocd-server deployment not found in namespace"
-            fi
+        # Wait for critical deployments to be ready
+        print_info "Waiting for argocd-server deployment..."
+        $KUBECTL rollout status deployment/argocd-server -n argocd --timeout=120s || {
+            print_error "argocd-server rollout failed"
+            exit 1
+        }
+        
+        print_info "Waiting for argocd-repo-server deployment..."
+        $KUBECTL rollout status deployment/argocd-repo-server -n argocd --timeout=120s || {
+            print_error "argocd-repo-server rollout failed"
+            exit 1
+        }
+        
+        print_info "Waiting for argocd-application-controller statefulset..."
+        $KUBECTL rollout status statefulset/argocd-application-controller -n argocd --timeout=120s || {
+            print_error "argocd-application-controller rollout failed"
+            exit 1
+        }
+        
+        # Wait for all deployments to be available
+        print_info "Waiting for all ArgoCD deployments to be available..."
+        $KUBECTL wait --for=condition=available deployment --all -n argocd --timeout=180s || {
+            print_error "Not all ArgoCD deployments became available"
+            exit 1
+        }
+        
+        # Final verification
+        if $KUBECTL get deployment argocd-server -n argocd >/dev/null 2>&1; then
+            print_success "ArgoCD successfully installed and ready"
         else
-            print_error "Failed to apply ArgoCD manifests"
+            print_error "argocd-server deployment not found after installation"
+            exit 1
         fi
-        
-        if [ "$install_success" = false ]; then
-            retry_count=$((retry_count + 1))
-            if [ $retry_count -lt $max_retries ]; then
-                print_info "Cleaning up for retry..."
-                $KUBECTL delete namespace argocd 2>/dev/null || true
-                while $KUBECTL get namespace argocd >/dev/null 2>&1; do
-                    sleep 2
-                done
-                $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
-                sleep 5
-            fi
-        fi
-    done
-    
-    if [ "$install_success" = false ]; then
-        print_error "Failed to install ArgoCD after $max_retries attempts"
+    else
+        print_error "Failed to apply ArgoCD manifests"
         exit 1
     fi
 else
