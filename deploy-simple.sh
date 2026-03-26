@@ -102,6 +102,7 @@ if ! $KUBECTL get pods -n argocd | grep -q "argocd-server"; then
     print_info "Installing ArgoCD v2.11.3..."
     $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
     $KUBECTL apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.3/manifests/install.yaml
+    sleep 10
     $KUBECTL wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
     print_success "ArgoCD installed"
 else
