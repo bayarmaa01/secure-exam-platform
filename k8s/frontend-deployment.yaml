@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: bayarmaa/exam-platform-frontend:latest
-        imagePullPolicy: Always
+        image: frontend:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 80
         env:
