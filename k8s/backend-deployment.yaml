@@ -22,29 +22,16 @@ spec:
         command:
         - sh
         - -c
-        - |
-          echo "=== Backend Init Container ==="
-          echo "Waiting for postgres..."
-          until nc -z $DB_HOST $DB_PORT; do
-            echo "DB not ready yet..."
-            sleep 2
-          done
-          echo "Postgres is ready!"
+        - 'until nc -z postgres 5432; do echo waiting for db; sleep 5; done;'
       - name: wait-for-redis
         image: busybox:1.35
         envFrom:
         - secretRef:
             name: exam-platform-secret
         command:
-        - /bin/sh
+        - sh
         - -c
-        - |
-          echo "Waiting for Redis to be ready..."
-          until nc -z $REDIS_HOST $REDIS_PORT; do
-            echo "Redis not ready (port $REDIS_PORT), waiting..."
-            sleep 2
-          done
-          echo "Redis is ready!"
+        - 'until nc -z redis 6379; do echo waiting for redis; sleep 5; done;'
       containers:
       - name: backend
         image: backend:latest
@@ -127,17 +114,17 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 4000
-          initialDelaySeconds: 30
-          periodSeconds: 10
+            port: 4005
+          initialDelaySeconds: 10
+          periodSeconds: 5
           timeoutSeconds: 5
           failureThreshold: 5
         livenessProbe:
           httpGet:
             path: /health
-            port: 4000
-          initialDelaySeconds: 60
-          periodSeconds: 30
+            port: 4005
+          initialDelaySeconds: 30
+          periodSeconds: 10
           timeoutSeconds: 10
           failureThreshold: 3
         resources:

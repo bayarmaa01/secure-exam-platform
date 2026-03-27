@@ -49,12 +49,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: exam-platform-secret
-                  key: POSTGRES_USER
+                  key: postgres-user
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: exam-platform-secret
-                  key: POSTGRES_PASSWORD
+                  key: postgres-password
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
