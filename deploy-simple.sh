@@ -131,6 +131,8 @@ $KUBECTL create secret generic exam-platform-secret \
     --from-literal=POSTGRES_USER=postgres \
     --from-literal=POSTGRES_PASSWORD=postgres \
     --from-literal=POSTGRES_DB=exam_db \
+    --from-literal=postgres-user=postgres \
+    --from-literal=postgres-password=postgres \
     -n exam-platform
 
 print_success "Application secrets configured successfully"
