@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { examsApi, Exam } from '../api/exams'
+import { examService, Exam } from '../api/exams'
 
 export default function Dashboard() {
   const { user, logout } = useAuth()
@@ -9,10 +9,16 @@ export default function Dashboard() {
   const [exams, setExams] = useState<Exam[]>([])
 
   useEffect(() => {
-    examsApi.list()
-      .then((r) => setExams((r.data as unknown as Exam[]) || []))
-      .catch(() => setExams([]))
-  }, [])
+    if (user?.role === 'teacher') {
+      examService.getTeacherExams()
+        .then(data => setExams(data))
+        .catch(() => setExams([]))
+    } else if (user?.role === 'student') {
+      examService.getAvailableExams()
+        .then(data => setExams(data))
+        .catch(() => setExams([]))
+    }
+  }, [user])
 
   const available = exams.filter((e) => e.status === 'published')
 

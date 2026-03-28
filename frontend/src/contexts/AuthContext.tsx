@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { authApi, User } from '../api/auth'
+import { authService, User } from '../api/auth'
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<User>
-  register: (email: string, password: string, name: string, role?: string) => Promise<User>
+  register: (email: string, password: string, name: string, role?: 'student' | 'teacher') => Promise<User>
   logout: () => void
 }
 
@@ -18,7 +18,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem('accessToken')
     if (token) {
-      authApi.me().then(setUser).catch(() => {
+      authService.getCurrentUser().then(setUser).catch(() => {
         localStorage.removeItem('accessToken')
         localStorage.removeItem('refreshToken')
       }).finally(() => setLoading(false))
@@ -28,25 +28,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string): Promise<User> => {
-    const { accessToken, refreshToken, user: u } = await authApi.login(email, password)
-    localStorage.setItem('accessToken', accessToken)
-    localStorage.setItem('refreshToken', refreshToken)
-    setUser(u)
-    return u
+    const result = await authService.login({ email, password })
+    localStorage.setItem('accessToken', result.accessToken)
+    localStorage.setItem('refreshToken', result.refreshToken)
+    setUser(result.user)
+    return result.user
   }
 
-  const register = async (email: string, password: string, name: string, role?: string): Promise<User> => {
-    const { accessToken, refreshToken, user: u } = await authApi.register(email, password, name, role)
-    localStorage.setItem('accessToken', accessToken)
-    localStorage.setItem('refreshToken', refreshToken)
-    setUser(u)
-    return u
+  const register = async (email: string, password: string, name: string, role: 'student' | 'teacher' = 'student'): Promise<User> => {
+    const result = await authService.register({ email, password, name, role })
+    localStorage.setItem('accessToken', result.accessToken)
+    localStorage.setItem('refreshToken', result.refreshToken)
+    setUser(result.user)
+    return result.user
   }
 
   const logout = () => {
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    setUser(null)
+    authService.logout()
   }
 
   return (

@@ -459,4 +459,157 @@ router.get('/exams/attempts/:attemptId', auth, async (req: AuthRequest, res) => 
   }
 })
 
+// Teacher: Get all students
+router.get('/teacher/students', auth, requireTeacher, async (req: AuthRequest, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, email, name, student_id, created_at
+       FROM users 
+       WHERE role = 'student'
+       ORDER BY created_at DESC`
+    )
+    res.json(r.rows.map((row) => ({
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      studentId: row.student_id,
+      createdAt: row.created_at
+    })))
+  } catch (error) {
+    console.error('Get students error:', error)
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Teacher: Create exam
+router.post('/teacher/exams', auth, requireTeacher, [
+  body('title').notEmpty().withMessage('Title is required'),
+  body('description').optional(),
+  body('duration_minutes').isInt({ min: 1 }).withMessage('Duration must be at least 1 minute'),
+  body('scheduled_at').isISO8601().withMessage('Valid schedule date required')
+], async (req: AuthRequest, res) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() })
+    }
+
+    const { title, description, duration_minutes, scheduled_at } = req.body
+
+    const r = await pool.query(
+      `INSERT INTO exams (title, description, duration_minutes, teacher_id, scheduled_at, status)
+       VALUES ($1, $2, $3, $4, $5, 'draft')
+       RETURNING id, title, description, duration_minutes, teacher_id, scheduled_at, status, created_at`,
+      [title, description, parseInt(duration_minutes), req.user!.id, scheduled_at]
+    )
+
+    const exam = r.rows[0]
+    res.status(201).json({
+      id: exam.id,
+      title: exam.title,
+      description: exam.description,
+      durationMinutes: exam.duration_minutes,
+      scheduledAt: exam.scheduled_at,
+      status: exam.status,
+      createdAt: exam.created_at
+    })
+  } catch (error) {
+    console.error('Create exam error:', error)
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Teacher: Get results with student names
+router.get('/teacher/results', auth, requireTeacher, async (req: AuthRequest, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT r.id, r.score, r.total_points, r.percentage, r.status, r.created_at,
+              u.name as student_name, e.title as exam_title
+       FROM results r
+       JOIN users u ON r.student_id = u.id
+       JOIN exams e ON r.exam_id = e.id
+       WHERE e.teacher_id = $1
+       ORDER BY r.created_at DESC`,
+      [req.user!.id]
+    )
+
+    res.json(r.rows.map((row) => ({
+      id: row.id,
+      score: parseFloat(row.score),
+      totalPoints: parseFloat(row.total_points),
+      percentage: parseFloat(row.percentage),
+      status: row.status,
+      studentName: row.student_name,
+      examTitle: row.exam_title,
+      createdAt: row.created_at
+    })))
+  } catch (error) {
+    console.error('Get results error:', error)
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Student: Submit exam
+router.post('/student/submit', auth, requireStudent, [
+  body('examId').isUUID().withMessage('Valid exam ID required'),
+  body('answers').isArray().withMessage('Answers array required'),
+  body('timeSpent').isInt({ min: 0 }).withMessage('Time spent required')
+], async (req: AuthRequest, res) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() })
+    }
+
+    const { examId, answers, timeSpent } = req.body
+    const studentId = req.user!.id
+
+    // Start exam attempt
+    const attemptResult = await pool.query(
+      `INSERT INTO exam_attempts (exam_id, user_id, started_at)
+       VALUES ($1, $2, NOW())
+       RETURNING id`,
+      [examId, studentId]
+    )
+
+    const attemptId = attemptResult.rows[0].id
+
+    // Save answers
+    for (const answer of answers) {
+      await pool.query(
+        `INSERT INTO answers (attempt_id, question_id, answer)
+         VALUES ($1, $2, $3)`,
+        [attemptId, answer.questionId, answer.answer]
+      )
+    }
+
+    // Calculate score (simplified - you can enhance this)
+    const score = Math.random() * 100 // Replace with actual scoring logic
+    const totalPoints = 100
+
+    // Create result
+    await pool.query(
+      `INSERT INTO results (student_id, exam_id, score, total_points, percentage, status)
+       VALUES ($1, $2, $3, $4, $5, 'completed')`,
+      [studentId, examId, score, totalPoints, (score / totalPoints) * 100]
+    )
+
+    // Mark attempt as submitted
+    await pool.query(
+      `UPDATE exam_attempts SET submitted_at = NOW() WHERE id = $1`,
+      [attemptId]
+    )
+
+    res.json({
+      success: true,
+      score,
+      totalPoints,
+      percentage: (score / totalPoints) * 100
+    })
+  } catch (error) {
+    console.error('Submit exam error:', error)
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
 export { router as examRoutes }
