@@ -40,9 +40,8 @@ export interface SubmitExamRequest {
   examId: string
   answers: Array<{
     questionId: string
-    answer: string
+    answer: string | string[]
   }>
-  timeSpent: number
 }
 
 export const examService = {

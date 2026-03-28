@@ -15,10 +15,10 @@ export default function Register() {
     e.preventDefault()
     setErr('')
     try {
-      await register(email, password, name, role)
+      await register(email, password, name, role as 'student' | 'teacher' | undefined)
       navigate('/dashboard')
-    } catch (e: unknown) {
-      setErr((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Registration failed')
+    } catch (error: any) {
+      setErr(error.message || 'Registration failed')
     }
   }
 

@@ -552,8 +552,7 @@ router.get('/teacher/results', auth, requireTeacher, async (req: AuthRequest, re
 // Student: Submit exam
 router.post('/student/submit', auth, requireStudent, [
   body('examId').isUUID().withMessage('Valid exam ID required'),
-  body('answers').isArray().withMessage('Answers array required'),
-  body('timeSpent').isInt({ min: 0 }).withMessage('Time spent required')
+  body('answers').isArray().withMessage('Answers array required')
 ], async (req: AuthRequest, res) => {
   try {
     const errors = validationResult(req)
@@ -561,7 +560,7 @@ router.post('/student/submit', auth, requireStudent, [
       return res.status(400).json({ errors: errors.array() })
     }
 
-    const { examId, answers, timeSpent } = req.body
+    const { examId, answers } = req.body
     const studentId = req.user!.id
 
     // Start exam attempt

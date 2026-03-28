@@ -35,15 +35,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return result.user
   }
 
-  const register = async (email: string, password: string, name: string, role: 'student' | 'teacher' = 'student'): Promise<User> => {
-    const result = await authService.register({ email, password, name, role })
+  const register = async (email: string, password: string, name: string, role?: 'student' | 'teacher'): Promise<User> => {
+    const result = await authService.register({ email, password, name, role: role || 'student' })
     localStorage.setItem('accessToken', result.accessToken)
     localStorage.setItem('refreshToken', result.refreshToken)
     setUser(result.user)
     return result.user
   }
 
-  const logout = () => {
+  const logout = (): void => {
     authService.logout()
   }
 
