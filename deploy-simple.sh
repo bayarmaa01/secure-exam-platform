@@ -148,6 +148,7 @@ print_step "Deploying application services..."
 $KUBECTL apply -f k8s/backend-deployment.yaml
 $KUBECTL apply -f k8s/ai-proctoring-deployment.yaml
 $KUBECTL apply -f k8s/frontend-deployment.yaml
+$KUBECTL apply -f k8s/frontend-service.yaml
 print_success "Application services deployed"
 
 # Step 9: Install kube-prometheus-stack (Helm)
