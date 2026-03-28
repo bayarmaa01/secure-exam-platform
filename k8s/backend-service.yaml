@@ -4,11 +4,13 @@ metadata:
   name: backend
   namespace: exam-platform
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: backend
   ports:
-  - port: 4000
+  - port: 80
     targetPort: 4000
-    nodePort: 30011
-  sessionAffinity: None
+    name: http
+  - port: 9090
+    targetPort: 9090
+    name: metrics
