@@ -38,7 +38,7 @@ app.use('/api/admin', adminRoutes)
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
 
 // Global error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Global error handler:', err)
   res.status(500).json({ message: 'Internal server error' })
 })
