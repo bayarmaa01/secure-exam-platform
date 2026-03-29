@@ -76,6 +76,19 @@ export async function initDb() {
         answer TEXT
       )
     `)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS results (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id UUID REFERENCES users(id),
+        exam_id UUID REFERENCES exams(id),
+        score DECIMAL(5,2),
+        total_points DECIMAL(5,2),
+        percentage DECIMAL(5,2),
+        status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('in_progress', 'completed', 'failed')),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `)
   } finally {
     client.release()
   }

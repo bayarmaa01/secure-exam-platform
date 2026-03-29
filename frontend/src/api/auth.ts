@@ -1,4 +1,4 @@
-import api from './client'
+import api from './index'
 
 export interface User {
   id: string
@@ -7,22 +7,50 @@ export interface User {
   role: 'student' | 'teacher' | 'admin'
 }
 
-export const authApi = {
-  login: async (email: string, password: string) => {
-    const { data } = await api.post<{ accessToken: string; refreshToken: string; user: User }>('/auth/login', { email, password })
-    return data
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+  name: string
+  role: 'student' | 'teacher'
+  studentId?: string
+  teacherId?: string
+}
+
+export interface AuthResponse {
+  accessToken: string
+  refreshToken: string
+  user: User
+}
+
+export const authService = {
+  login: async (data: LoginRequest): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/auth/login', data)
+    return response.data
   },
-  register: async (email: string, password: string, name: string, role?: string) => {
-    const { data } = await api.post<{ accessToken: string; refreshToken: string; user: User }>('/auth/register', { email, password, name, role })
-    return data
+  
+  register: async (data: RegisterRequest): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/auth/register', data)
+    return response.data
   },
-  me: async () => {
-    const { data } = await api.get<User>('/auth/me')
-    return data
+  
+  refreshToken: async (refreshToken: string): Promise<string> => {
+    const response = await api.post<{ accessToken: string }>('/auth/refresh', { refreshToken })
+    return response.data.accessToken
   },
-  refresh: async () => {
-    const refreshToken = localStorage.getItem('refreshToken')
-    const { data } = await api.post<{ accessToken: string }>('/auth/refresh', { refreshToken })
-    return data.accessToken
+  
+  getCurrentUser: async (): Promise<User> => {
+    const response = await api.get<User>('/auth/me')
+    return response.data
+  },
+  
+  logout: (): void => {
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    window.location.href = '/login'
   }
 }
