@@ -6,9 +6,34 @@ prometheus:
         cpu: 500m
         memory: 1Gi
     serviceMonitorSelectorNilUsesHelmValues: false
+    # Ensure proper service discovery
+    serviceAccountName: prometheus
+    # Add readiness and liveness probes
+    readinessProbe:
+      httpGet:
+        path: /-/ready
+        port: 9090
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    livenessProbe:
+      httpGet:
+        path: /-/healthy
+        port: 9090
+      initialDelaySeconds: 60
+      periodSeconds: 30
 
 grafana:
   enabled: true
-  adminPassword: admin
+  adminPassword: admin123
+  # Fix datasource configuration
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-operated.monitoring:9090
+          access: proxy
+          isDefault: true
   ingress:
     enabled: false
