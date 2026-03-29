@@ -134,20 +134,3 @@ spec:
           limits:
             memory: "1Gi"
             cpu: "500m"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: backend
-  namespace: exam-platform
-spec:
-  selector:
-    app: backend
-  ports:
-  - port: 4000
-    targetPort: 4000
-    name: http
-  - port: 9090
-    targetPort: 9090
-    name: metrics
-  type: ClusterIP
