@@ -273,7 +273,19 @@ print_success "All port-forwards started"
 print_step "Waiting for port-forwards to initialize..."
 sleep 5
 
-# Step 16: Print success output with URLs
+# Step 16: Get and display passwords
+print_step "Retrieving service passwords..."
+
+# Get Grafana password
+GRAFANA_PASSWORD=$($KUBECTL get secret prometheus-grafana -n monitoring -o jsonpath="{.data.admin-password}" | base64 -d 2>/dev/null || echo "admin")
+
+# Get ArgoCD password (if installed)
+ARGOCD_PASSWORD=""
+if $KUBECTL get namespace argocd >/dev/null 2>&1; then
+    ARGOCD_PASSWORD=$($KUBECTL get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "admin")
+fi
+
+# Step 17: Print success output with URLs and passwords
 echo ""
 echo -e "${GREEN}🚀 Platform Ready!${NC}"
 echo ""
@@ -282,8 +294,12 @@ echo "   Frontend: http://localhost:3005"
 echo "   Backend:  http://localhost:4005"
 echo "   AI:       http://localhost:5005"
 echo "   Grafana:  http://localhost:3002"
-if $KUBECTL get namespace argocd >/dev/null 2>&1; then
-    echo "   ArgoCD:   https://localhost:18081"
+echo "   ArgoCD:   https://localhost:18081"
+echo ""
+print_success "🔐 Login Credentials:"
+echo "   Grafana:  admin / $GRAFANA_PASSWORD"
+if [ ! -z "$ARGOCD_PASSWORD" ]; then
+    echo "   ArgoCD:   admin / $ARGOCD_PASSWORD"
 fi
 echo ""
 print_success "✅ All services accessible!"
