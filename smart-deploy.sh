@@ -799,9 +799,6 @@ main() {
             fast_deploy
             ;;
     esac
-    
-    # Auto-retry logic
-    auto_retry
 }
 
 # Trap for cleanup
