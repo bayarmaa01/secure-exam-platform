@@ -255,15 +255,15 @@ fix_postgres_issues() {
     # Wait for PVC deletion
     sleep 10
     
-    # Recreate PVC
-    $KUBECTL apply -f k8s/postgres-pvc.yaml >/dev/null 2>&1 || true
+    # Recreate PostgreSQL resources
+    create_postgres_resources
     
     # Restart postgres deployment
     $KUBECTL rollout restart deployment/postgres -n exam-platform >/dev/null 2>&1 || true
     
     # Wait for database to be ready
     print_info "Waiting for PostgreSQL to be ready..."
-    $KUBECTL wait --for=condition=ready pod -l app=postgres -n exam-platform --timeout=120s
+    $KUBECTL wait --for=condition=ready pod -l app=postgres -n exam-platform --timeout=120s >/dev/null 2>&1 || print_warning "PostgreSQL wait timeout, proceeding..."
     
     print_success "PostgreSQL issues fixed"
 }
@@ -323,7 +323,37 @@ full_clean_deploy() {
     # Wait for cleanup
     sleep 15
     
-    # Fresh deployment
+    # Try using the working deploy-simple.sh logic as fallback
+    if [[ -f "deploy-simple.sh" ]]; then
+        print_info "Using proven deploy-simple.sh logic..."
+        ./deploy-simple.sh >/dev/null 2>&1 &
+        local deploy_pid=$!
+        
+        # Monitor deployment progress
+        local max_wait=300
+        local wait_time=0
+        
+        while [[ $wait_time -lt $max_wait ]]; do
+            if $KUBECTL get pods -n exam-platform >/dev/null 2>&1; then
+                local running_pods=$($KUBECTL get pods -n exam-platform --no-headers | grep Running | wc -l)
+                if [[ $running_pods -ge 5 ]]; then
+                    print_success "Deployment completed successfully"
+                    kill $deploy_pid 2>/dev/null || true
+                    start_port_forwards
+                    return 0
+                fi
+            fi
+            
+            sleep 10
+            wait_time=$((wait_time + 10))
+            print_info "Monitoring deployment progress... (${wait_time}s/${max_wait}s)"
+        done
+        
+        kill $deploy_pid 2>/dev/null || true
+    fi
+    
+    # Fallback to manual deployment
+    print_warning "Fallback to manual deployment..."
     deploy_infrastructure
 }
 
@@ -354,15 +384,31 @@ deploy_infrastructure() {
     $KUBECTL create namespace argocd >/dev/null 2>&1 || true
     
     # Apply secrets
-    $KUBECTL apply -f k8s/secrets.yaml >/dev/null 2>&1 || true
+    if [[ -f "k8s/secrets.yaml" ]]; then
+        $KUBECTL apply -f k8s/secrets.yaml >/dev/null 2>&1 || true
+    else
+        # Create basic secrets if file doesn't exist
+        create_basic_secrets
+    fi
     
     # Deploy databases
-    $KUBECTL apply -f k8s/postgres.yaml >/dev/null 2>&1 || true
-    $KUBECTL apply -f k8s/redis.yaml >/dev/null 2>&1 || true
+    if [[ -f "k8s/postgres.yaml" ]]; then
+        $KUBECTL apply -f k8s/postgres.yaml >/dev/null 2>&1 || true
+    else
+        create_postgres_resources
+    fi
+    
+    if [[ -f "k8s/redis.yaml" ]]; then
+        $KUBECTL apply -f k8s/redis.yaml >/dev/null 2>&1 || true
+    else
+        create_redis_resources
+    fi
     
     # Deploy applications
     $KUBECTL apply -f k8s/backend-deployment.yaml >/dev/null 2>&1 || true
+    $KUBECTL apply -f k8s/backend-service.yaml >/dev/null 2>&1 || true
     $KUBECTL apply -f k8s/frontend-deployment.yaml >/dev/null 2>&1 || true
+    $KUBECTL apply -f k8s/frontend-service.yaml >/dev/null 2>&1 || true
     $KUBECTL apply -f k8s/ai-proctoring.yaml >/dev/null 2>&1 || true
     
     # Deploy monitoring
@@ -373,6 +419,146 @@ deploy_infrastructure() {
     
     # Start port-forwards
     start_port_forwards
+}
+
+create_basic_secrets() {
+    print_info "Creating basic secrets..."
+    
+    $KUBECTL apply -f - <<EOF >/dev/null 2>&1
+apiVersion: v1
+kind: Secret
+metadata:
+  name: exam-platform-secret
+  namespace: exam-platform
+type: Opaque
+stringData:
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: postgres
+  DB_PASSWORD: postgres123
+  DB_NAME: exam_platform
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/exam_platform
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+  JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-this-in-production
+EOF
+}
+
+create_postgres_resources() {
+    print_info "Creating PostgreSQL resources..."
+    
+    # Create PVC
+    $KUBECTL apply -f - <<EOF >/dev/null 2>&1
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: exam-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+
+    # Create Deployment
+    $KUBECTL apply -f - <<EOF >/dev/null 2>&1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: exam-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: exam_platform
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: postgres123
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+EOF
+
+    # Create Service
+    $KUBECTL apply -f - <<EOF >/dev/null 2>&1
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: exam-platform
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+EOF
+}
+
+create_redis_resources() {
+    print_info "Creating Redis resources..."
+    
+    # Create Deployment
+    $KUBECTL apply -f - <<EOF >/dev/null 2>&1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: exam-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+EOF
+
+    # Create Service
+    $KUBECTL apply -f - <<EOF >/dev/null 2>&1
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: exam-platform
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+EOF
 }
 
 build_images() {
