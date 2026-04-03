@@ -323,38 +323,23 @@ full_clean_deploy() {
     # Wait for cleanup
     sleep 15
     
-    # Try using the working deploy-simple.sh logic as fallback
+    # Use the working deploy-simple.sh directly
+    print_info "Running deploy-simple.sh..."
     if [[ -f "deploy-simple.sh" ]]; then
-        print_info "Using proven deploy-simple.sh logic..."
-        ./deploy-simple.sh >/dev/null 2>&1 &
-        local deploy_pid=$!
-        
-        # Monitor deployment progress
-        local max_wait=300
-        local wait_time=0
-        
-        while [[ $wait_time -lt $max_wait ]]; do
-            if $KUBECTL get pods -n exam-platform >/dev/null 2>&1; then
-                local running_pods=$($KUBECTL get pods -n exam-platform --no-headers | grep Running | wc -l)
-                if [[ $running_pods -ge 5 ]]; then
-                    print_success "Deployment completed successfully"
-                    kill $deploy_pid 2>/dev/null || true
-                    start_port_forwards
-                    return 0
-                fi
-            fi
-            
-            sleep 10
-            wait_time=$((wait_time + 10))
-            print_info "Monitoring deployment progress... (${wait_time}s/${max_wait}s)"
-        done
-        
-        kill $deploy_pid 2>/dev/null || true
+        ./deploy-simple.sh
+        if [[ $? -eq 0 ]]; then
+            print_success "Deployment completed successfully"
+            start_port_forwards
+            display_credentials
+            return 0
+        else
+            print_error "Deployment failed"
+            return 1
+        fi
+    else
+        print_error "deploy-simple.sh not found"
+        return 1
     fi
-    
-    # Fallback to manual deployment
-    print_warning "Fallback to manual deployment..."
-    deploy_infrastructure
 }
 
 fast_deploy() {
@@ -771,9 +756,6 @@ auto_retry() {
         AUTO_RETRY_COUNT=$((AUTO_RETRY_COUNT + 1))
         print_info "Retry attempt $AUTO_RETRY_COUNT/$MAX_RETRIES"
         
-        # Detect and fix issues
-        detect_issues
-        
         # Wait and verify
         wait_for_pods
         
@@ -783,11 +765,12 @@ auto_retry() {
             return 0
         fi
         
-        # If last retry, switch to full mode
+        # If last retry, show final status
         if [[ $AUTO_RETRY_COUNT -eq $MAX_RETRIES ]]; then
-            print_warning "Max retries reached, switching to FULL CLEAN mode"
-            DEPLOY_MODE="FULL"
-            full_clean_deploy
+            print_warning "Max retries reached"
+            print_info "Final deployment status:"
+            verify_deployment
+            break
         fi
         
         sleep 10
