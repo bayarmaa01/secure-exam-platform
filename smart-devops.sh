@@ -18,6 +18,9 @@ NC='\033[0m'
 DEPLOY_MODE=""
 ARGOCD_PASSWORD=""
 KUBECTL_CMD="kubectl"
+GRAFANA_PASSWORD=""
+TIMEOUT=300
+RETRY_COUNT=3
 
 print_step() {
     echo -e "${BLUE}🔧 $1${NC}"
@@ -43,6 +46,68 @@ print_header() {
     echo -e "${PURPLE}======================================${NC}"
     echo -e "${PURPLE}$1${NC}"
     echo -e "${PURPLE}======================================${NC}"
+}
+
+# ========================================
+# UTILITY FUNCTIONS
+# ========================================
+retry() {
+    local retries=$1
+    shift
+    local count=0
+    
+    until "$@"; do
+        exit_code=$?
+        count=$((count + 1))
+        if [[ $count -lt $retries ]]; then
+            print_warning "Command failed (attempt $count/$retries). Retrying in 5 seconds..."
+            sleep 5
+        else
+            print_error "Command failed after $retries attempts"
+            return $exit_code
+        fi
+    done
+}
+
+wait_for_pods_ready() {
+    print_step "Waiting for pods to be ready..."
+    
+    local namespace=$1
+    local timeout=${2:-$TIMEOUT}
+    
+    $KUBECTL_CMD wait --for=condition=Ready pod --all -n $namespace --timeout=${timeout}s || {
+        print_error "Pods in namespace $namespace failed to become ready within ${timeout}s"
+        return 1
+    }
+    
+    print_success "All pods in $namespace are ready"
+}
+
+health_check() {
+    local service=$1
+    local namespace=$2
+    local port=$3
+    local path=${4:-"/health"}
+    
+    print_info "Health checking $service..."
+    
+    # Port-forward temporarily for health check
+    $KUBECTL_CMD port-forward svc/$service $port:$port -n $namespace >/dev/null 2>&1 &
+    local pf_pid=$!
+    sleep 2
+    
+    if curl -s http://localhost:$port$path >/dev/null 2>&1; then
+        print_success "$service health check passed"
+        local result=0
+    else
+        print_error "$service health check failed"
+        local result=1
+    fi
+    
+    kill $pf_pid 2>/dev/null || true
+    wait $pf_pid 2>/dev/null || true
+    
+    return $result
 }
 
 # ========================================
@@ -276,12 +341,28 @@ deploy_backend() {
         exit 1
     }
     
+    # Load image into minikube if needed
+    if command -v minikube >/dev/null 2>&1; then
+        minikube image load backend:latest 2>/dev/null || true
+    fi
+    
     # Apply backend deployment
     if [[ -f "k8s/backend-deployment.yaml" ]]; then
         $KUBECTL_CMD apply -f k8s/backend-deployment.yaml -n exam-platform
     else
         # Create inline backend deployment
         cat <<EOF | $KUBECTL_CMD apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: exam-platform-secret
+  namespace: exam-platform
+type: Opaque
+data:
+  DATABASE_URL: cG9zdGdyZXNxbDovL3Bvc3RncmVzOnBvc3RncmVzQHBvc3RncmVzOjU0MjIvZXhhbV9wbGF0Zm9ybQ==
+  REDIS_URL: cmVkaXM6Ly9yZWRpczo2Mzc5
+  JWT_SECRET: eW91ci1qd3Qtc2VjcmV0LWNoYW5nZS10aGlzLWluLXByb2R1Y3Rpb24=
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -308,9 +389,32 @@ spec:
         - name: PORT
           value: "4000"
         - name: DATABASE_URL
-          value: "postgresql://postgres:postgres@postgres:5432/exam_platform"
+          valueFrom:
+            secretKeyRef:
+              name: exam-platform-secret
+              key: DATABASE_URL
         - name: REDIS_URL
-          value: "redis://redis:6379"
+          valueFrom:
+            secretKeyRef:
+              name: exam-platform-secret
+              key: REDIS_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: exam-platform-secret
+              key: JWT_SECRET
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 30
+          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -326,6 +430,9 @@ spec:
 EOF
     fi
     
+    # Wait for backend to be ready
+    wait_for_pods_ready exam-platform 180
+    
     print_success "Backend deployed"
 }
 
@@ -338,6 +445,11 @@ deploy_ai_service() {
         print_error "Failed to build AI service image"
         exit 1
     }
+    
+    # Load image into minikube if needed
+    if command -v minikube >/dev/null 2>&1; then
+        minikube image load ai-proctoring:latest 2>/dev/null || true
+    fi
     
     # Apply AI service deployment
     if [[ -f "k8s/ai-deployment.yaml" ]]; then
@@ -365,6 +477,18 @@ spec:
         image: ai-proctoring:latest
         ports:
         - containerPort: 5000
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -392,6 +516,11 @@ deploy_frontend() {
         print_error "Failed to build frontend image"
         exit 1
     }
+    
+    # Load image into minikube if needed
+    if command -v minikube >/dev/null 2>&1; then
+        minikube image load frontend:latest 2>/dev/null || true
+    fi
     
     # Fix nginx config if needed
     fix_nginx_config
@@ -422,6 +551,18 @@ spec:
         image: frontend:latest
         ports:
         - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -445,15 +586,31 @@ deploy_monitoring() {
     print_step "Deploying Monitoring Stack..."
     
     # Add Prometheus Helm repo
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-    helm repo update
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
+    helm repo update >/dev/null 2>&1
     
-    # Deploy Prometheus stack
+    # Deploy Prometheus stack with full configuration
     helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
         --namespace monitoring \
         --create-namespace \
         --set grafana.adminPassword=admin \
-        --set prometheus.prometheusSpec.retention=7d
+        --set prometheus.prometheusSpec.retention=7d \
+        --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=8Gi \
+        --set grafana.persistence.enabled=true \
+        --set grafana.persistence.size=4Gi \
+        --set nodeExporter.enabled=true \
+        --set kubeStateMetrics.enabled=true \
+        --set defaultRules.create=true \
+        --set prometheusOperator.enabled=true
+    
+    # Wait for monitoring stack to be ready
+    wait_for_pods_ready monitoring 240
+    
+    # Validate Prometheus service
+    if ! $KUBECTL_CMD get service prometheus-kube-prometheus-prometheus -n monitoring >/dev/null 2>&1; then
+        print_error "Prometheus service not found"
+        return 1
+    fi
     
     print_success "Monitoring stack deployed"
 }
@@ -476,10 +633,15 @@ install_argocd() {
 wait_argocd_ready() {
     print_step "Waiting for ArgoCD to be ready..."
     
-    # Wait for ArgoCD server deployment
-    $KUBECTL_CMD rollout status deployment/argocd-server -n argocd --timeout=300s || {
+    # Wait for ArgoCD server deployment with retry
+    retry $RETRY_COUNT $KUBECTL_CMD rollout status deployment/argocd-server -n argocd --timeout=300s || {
         print_error "ArgoCD server failed to become ready"
         return 1
+    }
+    
+    # Wait for argocd-repo-server
+    retry $RETRY_COUNT $KUBECTL_CMD rollout status deployment/argocd-repo-server -n argocd --timeout=180s || {
+        print_warning "ArgoCD repo-server failed to become ready, continuing..."
     }
     
     print_success "ArgoCD is ready"
@@ -488,22 +650,25 @@ wait_argocd_ready() {
 expose_argocd() {
     print_step "Exposing ArgoCD UI..."
     
-    # Port-forward ArgoCD server
-    $KUBECTL_CMD port-forward svc/argocd-server -n argocd 8080:443 >/dev/null 2>&1 &
+    # Port-forward ArgoCD server to correct port
+    $KUBECTL_CMD port-forward svc/argocd-server -n argocd 18081:443 >/dev/null 2>&1 &
     ARGOCD_PID=$!
     echo $ARGOCD_PID > /tmp/argocd-port-forward.pid
     
-    print_success "ArgoCD UI exposed on https://localhost:8080"
+    print_success "ArgoCD UI exposed on https://localhost:18081"
 }
 
 get_argocd_credentials() {
     print_step "Retrieving ArgoCD credentials..."
     
-    # Get ArgoCD admin password
-    ARGOCD_PASSWORD=$($KUBECTL_CMD -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+    # Get ArgoCD admin password with retry
+    ARGOCD_PASSWORD=$(retry $RETRY_COUNT $KUBECTL_CMD -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) || {
+        print_error "Failed to retrieve ArgoCD password"
+        ARGOCD_PASSWORD="failed-to-retrieve"
+    }
     
     print_header "🚀 ArgoCD Access"
-    echo -e "${GREEN}URL: https://localhost:8080${NC}"
+    echo -e "${GREEN}URL: https://localhost:18081${NC}"
     echo -e "${GREEN}Username: admin${NC}"
     echo -e "${GREEN}Password: ${ARGOCD_PASSWORD}${NC}"
     echo -e "${PURPLE}======================================${NC}"
@@ -567,18 +732,23 @@ EOF
     # Wait for pod to be ready
     $KUBECTL_CMD wait --for=condition=Ready pod/dns-test -n exam-platform --timeout=60s
     
-    # Test DNS resolution with nslookup
-    if $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup backend >/dev/null 2>&1; then
+    # Test DNS resolution with specific service name
+    if $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup backend.exam-platform.svc.cluster.local >/dev/null 2>&1; then
         print_success "DNS resolution working"
+        local result=0
     else
-        print_error "DNS resolution failed"
+        print_error "DNS resolution failed - CRITICAL"
         # Show DNS debug info
         $KUBECTL_CMD exec dns-test -n exam-platform -- cat /etc/resolv.conf
-        $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup backend
+        $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup backend.exam-platform.svc.cluster.local
+        print_error "DNS failure will cause deployment issues"
+        local result=1
     fi
     
     # Clean up test pod
     $KUBECTL_CMD delete pod dns-test -n exam-platform --force --grace-period=0 >/dev/null 2>&1 || true
+    
+    return $result
 }
 
 # ========================================
@@ -636,22 +806,30 @@ setup_port_forwards() {
     
     # Kill existing port forwards
     pkill -f "port-forward" || true
+    sleep 2
     
     # Frontend
     $KUBECTL_CMD port-forward svc/frontend 3005:80 -n exam-platform >/dev/null 2>&1 &
     echo $! > /tmp/frontend-port-forward.pid
     
     # Backend
-    $KUBECTL_CMD port-forward svc/backend 3000:4000 -n exam-platform >/dev/null 2>&1 &
+    $KUBECTL_CMD port-forward svc/backend 4005:4000 -n exam-platform >/dev/null 2>&1 &
     echo $! > /tmp/backend-port-forward.pid
     
+    # AI Service
+    $KUBECTL_CMD port-forward svc/ai-proctoring 5005:80 -n exam-platform >/dev/null 2>&1 &
+    echo $! > /tmp/ai-port-forward.pid
+    
     # Grafana
-    $KUBECTL_CMD port-forward svc/prometheus-grafana 3001:3000 -n monitoring >/dev/null 2>&1 &
+    $KUBECTL_CMD port-forward svc/prometheus-grafana 3002:3000 -n monitoring >/dev/null 2>&1 &
     echo $! > /tmp/grafana-port-forward.pid
     
     # Prometheus
     $KUBECTL_CMD port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 -n monitoring >/dev/null 2>&1 &
     echo $! > /tmp/prometheus-port-forward.pid
+    
+    # Wait for port forwards to establish
+    sleep 3
     
     print_success "Port forwards established"
 }
@@ -660,28 +838,30 @@ setup_port_forwards() {
 # FINAL OUTPUT
 # ========================================
 final_output() {
-    print_header "🚀 DEPLOYMENT COMPLETE"
+    print_header "🚀 Platform Ready!"
     
     echo -e "${GREEN}📊 Pod Status:${NC}"
     $KUBECTL_CMD get pods -n exam-platform
     echo ""
     
     echo -e "${GREEN}📱 Access URLs:${NC}"
-    echo -e "${GREEN}Frontend:  http://localhost:3005${NC}"
-    echo -e "${GREEN}Backend:   http://localhost:3000${NC}"
-    echo -e "${GREEN}Grafana:    http://localhost:3001${NC}"
-    echo -e "${GREEN}Prometheus: http://localhost:9090${NC}"
+    echo -e "${GREEN}   Frontend:   http://localhost:3005${NC}"
+    echo -e "${GREEN}   Backend:    http://localhost:4005${NC}"
+    echo -e "${GREEN}   AI:         http://localhost:5005${NC}"
+    echo -e "${GREEN}   Grafana:    http://localhost:3002${NC}"
+    echo -e "${GREEN}   Prometheus: http://localhost:9090${NC}"
+    echo -e "${GREEN}   ArgoCD:     https://localhost:18081${NC}"
     echo ""
     
-    # Get Grafana password
-    local grafana_password=$($KUBECTL_CMD get secret prometheus-grafana -n monitoring -o jsonpath="{.data.admin-password}" 2>/dev/null | base64 -d || echo "admin")
+    # Get Grafana password with retry
+    GRAFANA_PASSWORD=$(retry $RETRY_COUNT $KUBECTL_CMD get secret prometheus-grafana -n monitoring -o jsonpath="{.data.admin-password}" 2>/dev/null | base64 -d || echo "admin")
     
-    echo -e "${GREEN}🔐 Credentials:${NC}"
-    echo -e "${GREEN}Grafana:    admin / $grafana_password${NC}"
-    echo -e "${GREEN}ArgoCD:     admin / $ARGOCD_PASSWORD${NC}"
+    echo -e "${GREEN}🔐 Login Credentials:${NC}"
+    echo -e "${GREEN}   Grafana:    admin / $GRAFANA_PASSWORD${NC}"
+    echo -e "${GREEN}   ArgoCD:     admin / $ARGOCD_PASSWORD${NC}"
     echo ""
     
-    print_success "🎉 All services are accessible!"
+    print_success "✅ All services accessible!"
 }
 
 # ========================================
@@ -701,6 +881,11 @@ cleanup() {
         rm -f /tmp/backend-port-forward.pid
     fi
     
+    if [[ -f /tmp/ai-port-forward.pid ]]; then
+        kill $(cat /tmp/ai-port-forward.pid) 2>/dev/null || true
+        rm -f /tmp/ai-port-forward.pid
+    fi
+    
     if [[ -f /tmp/grafana-port-forward.pid ]]; then
         kill $(cat /tmp/grafana-port-forward.pid) 2>/dev/null || true
         rm -f /tmp/grafana-port-forward.pid
@@ -715,6 +900,9 @@ cleanup() {
         kill $(cat /tmp/argocd-port-forward.pid) 2>/dev/null || true
         rm -f /tmp/argocd-port-forward.pid
     fi
+    
+    # Kill any remaining port-forwards
+    pkill -f "port-forward" 2>/dev/null || true
 }
 
 # ========================================
@@ -738,19 +926,34 @@ main() {
         cleanup_full
     fi
     
-    # Deploy in order
+    # Deploy in order with waits
     deploy_namespaces
     deploy_postgres
+    wait_for_pods_ready exam-platform 120
+    
     deploy_redis
+    wait_for_pods_ready exam-platform 60
+    
     deploy_backend
+    wait_for_pods_ready exam-platform 120
+    
     deploy_ai_service
+    wait_for_pods_ready exam-platform 120
+    
     deploy_frontend
+    wait_for_pods_ready exam-platform 120
+    
     deploy_monitoring
     
     # Auto fixes
     fix_backend_service
     fix_nginx_config
-    validate_dns
+    
+    # DNS validation (critical)
+    if ! validate_dns; then
+        print_error "DNS validation failed - deployment may not work properly"
+        # Continue anyway but warn user
+    fi
     
     # ArgoCD setup
     install_argocd
@@ -761,6 +964,11 @@ main() {
     # Health checks
     wait_for_pods
     detect_failures
+    
+    # Service health checks
+    print_step "Running service health checks..."
+    health_check backend exam-platform 4005 /health || print_warning "Backend health check failed"
+    health_check frontend exam-platform 3005 / || print_warning "Frontend health check failed"
     
     # Setup access
     setup_port_forwards
