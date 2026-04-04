@@ -370,7 +370,7 @@ metadata:
   namespace: exam-platform
 type: Opaque
 data:
-  DATABASE_URL: cG9zdGdyZXNxbDovL3Bvc3RncmVzOnBvc3RncmVzQHBvc3RncmVzOjU0MjIvZXhhbV9wbGF0Zm9ybQ==
+  DATABASE_URL: cG9zdGdyZXNxbDovL3Bvc3RncmVzOnBvc3RncmVzQHBvc3RncmVzOjU0MzIvZXhhbV9wbGF0Zm9ybQ==
   REDIS_URL: cmVkaXM6Ly9yZWRpczo2Mzc5
   JWT_SECRET: eW91ci1qd3Qtc2VjcmV0LWNoYW5nZS10aGlzLWluLXByb2R1Y3Rpb24=
 ---
