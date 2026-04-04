@@ -773,10 +773,18 @@ install_argocd() {
     # Create namespace
     $KUBECTL_CMD create namespace argocd --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
     
-    # Install ArgoCD using manifest (simpler approach to avoid annotation size issues)
-    $KUBECTL_CMD apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml -n argocd
-    
-    print_success "ArgoCD installed"
+    # Try namespace-scoped installation first (avoids CRD annotation size issues)
+    if $KUBECTL_CMD apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/namespace-install.yaml -n argocd; then
+        print_success "ArgoCD installed (namespace-scoped)"
+    else
+        print_warning "Namespace-scoped installation failed, trying core installation..."
+        # Fallback to core installation only
+        $KUBECTL_CMD apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/core-install.yaml -n argocd || {
+            print_error "ArgoCD installation failed completely"
+            return 1
+        }
+        print_success "ArgoCD installed (core-only)"
+    fi
 }
 
 wait_argocd_ready() {
