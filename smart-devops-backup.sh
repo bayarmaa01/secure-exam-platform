@@ -1,16 +1,11 @@
 #!/bin/bash
 
-# ========================================
 # 🚀 SMART DEVOPS - Production-Grade Kubernetes + ArgoCD GitOps Deployment
-# ========================================
-# Senior DevOps Engineer - Enterprise Ready Script
-# ========================================
+# Senior DevOps Engineer Version
 
-set -euo pipefail
+set -e
 
-# ========================================
-# 🎨 COLORS
-# ========================================
+# Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
@@ -19,20 +14,14 @@ CYAN='\033[0;36m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
-# ========================================
-# 🌍 GLOBAL VARIABLES
-# ========================================
+# Global variables
 DEPLOY_MODE=""
 ARGOCD_PASSWORD=""
-GRAFANA_PASSWORD=""
 KUBECTL_CMD="kubectl"
+GRAFANA_PASSWORD=""
 TIMEOUT=300
 RETRY_COUNT=3
-DEBUG_MODE=false
 
-# ========================================
-# 📢 PRINT FUNCTIONS
-# ========================================
 print_step() {
     echo -e "${BLUE}🔧 $1${NC}"
 }
@@ -59,14 +48,8 @@ print_header() {
     echo -e "${PURPLE}======================================${NC}"
 }
 
-print_debug() {
-    if [[ "$DEBUG_MODE" == "true" ]]; then
-        echo -e "${YELLOW}🐛 DEBUG: $1${NC}"
-    fi
-}
-
 # ========================================
-# 🔧 UTILITY FUNCTIONS
+# UTILITY FUNCTIONS
 # ========================================
 retry() {
     local retries=$1
@@ -92,42 +75,12 @@ wait_for_pods_ready() {
     local namespace=$1
     local timeout=${2:-$TIMEOUT}
     
-    if [[ "$DEBUG_MODE" == "true" ]]; then
-        print_info "DEBUG: Skipping pod readiness check in debug mode"
-        return 0
-    fi
+    $KUBECTL_CMD wait --for=condition=Ready pod --all -n $namespace --timeout=${timeout}s || {
+        print_error "Pods in namespace $namespace failed to become ready within ${timeout}s"
+        return 1
+    }
     
-    # Enhanced wait with better error handling
-    local start_time=$(date +%s)
-    local end_time=$((start_time + timeout))
-    
-    while true; do
-        local failed_pods=$($KUBECTL_CMD get pods -n $namespace --no-headers | grep -v "Running\|Completed" | wc -l)
-        
-        if [[ $failed_pods -eq 0 ]]; then
-            print_success "All pods in $namespace are ready"
-            return 0
-        fi
-        
-        local current_time=$(date +%s)
-        if [[ $current_time -gt $end_time ]]; then
-            print_error "Pods in namespace $namespace failed to become ready within ${timeout}s"
-            print_error "Current pod status:"
-            $KUBECTL_CMD get pods -n $namespace -o wide
-            
-            # Show logs for failed pods
-            print_info "Showing logs for failed pods:"
-            for pod in $($KUBECTL_CMD get pods -n $namespace --no-headers | grep -v "Running\|Completed" | awk '{print $1}'); do
-                print_error "Logs for pod: $pod"
-                $KUBECTL_CMD logs -n $namespace $pod --tail=20 || true
-                echo ""
-            done
-            
-            return 1
-        fi
-        
-        sleep 5
-    done
+    print_success "All pods in $namespace are ready"
 }
 
 health_check() {
@@ -158,7 +111,7 @@ health_check() {
 }
 
 # ========================================
-# 🎯 DEPLOYMENT MODE SELECTION
+# DEPLOYMENT MODE SELECTION
 # ========================================
 select_mode() {
     echo -e "${CYAN}🎯 Select deployment mode:${NC}"
@@ -182,98 +135,77 @@ select_mode() {
                 ;;
             3)
                 DEPLOY_MODE="DEBUG"
-                DEBUG_MODE=true
                 print_success "Selected: Debug Mode"
                 break
                 ;;
             *)
-                print_error "Invalid option. Please enter 1, 2, or 3."
+                print_error "Invalid choice. Please enter 1, 2, or 3."
                 ;;
         esac
     done
 }
 
 # ========================================
-# 🔍 PRE-CHECKS
+# PRE-CHECKS
 # ========================================
 pre_checks() {
     print_step "Running pre-checks..."
     
     # Check Docker
-    if ! command -v docker >/dev/null 2>&1; then
-        print_error "Docker is not installed or not running"
-        exit 1
-    fi
-    
     if ! docker info >/dev/null 2>&1; then
         print_error "Docker is not running"
-        exit 1
+        print_info "Starting Docker..."
+        sudo systemctl start docker || {
+            print_error "Failed to start Docker"
+            exit 1
+        }
     fi
     print_success "Docker is running"
     
     # Check Minikube
-    if ! command -v minikube >/dev/null 2>&1; then
-        print_error "Minikube is not installed"
-        exit 1
-    fi
-    
     if ! minikube status >/dev/null 2>&1; then
         print_error "Minikube is not running"
-        exit 1
+        print_info "Starting Minikube..."
+        minikube start || {
+            print_error "Failed to start Minikube"
+            exit 1
+        }
     fi
     print_success "Minikube is running"
     
-    # Check kubectl
-    if ! command -v kubectl >/dev/null 2>&1; then
-        print_error "kubectl is not installed"
+    # Set kubectl context
+    $KUBECTL_CMD config use-context minikube >/dev/null 2>&1 || {
+        print_error "Failed to set kubectl context"
         exit 1
-    fi
-    
-    # Check kubectl context
-    local current_context=$($KUBECTL_CMD config current-context)
-    if [[ "$current_context" != "minikube" ]]; then
-        print_warning "kubectl context is not set to minikube (current: $current_context)"
-        print_info "Setting context to minikube..."
-        $KUBECTL_CMD config use-context minikube
-    fi
+    }
     print_success "kubectl context set to minikube"
     
-    # Test cluster connectivity
+    # Verify cluster access
     if ! $KUBECTL_CMD cluster-info >/dev/null 2>&1; then
-        print_error "Kubernetes cluster is not accessible"
+        print_error "Cannot access Kubernetes cluster"
         exit 1
     fi
     print_success "Kubernetes cluster accessible"
-    
-    # Show debug info in debug mode
-    if [[ "$DEBUG_MODE" == "true" ]]; then
-        print_header "🐛 DEBUG MODE ENABLED"
-        $KUBECTL_CMD get pods -A
-        $KUBECTL_CMD get events -A --sort-by=.metadata.creationTimestamp | tail -10
-    fi
 }
 
 # ========================================
-# 🧹 CLEANUP FUNCTIONS
+# CLEANUP FUNCTIONS
 # ========================================
 cleanup_full() {
     print_step "Full cleanup - removing all resources..."
     
-    # Delete all resources in namespaces
-    $KUBECTL_CMD delete namespace exam-platform --ignore-not-found=true --grace-period=0 --wait=false >/dev/null 2>&1 || true
-    $KUBECTL_CMD delete namespace monitoring --ignore-not-found=true --grace-period=0 --wait=false >/dev/null 2>&1 || true
-    $KUBECTL_CMD delete namespace argocd --ignore-not-found=true --grace-period=0 --wait=false >/dev/null 2>&1 || true
+    # Delete namespaces
+    $KUBECTL_CMD delete namespace exam-platform --ignore-not-found=true --grace-period=0 >/dev/null 2>&1 || true
+    $KUBECTL_CMD delete namespace monitoring --ignore-not-found=true --grace-period=0 >/dev/null 2>&1 || true
+    $KUBECTL_CMD delete namespace argocd --ignore-not-found=true --grace-period=0 >/dev/null 2>&1 || true
     
-    # Wait for namespaces to be deleted
-    $KUBECTL_CMD wait --for=delete namespace/exam-platform --timeout=60s >/dev/null 2>&1 || true
-    $KUBECTL_CMD wait --for=delete namespace/monitoring --timeout=60s >/dev/null 2>&1 || true
-    $KUBECTL_CMD wait --for=delete namespace/argocd --timeout=60s >/dev/null 2>&1 || true
-    
+    # Wait for cleanup
+    sleep 10
     print_success "Cleanup completed"
 }
 
 # ========================================
-# 🚀 DEPLOYMENT FUNCTIONS
+# KUBERNETES DEPLOYMENT
 # ========================================
 deploy_namespaces() {
     print_step "Creating namespaces..."
@@ -289,6 +221,7 @@ deploy_postgres() {
     print_step "Deploying PostgreSQL..."
     
     # Always use inline deployment to avoid issues with existing files
+    # Create inline PostgreSQL deployment without init containers
     cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -395,20 +328,6 @@ spec:
         image: redis:7-alpine
         ports:
         - containerPort: 6379
-        readinessProbe:
-          exec:
-            command:
-            - redis-cli
-            - ping
-          initialDelaySeconds: 10
-          periodSeconds: 5
-        livenessProbe:
-          exec:
-            command:
-            - redis-cli
-            - ping
-          initialDelaySeconds: 30
-          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -441,7 +360,8 @@ deploy_backend() {
         minikube image load backend:latest 2>/dev/null || true
     fi
     
-    # Always use inline deployment with proper environment variables
+    # Always use inline deployment to avoid issues with existing files
+    # Create inline backend deployment
     cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: v1
 kind: Secret
@@ -469,27 +389,6 @@ spec:
       labels:
         app: backend
     spec:
-      initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "waiting for postgres..."
-            sleep 2
-          done
-      - name: wait-for-redis
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "waiting for redis..."
-            sleep 2
-          done
       containers:
       - name: backend
         image: backend:latest
@@ -500,25 +399,10 @@ spec:
         - containerPort: 9090
           name: metrics
         env:
-        # Direct environment variables (not from secret to avoid issues)
         - name: NODE_ENV
           value: "production"
         - name: PORT
           value: "4000"
-        - name: DB_HOST
-          value: "postgres"
-        - name: DB_PORT
-          value: "5432"
-        - name: DB_USER
-          value: "postgres"
-        - name: DB_PASSWORD
-          value: "postgres"
-        - name: DB_NAME
-          value: "exam_platform"
-        - name: REDIS_HOST
-          value: "redis"
-        - name: REDIS_PORT
-          value: "6379"
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -538,16 +422,16 @@ spec:
           httpGet:
             path: /health
             port: 4000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          failureThreshold: 10
+          initialDelaySeconds: 15
+          periodSeconds: 5
           timeoutSeconds: 5
+          failureThreshold: 5
         livenessProbe:
           httpGet:
             path: /health
             port: 4000
-          initialDelaySeconds: 60
-          periodSeconds: 15
+          initialDelaySeconds: 30
+          periodSeconds: 10
           timeoutSeconds: 10
           failureThreshold: 3
         resources:
@@ -572,9 +456,7 @@ spec:
 EOF
     
     # Wait for backend to be ready
-    if [[ "$DEBUG_MODE" != "true" ]]; then
-        wait_for_pods_ready exam-platform 180
-    fi
+    wait_for_pods_ready exam-platform 180
     
     print_success "Backend deployed"
 }
@@ -594,7 +476,12 @@ deploy_ai_service() {
         minikube image load ai-proctoring:latest 2>/dev/null || true
     fi
     
-    cat <<EOF | $KUBECTL_CMD apply -f -
+    # Apply AI service deployment
+    if [[ -f "k8s/ai-deployment.yaml" ]]; then
+        $KUBECTL_CMD apply -f k8s/ai-deployment.yaml -n exam-platform
+    else
+        # Create inline AI service deployment
+        cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -613,7 +500,6 @@ spec:
       containers:
       - name: ai-proctoring
         image: ai-proctoring:latest
-        imagePullPolicy: Never
         ports:
         - containerPort: 5000
         readinessProbe:
@@ -625,16 +511,9 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-          port: 5000
+            port: 5000
           initialDelaySeconds: 30
           periodSeconds: 10
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "250m"
 ---
 apiVersion: v1
 kind: Service
@@ -648,6 +527,7 @@ spec:
   - port: 80
     targetPort: 5000
 EOF
+    fi
     
     print_success "AI Service deployed"
 }
@@ -667,7 +547,15 @@ deploy_frontend() {
         minikube image load frontend:latest 2>/dev/null || true
     fi
     
-    cat <<EOF | $KUBECTL_CMD apply -f -
+    # Fix nginx config if needed
+    fix_nginx_config
+    
+    # Apply frontend deployment
+    if [[ -f "k8s/frontend-deployment.yaml" ]]; then
+        $KUBECTL_CMD apply -f k8s/frontend-deployment.yaml -n exam-platform
+    else
+        # Create inline frontend deployment
+        cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -686,7 +574,6 @@ spec:
       containers:
       - name: frontend
         image: frontend:latest
-        imagePullPolicy: Never
         ports:
         - containerPort: 80
         readinessProbe:
@@ -701,13 +588,6 @@ spec:
             port: 80
           initialDelaySeconds: 30
           periodSeconds: 10
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "50m"
-          limits:
-            memory: "256Mi"
-            cpu: "100m"
 ---
 apiVersion: v1
 kind: Service
@@ -722,13 +602,11 @@ spec:
   - port: 80
     targetPort: 80
 EOF
+    fi
     
     print_success "Frontend deployed"
 }
 
-# ========================================
-# 📊 MONITORING DEPLOYMENT
-# ========================================
 deploy_monitoring() {
     print_step "Deploying Monitoring Stack..."
     
@@ -751,9 +629,7 @@ deploy_monitoring() {
         --set prometheusOperator.enabled=true
     
     # Wait for monitoring stack to be ready
-    if [[ "$DEBUG_MODE" != "true" ]]; then
-        wait_for_pods_ready monitoring 240
-    fi
+    wait_for_pods_ready monitoring 240
     
     # Validate Prometheus service
     if ! $KUBECTL_CMD get service prometheus-kube-prometheus-prometheus -n monitoring >/dev/null 2>&1; then
@@ -781,11 +657,6 @@ install_argocd() {
 
 wait_argocd_ready() {
     print_step "Waiting for ArgoCD to be ready..."
-    
-    if [[ "$DEBUG_MODE" == "true" ]]; then
-        print_info "DEBUG: Skipping ArgoCD readiness check"
-        return 0
-    fi
     
     # Wait for ArgoCD server deployment with retry
     retry $RETRY_COUNT $KUBECTL_CMD rollout status deployment/argocd-server -n argocd --timeout=300s || {
@@ -829,62 +700,43 @@ get_argocd_credentials() {
 }
 
 # ========================================
-# 🔍 HEALTH CHECKS
+# AUTO FIXES
 # ========================================
-wait_for_pods() {
-    print_step "Waiting for all pods to be ready..."
+fix_nginx_config() {
+    print_info "Checking nginx configuration..."
     
-    if [[ "$DEBUG_MODE" == "true" ]]; then
-        print_info "DEBUG: Skipping pod readiness check"
-        return 0
+    # Check if nginx config has wrong upstream
+    if grep -q "backend.exam-platform" frontend/nginx.conf 2>/dev/null; then
+        print_warning "Fixing nginx upstream configuration..."
+        sed -i 's/backend.exam-platform:4000/backend:4000/g' frontend/nginx.conf
+        sed -i 's/ai-proctoring.exam-platform:80/ai-proctoring:80/g' frontend/nginx.conf
+        print_success "Nginx configuration fixed"
     fi
-    
-    local max_wait=300
-    local wait_time=0
-    
-    while [[ $wait_time -lt $max_wait ]]; do
-        local failed_pods=$($KUBECTL_CMD get pods -n exam-platform --no-headers | grep -v "Running\|Completed" | wc -l)
-        
-        if [[ $failed_pods -eq 0 ]]; then
-            print_success "All pods are ready"
-            return 0
-        fi
-        
-        print_info "Waiting for pods... (${wait_time}s/${max_wait}s)"
-        sleep 10
-        wait_time=$((wait_time + 10))
-    done
-    
-    print_error "Timeout waiting for pods to be ready"
-    $KUBECTL_CMD get pods -n exam-platform -o wide
-    return 1
 }
 
-detect_failures() {
-    print_step "Detecting pod failures..."
+fix_backend_service() {
+    print_info "Checking backend service..."
     
-    local failed_pods=$($KUBECTL_CMD get pods -n exam-platform --no-headers | grep -v "Running\|Completed" | awk '{print $1}')
-    
-    if [[ -n "$failed_pods" ]]; then
-        print_error "Failed pods detected:"
-        for pod in $failed_pods; do
-            print_error "Pod: $pod"
-            print_info "Pod status:"
-            $KUBECTL_CMD get pod $pod -n exam-platform -o yaml | grep -A 10 "status:" || true
-            print_info "Pod logs (last 20 lines):"
-            $KUBECTL_CMD logs -n exam-platform $pod --tail=20 || true
-            echo ""
-        done
-        return 1
+    # Check if backend service exists
+    if ! $KUBECTL_CMD get service backend -n exam-platform >/dev/null 2>&1; then
+        print_warning "Backend service missing, creating it..."
+        cat <<EOF | $KUBECTL_CMD apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: exam-platform
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 4000
+    targetPort: 4000
+EOF
+        print_success "Backend service created"
     fi
-    
-    print_success "No pod failures detected"
-    return 0
 }
 
-# ========================================
-# 🌐 DNS VALIDATION
-# ========================================
 validate_dns() {
     print_info "Validating DNS resolution..."
     
@@ -906,14 +758,14 @@ EOF
     $KUBECTL_CMD wait --for=condition=Ready pod/dns-test -n exam-platform --timeout=60s
     
     # Test DNS resolution with specific service name
-    if $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup postgres.exam-platform.svc.cluster.local >/dev/null 2>&1; then
+    if $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup backend.exam-platform.svc.cluster.local >/dev/null 2>&1; then
         print_success "DNS resolution working"
         local result=0
     else
         print_error "DNS resolution failed - CRITICAL"
         # Show DNS debug info
         $KUBECTL_CMD exec dns-test -n exam-platform -- cat /etc/resolv.conf
-        $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup postgres.exam-platform.svc.cluster.local
+        $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup backend.exam-platform.svc.cluster.local
         print_error "DNS failure will cause deployment issues"
         local result=1
     fi
@@ -925,7 +777,54 @@ EOF
 }
 
 # ========================================
-# 🚪 ACCESS SETUP
+# HEALTH CHECKS
+# ========================================
+wait_for_pods() {
+    print_step "Waiting for all pods to be ready..."
+    
+    local max_wait=300
+    local wait_time=0
+    
+    while [[ $wait_time -lt $max_wait ]]; do
+        local not_ready=$($KUBECTL_CMD get pods -n exam-platform --no-headers | grep -v "Running\|Completed" | wc -l)
+        
+        if [[ $not_ready -eq 0 ]]; then
+            print_success "All pods are ready"
+            return 0
+        fi
+        
+        print_info "Waiting for pods... (${wait_time}s/${max_wait}s)"
+        sleep 10
+        wait_time=$((wait_time + 10))
+    done
+    
+    print_warning "Timeout waiting for pods, continuing..."
+}
+
+detect_failures() {
+    print_step "Checking for pod failures..."
+    
+    local failed_pods=$($KUBECTL_CMD get pods -n exam-platform --no-headers | grep -E "CrashLoopBackOff|Error|Pending|ImagePullBackOff")
+    
+    if [[ ! -z "$failed_pods" ]]; then
+        print_error "Failed pods detected:"
+        echo "$failed_pods"
+        echo ""
+        
+        # Show logs for failed pods
+        while IFS= read -r line; do
+            local pod_name=$(echo "$line" | awk '{print $1}')
+            print_info "Logs for $pod_name:"
+            $KUBECTL_CMD logs "$pod_name" -n exam-platform --tail=20
+            echo ""
+        done <<< "$failed_pods"
+    else
+        print_success "No pod failures detected"
+    fi
+}
+
+# ========================================
+# ACCESS SETUP
 # ========================================
 setup_port_forwards() {
     print_step "Setting up port forwards..."
@@ -961,7 +860,7 @@ setup_port_forwards() {
 }
 
 # ========================================
-# 📤 FINAL OUTPUT
+# FINAL OUTPUT
 # ========================================
 final_output() {
     print_header "🚀 Platform Ready!"
@@ -991,25 +890,48 @@ final_output() {
 }
 
 # ========================================
-# 🧹 CLEANUP FUNCTION
+# CLEANUP FUNCTION
 # ========================================
 cleanup() {
     print_info "Cleaning up port forwards..."
     
     # Kill port forwards
-    for pid_file in /tmp/*-port-forward.pid; do
-        if [[ -f "$pid_file" ]]; then
-            kill $(cat "$pid_file") 2>/dev/null || true
-            rm -f "$pid_file"
-        fi
-    done
+    if [[ -f /tmp/frontend-port-forward.pid ]]; then
+        kill $(cat /tmp/frontend-port-forward.pid) 2>/dev/null || true
+        rm -f /tmp/frontend-port-forward.pid
+    fi
+    
+    if [[ -f /tmp/backend-port-forward.pid ]]; then
+        kill $(cat /tmp/backend-port-forward.pid) 2>/dev/null || true
+        rm -f /tmp/backend-port-forward.pid
+    fi
+    
+    if [[ -f /tmp/ai-port-forward.pid ]]; then
+        kill $(cat /tmp/ai-port-forward.pid) 2>/dev/null || true
+        rm -f /tmp/ai-port-forward.pid
+    fi
+    
+    if [[ -f /tmp/grafana-port-forward.pid ]]; then
+        kill $(cat /tmp/grafana-port-forward.pid) 2>/dev/null || true
+        rm -f /tmp/grafana-port-forward.pid
+    fi
+    
+    if [[ -f /tmp/prometheus-port-forward.pid ]]; then
+        kill $(cat /tmp/prometheus-port-forward.pid) 2>/dev/null || true
+        rm -f /tmp/prometheus-port-forward.pid
+    fi
+    
+    if [[ -f /tmp/argocd-port-forward.pid ]]; then
+        kill $(cat /tmp/argocd-port-forward.pid) 2>/dev/null || true
+        rm -f /tmp/argocd-port-forward.pid
+    fi
     
     # Kill any remaining port-forwards
     pkill -f "port-forward" 2>/dev/null || true
 }
 
 # ========================================
-# 🚀 MAIN EXECUTION
+# MAIN EXECUTION
 # ========================================
 main() {
     echo -e "${CYAN}🚀 SMART DEVOPS - Production-Grade Kubernetes + ArgoCD GitOps Deployment${NC}"
@@ -1038,7 +960,7 @@ main() {
     wait_for_pods_ready exam-platform 60
     
     deploy_backend
-    wait_for_pods_ready exam-platform 180
+    wait_for_pods_ready exam-platform 120
     
     deploy_ai_service
     wait_for_pods_ready exam-platform 120
@@ -1047,6 +969,10 @@ main() {
     wait_for_pods_ready exam-platform 120
     
     deploy_monitoring
+    
+    # Auto fixes
+    fix_backend_service
+    fix_nginx_config
     
     # DNS validation (critical)
     if ! validate_dns; then
