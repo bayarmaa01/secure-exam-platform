@@ -224,7 +224,7 @@ deploy_postgres() {
     if [[ -f "k8s/postgres-deployment.yaml" ]]; then
         $KUBECTL_CMD apply -f k8s/postgres-deployment.yaml -n exam-platform
     else
-        # Create inline PostgreSQL deployment
+        # Create inline PostgreSQL deployment without init containers
         cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -263,11 +263,29 @@ spec:
           value: "postgres"
         - name: POSTGRES_PASSWORD
           value: "postgres"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
         ports:
         - containerPort: 5432
         volumeMounts:
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
       volumes:
       - name: postgres-storage
         persistentVolumeClaim:
