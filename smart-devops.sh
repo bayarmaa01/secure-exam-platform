@@ -220,12 +220,9 @@ deploy_namespaces() {
 deploy_postgres() {
     print_step "Deploying PostgreSQL..."
     
-    # Apply PostgreSQL resources
-    if [[ -f "k8s/postgres-deployment.yaml" ]]; then
-        $KUBECTL_CMD apply -f k8s/postgres-deployment.yaml -n exam-platform
-    else
-        # Create inline PostgreSQL deployment without init containers
-        cat <<EOF | $KUBECTL_CMD apply -f -
+    # Always use inline deployment to avoid issues with existing files
+    # Create inline PostgreSQL deployment without init containers
+    cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -303,7 +300,6 @@ spec:
   - port: 5432
     targetPort: 5432
 EOF
-    fi
     
     print_success "PostgreSQL deployed"
 }
