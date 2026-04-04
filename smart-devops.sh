@@ -467,14 +467,8 @@ install_argocd() {
     # Create namespace
     $KUBECTL_CMD create namespace argocd --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
     
-    # Install ArgoCD with fixed CRD (remove problematic annotations)
-    curl -sSL -o argocd-install.yaml https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-    # Remove problematic long annotations that cause CRD errors
-    sed -i '/metadata:/,/annotations:/d' argocd-install.yaml
-    $KUBECTL_CMD apply -n argocd -f argocd-install.yaml
-    
-    # Clean up
-    rm -f argocd-install.yaml
+    # Install ArgoCD using kustomize (avoids CRD annotation issues)
+    kubectl apply -k https://github.com/argoproj/argo-cd/manifests/cluster-install?ref=stable -n argocd
     
     print_success "ArgoCD installed"
 }
@@ -556,7 +550,7 @@ EOF
 validate_dns() {
     print_info "Validating DNS resolution..."
     
-    # Test DNS resolution using dig (more reliable than nslookup)
+    # Test DNS resolution using nslookup (available in busybox)
     cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: v1
 kind: Pod
@@ -573,14 +567,14 @@ EOF
     # Wait for pod to be ready
     $KUBECTL_CMD wait --for=condition=Ready pod/dns-test -n exam-platform --timeout=60s
     
-    # Test DNS resolution with dig
-    if $KUBECTL_CMD exec dns-test -n exam-platform -- dig backend +short >/dev/null 2>&1; then
+    # Test DNS resolution with nslookup
+    if $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup backend >/dev/null 2>&1; then
         print_success "DNS resolution working"
     else
         print_error "DNS resolution failed"
         # Show DNS debug info
         $KUBECTL_CMD exec dns-test -n exam-platform -- cat /etc/resolv.conf
-        $KUBECTL_CMD exec dns-test -n exam-platform -- dig backend
+        $KUBECTL_CMD exec dns-test -n exam-platform -- nslookup backend
     fi
     
     # Clean up test pod
