@@ -360,12 +360,9 @@ deploy_backend() {
         minikube image load backend:latest 2>/dev/null || true
     fi
     
-    # Apply backend deployment
-    if [[ -f "k8s/backend-deployment.yaml" ]]; then
-        $KUBECTL_CMD apply -f k8s/backend-deployment.yaml -n exam-platform
-    else
-        # Create inline backend deployment
-        cat <<EOF | $KUBECTL_CMD apply -f -
+    # Always use inline deployment to avoid issues with existing files
+    # Create inline backend deployment
+    cat <<EOF | $KUBECTL_CMD apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
@@ -395,8 +392,12 @@ spec:
       containers:
       - name: backend
         image: backend:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 4000
+          name: http
+        - containerPort: 9090
+          name: metrics
         env:
         - name: NODE_ENV
           value: "production"
@@ -421,14 +422,25 @@ spec:
           httpGet:
             path: /health
             port: 4000
-          initialDelaySeconds: 10
+          initialDelaySeconds: 15
           periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 5
         livenessProbe:
           httpGet:
             path: /health
             port: 4000
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service
@@ -442,7 +454,6 @@ spec:
   - port: 4000
     targetPort: 4000
 EOF
-    fi
     
     # Wait for backend to be ready
     wait_for_pods_ready exam-platform 180
