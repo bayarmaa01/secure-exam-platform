@@ -773,8 +773,8 @@ install_argocd() {
     # Create namespace
     $KUBECTL_CMD create namespace argocd --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
     
-    # Install ArgoCD using kustomize (avoids CRD annotation issues)
-    kubectl apply -k https://github.com/argoproj/argo-cd/manifests/cluster-install?ref=stable -n argocd
+    # Install ArgoCD using manifest (simpler approach to avoid annotation size issues)
+    $KUBECTL_CMD apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml -n argocd
     
     print_success "ArgoCD installed"
 }
