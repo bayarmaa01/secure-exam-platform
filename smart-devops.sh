@@ -727,26 +727,36 @@ EOF
 }
 
 # ========================================
-# 📊 MONITORING DEPLOYMENT
+# MONITORING DEPLOYMENT
 # ========================================
 deploy_monitoring() {
     print_step "Deploying Monitoring Stack..."
     
-    # Add Prometheus Helm repo
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
-    helm repo update >/dev/null 2>&1
+    # Add Helm repo
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    helm repo update
     
-    # Deploy Prometheus stack with full configuration
+    # Check if Grafana is failing and delete it first
+    if $KUBECTL_CMD get pods -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].status.phase}' 2>/dev/null | grep -q "Error"; then
+        print_warning "Grafana pod is in Error state, cleaning up..."
+        $KUBECTL_CMD delete deployment prometheus-grafana -n monitoring --ignore-not-found=true
+        $KUBECTL_CMD delete pvc prometheus-grafana -n monitoring --ignore-not-found=true
+        sleep 5
+    fi
+    
+    # Deploy Prometheus stack with persistence and proper configuration
     helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
         --namespace monitoring \
         --create-namespace \
-        --set grafana.adminPassword=admin \
-        --set prometheus.prometheusSpec.retention=7d \
         --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=8Gi \
+        --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes=['ReadWriteOnce'] \
+        --set prometheus.prometheusSpec.retention=15d \
         --set grafana.persistence.enabled=true \
         --set grafana.persistence.size=4Gi \
-        --set nodeExporter.enabled=true \
-        --set kubeStateMetrics.enabled=true \
+        --set grafana.persistence.accessModes=['ReadWriteOnce'] \
+        --set grafana.adminPassword=admin \
+        --set grafana.service.type=ClusterIP \
+        --set prometheus.service.type=ClusterIP \
         --set defaultRules.create=true \
         --set prometheusOperator.enabled=true
     
