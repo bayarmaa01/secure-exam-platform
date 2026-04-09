@@ -756,11 +756,11 @@ deploy_monitoring() {
         --namespace monitoring \
         --create-namespace \
         --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=8Gi \
-        --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes=['ReadWriteOnce'] \
+        --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes[0]=ReadWriteOnce \
         --set prometheus.prometheusSpec.retention=15d \
         --set grafana.persistence.enabled=true \
         --set grafana.persistence.size=4Gi \
-        --set grafana.persistence.accessModes=['ReadWriteOnce'] \
+        --set grafana.persistence.accessModes[0]=ReadWriteOnce \
         --set grafana.adminPassword=admin \
         --set grafana.service.type=ClusterIP \
         --set prometheus.service.type=ClusterIP \
