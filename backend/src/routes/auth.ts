@@ -189,7 +189,7 @@ router.get('/me', auth, async (req, res) => {
 
     const r = await pool.query(
       'SELECT id, email, name, role, student_id, teacher_id FROM users WHERE id = $1',
-      [u.userId]
+      [u.id]
     )
 
     const user = r.rows[0]
