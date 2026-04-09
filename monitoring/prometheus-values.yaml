@@ -35,5 +35,10 @@ grafana:
           url: http://prometheus-operated.monitoring:9090
           access: proxy
           isDefault: true
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
   ingress:
     enabled: false

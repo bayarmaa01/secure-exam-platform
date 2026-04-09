@@ -6,6 +6,9 @@ import { initDb } from './db'
 import { authRoutes } from './routes/auth'
 import { examRoutes } from './routes/exams'
 import { adminRoutes } from './routes/admin'
+import { advancedExamRoutes } from './routes/advanced-exams'
+import { analyticsRoutes } from './routes/analytics'
+import { securityRoutes } from './routes/security'
 
 const app = express()
 
@@ -34,6 +37,9 @@ app.use('/api', limiter)
 app.use('/api/auth', authRoutes)
 app.use('/api', examRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api', advancedExamRoutes)
+app.use('/api', analyticsRoutes)
+app.use('/api', securityRoutes)
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
 
@@ -51,14 +57,14 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 4000
 
-// ✅ START SERVER ONLY AFTER DB IS READY
+// Start server only after DB is ready
 async function start() {
   try {
     await initDb()
-    console.log('✅ Database connected')
+    console.log('Database connected')
 
     const server = app.listen(PORT, () => {
-      console.log(`🚀 Backend running on ${PORT}`)
+      console.log(`Backend running on ${PORT}`)
     })
 
     // Handle server errors
@@ -80,7 +86,7 @@ async function start() {
     })
 
   } catch (err) {
-    console.error('❌ Failed to start server:', err)
+    console.error('Failed to start server:', err)
     process.exit(1)
   }
 }

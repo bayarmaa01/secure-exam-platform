@@ -49,6 +49,7 @@ kill_existing_port_forwards() {
     pkill -f "kubectl.*port-forward.*4005" 2>/dev/null || true
     pkill -f "kubectl.*port-forward.*5005" 2>/dev/null || true
     pkill -f "kubectl.*port-forward.*3002" 2>/dev/null || true
+    pkill -f "kubectl.*port-forward.*9092" 2>/dev/null || true
     pkill -f "kubectl.*port-forward.*18081" 2>/dev/null || true
     
     # Wait a moment for processes to die
@@ -57,9 +58,39 @@ kill_existing_port_forwards() {
     print_success "Existing port forwards killed"
 }
 
+# Function to wait for service to be ready
+wait_for_service() {
+    local namespace=$1
+    local service_name=$2
+    local timeout=${3:-300}
+    
+    print_info "Waiting for service $service_name in namespace $namespace..."
+    
+    local count=0
+    while [ $count -lt $timeout ]; do
+        if kubectl get svc $service_name -n $namespace &>/dev/null; then
+            local ready=$(kubectl get svc $service_name -n $namespace -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+            if [ -n "$ready" ] || kubectl get endpoints $service_name -n $namespace -o jsonpath='{.subsets}' 2>/dev/null | grep -q "addresses"; then
+                print_success "Service $service_name is ready!"
+                return 0
+            fi
+        fi
+        
+        sleep 2
+        count=$((count + 2))
+        
+        if [ $((count % 10)) -eq 0 ]; then
+            print_info "Still waiting for $service_name... (${count}s elapsed)"
+        fi
+    done
+    
+    print_error "Timeout waiting for service $service_name"
+    return 1
+}
+
 # Function to setup port forwards
 setup_port_forwards() {
-    print_header "🚀 Setting Up Port Forwards"
+    print_header "Setting Up Port Forwards"
     
     # Check if kubectl is available
     if ! command -v kubectl &> /dev/null; then
@@ -72,6 +103,29 @@ setup_port_forwards() {
         print_error "Cannot connect to Kubernetes cluster"
         exit 1
     fi
+    
+    print_info "Waiting for services to be ready before port forwarding..."
+    
+    # Wait for services to be ready
+    wait_for_service "exam-platform" "frontend" 180 || {
+        print_warning "Frontend service not ready, continuing anyway..."
+    }
+    
+    wait_for_service "exam-platform" "backend" 180 || {
+        print_warning "Backend service not ready, continuing anyway..."
+    }
+    
+    wait_for_service "exam-platform" "ai-proctoring" 180 || {
+        print_warning "AI service not ready, continuing anyway..."
+    }
+    
+    wait_for_service "monitoring" "prometheus-grafana" 180 || {
+        print_warning "Grafana service not ready, continuing anyway..."
+    }
+    
+    wait_for_service "argocd" "argocd-server" 180 || {
+        print_warning "ArgoCD service not ready, continuing anyway..."
+    }
     
     print_info "Setting up port forwards in background..."
     
@@ -95,6 +149,11 @@ setup_port_forwards() {
     kubectl port-forward -n monitoring svc/prometheus-grafana 3002:80 &
     GRAFANA_PID=$!
     
+    # Prometheus port forward
+    print_info "Setting up Prometheus port forward (9092)..."
+    kubectl port-forward -n monitoring svc/prometheus-server 9092:9090 &
+    PROMETHEUS_PID=$!
+    
     # ArgoCD port forward
     print_info "Setting up ArgoCD port forward (18081)..."
     kubectl port-forward -n argocd svc/argocd-server 18081:80 &
@@ -111,6 +170,7 @@ $FRONTEND_PID
 $BACKEND_PID
 $AI_PID
 $GRAFANA_PID
+$PROMETHEUS_PID
 $ARGOCD_PID
 EOF
     
@@ -127,6 +187,7 @@ test_port_forwards() {
         "Backend:4005:http://localhost:4005/health"
         "AI Service:5005:http://localhost:5005/health"
         "Grafana:3002:http://localhost:3002"
+        "Prometheus:9092:http://localhost:9092"
         "ArgoCD:18081:https://localhost:18081"
     )
     
