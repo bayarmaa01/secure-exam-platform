@@ -151,12 +151,12 @@ setup_port_forwards() {
     
     # Prometheus port forward
     print_info "Setting up Prometheus port forward (9092)..."
-    kubectl port-forward -n monitoring svc/prometheus-server 9092:9090 &
+    kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9092:9090 &
     PROMETHEUS_PID=$!
     
     # ArgoCD port forward
     print_info "Setting up ArgoCD port forward (18081)..."
-    kubectl port-forward -n argocd svc/argocd-server 18081:80 &
+    kubectl port-forward -n argocd svc/argocd-server 18081:443 &
     ARGOCD_PID=$!
     
     # Wait a moment for port forwards to establish
