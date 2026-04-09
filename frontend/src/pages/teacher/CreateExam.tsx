@@ -33,7 +33,30 @@ export default function CreateExam() {
     setLoading(true)
     
     try {
-      await api.post('/exams', formData)
+      // Map frontend field names to backend field names
+      const payload = {
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        duration_minutes: formData.durationMinutes,
+        start_time: formData.startTime || formData.scheduledAt,
+        end_time: formData.endTime || new Date(new Date(formData.scheduledAt).getTime() + formData.durationMinutes * 60000).toISOString(),
+        total_marks: formData.totalMarks,
+        passing_marks: formData.passingMarks,
+        difficulty: formData.difficulty,
+        fullscreen_required: formData.fullscreenRequired,
+        tab_switch_detection: formData.tabSwitchDetection,
+        copy_paste_blocked: formData.copyPasteBlocked,
+        camera_required: formData.cameraRequired,
+        face_detection_enabled: formData.faceDetectionEnabled,
+        shuffle_questions: formData.shuffleQuestions,
+        shuffle_options: formData.shuffleOptions,
+        assign_to_all: formData.assignToAll,
+        assigned_groups: []
+      }
+      
+      console.log('Submitting exam payload:', payload)
+      await api.post('/exams', payload)
       navigate('/teacher/exams')
     } catch (error) {
       console.error('Failed to create exam:', error)
