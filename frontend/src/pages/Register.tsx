@@ -6,16 +6,16 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const [role, setRole] = useState('student')
-  const [err, setErr] = useState('')
+  const [role, setRole] = useState<'student' | 'teacher'>('student')
+  const [err, setErr] = useState<string>('')
   const { register } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setErr('')
     try {
-      await register(email, password, name, role as 'student' | 'teacher' | undefined)
+      await register(email, password, name, role)
       navigate('/dashboard')
     } catch (error: any) {
       setErr(error.message || 'Registration failed')
@@ -37,7 +37,7 @@ export default function Register() {
           />
           <select
             value={role}
-            onChange={(e) => setRole(e.target.value)}
+            onChange={(e) => setRole(e.target.value as 'student' | 'teacher')}
             required
             className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:ring-2 focus:ring-blue-500"
           >

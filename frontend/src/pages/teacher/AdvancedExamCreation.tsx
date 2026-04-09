@@ -36,7 +36,7 @@ interface ExamFormData {
 interface QuestionFormData {
   question_text: string
   topic: string
-  type: 'mcq' | 'written' | 'coding'
+  type: 'mcq' | 'written' | 'coding' | 'mixed' | 'ai_proctored'
   options: string[]
   correct_answer: string
   points: number
