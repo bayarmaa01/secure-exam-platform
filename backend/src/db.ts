@@ -7,12 +7,19 @@ const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   max: 50,
-  idleTimeoutMillis: 30000
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 })
 
 export async function initDb() {
-  const client = await pool.connect()
-  try {
+  const maxRetries = parseInt(process.env.DB_RETRY_ATTEMPTS || '10', 10)
+  const retryDelay = parseInt(process.env.DB_RETRY_DELAY || '3000', 10)
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Database initialization attempt ${attempt}/${maxRetries}`)
+      const client = await pool.connect()
+      try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -162,8 +169,21 @@ export async function initDb() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `)
-  } finally {
-    client.release()
+  console.log('Database tables created successfully')
+        return true
+      } finally {
+        client.release()
+      }
+    } catch (error) {
+      console.error(`Database initialization attempt ${attempt} failed:`, error)
+      if (attempt < maxRetries) {
+        console.log(`Retrying in ${retryDelay}ms...`)
+        await new Promise(resolve => setTimeout(resolve, retryDelay))
+      } else {
+        console.error('Database initialization failed after all attempts')
+        throw error
+      }
+    }
   }
 }
 

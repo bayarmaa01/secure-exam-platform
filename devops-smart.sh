@@ -91,10 +91,9 @@ wait_for_deployment() {
 fix_secrets() {
     print_step "Fixing Kubernetes Secret mismatches..."
     
-    # Check if secret exists
-    if ! kubectl get secret exam-platform-secret -n "$NAMESPACE" >/dev/null 2>&1; then
-        print_warning "Secret exam-platform-secret not found, creating..."
-        kubectl apply -f - <<EOF
+    # Create/update secret with all required keys
+    print_info "Creating/updating secret with all required keys..."
+    kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -102,26 +101,28 @@ metadata:
   namespace: $NAMESPACE
 type: Opaque
 stringData:
-  DATABASE_URL: "postgresql://exam_user:exam_password@postgres:5432/exam_platform"
-  DB_HOST: "postgres"
-  DB_NAME: "exam_platform"
-  DB_PASSWORD: "exam_password"
+  # Database credentials - SINGLE SOURCE OF TRUTH
+  DB_HOST: postgres
   DB_PORT: "5432"
-  DB_USER: "exam_user"
-  JWT_REFRESH_SECRET: "change-refresh-in-production-use-k8s-secrets"
-  JWT_SECRET: "change-me-in-production-use-k8s-secrets"
-  POSTGRES_DB: "exam_platform"
-  POSTGRES_PASSWORD: "exam_password"
-  POSTGRES_USER: "exam_user"
-  REDIS_HOST: "redis"
+  DB_USER: exam_user
+  DB_PASSWORD: exam_password
+  DB_NAME: exam_platform
+  # PostgreSQL native environment variables (mapped from DB_*)
+  POSTGRES_USER: exam_user
+  POSTGRES_PASSWORD: exam_password
+  POSTGRES_DB: exam_platform
+  # Backward compatibility keys
+  postgres-user: exam_user
+  postgres-password: exam_password
+  # Connection URLs
+  DATABASE_URL: "postgresql://exam_user:exam_password@postgres:5432/exam_platform"
+  REDIS_HOST: redis
   REDIS_PORT: "6379"
   REDIS_URL: "redis://redis:6379"
+  # JWT secrets
+  JWT_SECRET: "change-me-in-production-use-k8s-secrets"
+  JWT_REFRESH_SECRET: "change-refresh-in-production-use-k8s-secrets"
 EOF
-    fi
-    
-    # Patch PostgreSQL deployment to use correct secret keys
-    print_info "Patching PostgreSQL deployment with correct secret keys..."
-    kubectl patch deployment postgres -n "$NAMESPACE" --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/env", "value":[{"name":"POSTGRES_USER","valueFrom":{"secretKeyRef":{"name":"exam-platform-secret","key":"POSTGRES_USER"}}},{"name":"POSTGRES_PASSWORD","valueFrom":{"secretKeyRef":{"name":"exam-platform-secret","key":"POSTGRES_PASSWORD"}}},{"name":"POSTGRES_DB","valueFrom":{"secretKeyRef":{"name":"exam-platform-secret","key":"POSTGRES_DB"}}},{"name":"POSTGRES_INITDB_ARGS","value":"--auth-host=scram-sha-256"},{"name":"PGDATA","value":"/var/lib/postgresql/data/pgdata"}]}]' 2>/dev/null || true
     
     print_success "Secret fixes completed"
 }
@@ -130,28 +131,128 @@ EOF
 fix_postgresql() {
     print_step "Fixing PostgreSQL issues..."
     
-    # Check for CreateContainerConfigError
-    local postgres_pods=$(kubectl get pods -n "$NAMESPACE" -l app=postgres -o jsonpath='{.items[*].status.containerStatuses[*].state.waiting.reason}' 2>/dev/null || echo "")
+    # Apply updated PostgreSQL deployment with proper secret keys
+    print_info "Applying updated PostgreSQL deployment..."
+    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: $NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      initContainers:
+      - name: init-db
+        image: postgres:16-alpine
+        envFrom:
+        - secretRef:
+            name: exam-platform-secret
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Initializing PostgreSQL..."
+          if [ ! -f /var/lib/postgresql/data/pg_hba.conf ]; then
+            echo "Fresh PostgreSQL installation detected"
+            echo "Creating database with user: \$POSTGRES_USER"
+          else
+            echo "Existing PostgreSQL data found"
+            echo "Checking user credentials..."
+          fi
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+          - secretRef:
+              name: exam-platform-secret
+          env:
+            # Use correct secret keys
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: exam-platform-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: exam-platform-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: exam-platform-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_INITDB_ARGS
+              value: "--auth-host=scram-sha-256"
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+          - name: postgres-data
+            mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pg_isready -U \$POSTGRES_USER -d \$POSTGRES_DB"
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pg_isready -U \$POSTGRES_USER -d \$POSTGRES_DB"
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+EOF
     
-    if [[ "$postgres_pods" == *"CreateContainerConfigError"* ]]; then
-        print_warning "Detected PostgreSQL CreateContainerConfigError, fixing..."
-        
-        # Delete problematic pods
-        kubectl delete pods -n "$NAMESPACE" -l app=postgres --ignore-not-found=true
-        
-        # Check if PVC is stuck in Terminating
-        local pvc_status=$(kubectl get pvc postgres-pvc -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
-        
-        if [[ "$pvc_status" == "Terminating" ]]; then
-            print_warning "PVC is stuck in Terminating, force removing finalizers..."
-            kubectl patch pvc postgres-pvc -n "$NAMESPACE" -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
-            kubectl delete pvc postgres-pvc -n "$NAMESPACE" --force --grace-period=0 2>/dev/null || true
-        fi
-        
-        # Recreate PVC
-        if ! kubectl get pvc postgres-pvc -n "$NAMESPACE" >/dev/null 2>&1; then
-            print_info "Creating new PostgreSQL PVC..."
-            kubectl apply -f - <<EOF
+    # Apply PostgreSQL service
+    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: $NAMESPACE
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+EOF
+    
+    # Apply PostgreSQL PVC
+    kubectl apply -f - <<EOF
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -164,83 +265,13 @@ spec:
     requests:
       storage: 8Gi
 EOF
-        fi
-        
-        # Restart PostgreSQL deployment
-        kubectl rollout restart deployment/postgres -n "$NAMESPACE"
-        
-        # Wait for PostgreSQL to be ready
-        if wait_for_deployment postgres "$NAMESPACE" 120; then
-            print_success "PostgreSQL is ready"
-        else
-            print_error "PostgreSQL failed to start"
-            return 1
-        fi
+    
+    # Wait for PostgreSQL to be ready
+    if wait_for_deployment postgres "$NAMESPACE" 120; then
+        print_success "PostgreSQL is ready"
     else
-        print_success "PostgreSQL is healthy"
-    fi
-    
-    # Initialize database schema if needed
-    print_info "Checking database schema..."
-    local postgres_pod=$(kubectl get pods -n "$NAMESPACE" -l app=postgres -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-    
-    if [[ -n "$postgres_pod" ]]; then
-        # Create user and database if needed
-        kubectl exec -it "$postgres_pod" -n "$NAMESPACE" -- psql -U postgres -c "CREATE USER exam_user WITH PASSWORD 'exam_password';" 2>/dev/null || true
-        kubectl exec -it "$postgres_pod" -n "$NAMESPACE" -- psql -U postgres -c "CREATE DATABASE exam_platform;" 2>/dev/null || true
-        kubectl exec -it "$postgres_pod" -n "$NAMESPACE" -- psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE exam_platform TO exam_user;" 2>/dev/null || true
-        
-        # Create schema
-        kubectl exec -it "$postgres_pod" -n "$NAMESPACE" -- psql -U postgres -d exam_platform -c "
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255),
-  name VARCHAR(255) NOT NULL,
-  role VARCHAR(20) DEFAULT 'student' CHECK (role IN ('student', 'teacher', 'admin')),
-  student_id VARCHAR(50),
-  teacher_id VARCHAR(50),
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-  token VARCHAR(255) PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  expires_at TIMESTAMP NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS exams (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title VARCHAR(255) NOT NULL,
-  description TEXT,
-  type VARCHAR(20) DEFAULT 'mcq' CHECK (type IN ('mcq', 'written', 'coding', 'mixed', 'ai_proctored')),
-  duration_minutes INT NOT NULL,
-  start_time TIMESTAMP NOT NULL,
-  end_time TIMESTAMP NOT NULL,
-  difficulty VARCHAR(10) DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard')),
-  total_marks INT DEFAULT 100,
-  passing_marks INT DEFAULT 50,
-  is_published BOOLEAN DEFAULT false,
-  teacher_id UUID REFERENCES users(id),
-  fullscreen_required BOOLEAN DEFAULT false,
-  tab_switch_detection BOOLEAN DEFAULT false,
-  copy_paste_blocked BOOLEAN DEFAULT false,
-  camera_required BOOLEAN DEFAULT false,
-  face_detection_enabled BOOLEAN DEFAULT false,
-  shuffle_questions BOOLEAN DEFAULT false,
-  shuffle_options BOOLEAN DEFAULT false,
-  assign_to_all BOOLEAN DEFAULT true,
-  assigned_groups JSONB DEFAULT '[]'::jsonb,
-  status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'ongoing', 'completed')),
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO exam_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO exam_user;
-" 2>/dev/null || true
-        
-        print_success "Database schema initialized"
+        print_error "PostgreSQL failed to start"
+        return 1
     fi
 }
 
