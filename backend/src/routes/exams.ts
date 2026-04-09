@@ -109,31 +109,103 @@ router.post('/exams',
   [
     body('title').notEmpty().trim(),
     body('description').optional().trim(),
+    body('type').optional().isIn(['mcq', 'written', 'coding', 'mixed', 'ai_proctored']),
     body('durationMinutes').isInt({ min: 1, max: 480 }),
-    body('scheduledAt').isISO8601().toDate()
+    body('difficulty').optional().isIn(['easy', 'medium', 'hard']),
+    body('totalMarks').optional().isInt({ min: 1 }),
+    body('passingMarks').optional().isInt({ min: 1 }),
+    body('startTime').optional().isISO8601().toDate(),
+    body('endTime').optional().isISO8601().toDate(),
+    body('fullscreenRequired').optional().isBoolean(),
+    body('tabSwitchDetection').optional().isBoolean(),
+    body('copyPasteBlocked').optional().isBoolean(),
+    body('cameraRequired').optional().isBoolean(),
+    body('faceDetectionEnabled').optional().isBoolean(),
+    body('shuffleQuestions').optional().isBoolean(),
+    body('shuffleOptions').optional().isBoolean(),
+    body('assignToAll').optional().isBoolean()
   ],
   async (req: AuthRequest, res) => {
     try {
+      console.log('POST /api/exams - Request body:', JSON.stringify(req.body, null, 2))
+      console.log('POST /api/exams - User:', JSON.stringify(req.user, null, 2))
+      
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
+        console.error('POST /api/exams - Validation errors:', errors.array())
         return res.status(400).json({ errors: errors.array() })
       }
 
-      const { title, description, durationMinutes, scheduledAt } = req.body
+      const { 
+        title, 
+        description, 
+        type = 'mcq',
+        durationMinutes = 60,
+        difficulty = 'medium',
+        totalMarks = 100,
+        passingMarks = 50,
+        startTime,
+        endTime,
+        fullscreenRequired = false,
+        tabSwitchDetection = false,
+        copyPasteBlocked = false,
+        cameraRequired = false,
+        faceDetectionEnabled = false,
+        shuffleQuestions = false,
+        shuffleOptions = false,
+        assignToAll = true
+      } = req.body
 
-      const r = await pool.query(
-        `INSERT INTO exams (title, description, duration_minutes, teacher_id, start_time, end_time, status)
-         VALUES ($1, $2, $3, $4, $5, $5, 'draft')
-         RETURNING *`,
-        [title, description, durationMinutes, req.user!.id, scheduledAt]
-      )
+      // Calculate end_time if not provided
+      const calculatedEndTime = endTime || new Date(startTime.getTime() + durationMinutes * 60 * 1000)
 
+      const query = `
+        INSERT INTO exams (
+          title, description, type, duration_minutes, teacher_id, 
+          start_time, end_time, difficulty, total_marks, passing_marks,
+          fullscreen_required, tab_switch_detection, copy_paste_blocked,
+          camera_required, face_detection_enabled, shuffle_questions,
+          shuffle_options, assign_to_all, status
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+          $11, $12, $13, $14, $15, $16, $17, 'draft'
+        ) RETURNING *
+      `
+      
+      const values = [
+        title, description, type, durationMinutes, req.user!.id,
+        startTime, calculatedEndTime, difficulty, totalMarks, passingMarks,
+        fullscreenRequired, tabSwitchDetection, copyPasteBlocked,
+        cameraRequired, faceDetectionEnabled, shuffleQuestions,
+        shuffleOptions, assignToAll
+      ]
+
+      console.log('POST /api/exams - SQL Query:', query)
+      console.log('POST /api/exams - Values:', JSON.stringify(values, null, 2))
+
+      const r = await pool.query(query, values)
+
+      console.log('POST /api/exams - Success:', JSON.stringify(r.rows[0], null, 2))
       res.status(201).json(r.rows[0])
     } catch (error) {
-      console.error('POST /api/exams error:', error)
-      console.error('Request body:', req.body)
-      console.error('User:', req.user)
-      res.status(500).json({ message: 'Internal server error', error: error.message })
+      console.error('POST /api/exams - Database error:', {
+        message: error.message,
+        stack: error.stack,
+        query: error.query,
+        parameters: error.parameters,
+        severity: error.severity,
+        detail: error.detail,
+        hint: error.hint
+      })
+      console.error('POST /api/exams - Request body that failed:', JSON.stringify(req.body, null, 2))
+      console.error('POST /api/exams - User that failed:', JSON.stringify(req.user, null, 2))
+      
+      res.status(500).json({ 
+        message: 'Internal server error', 
+        error: error.message,
+        details: 'Failed to create exam in database',
+        timestamp: new Date().toISOString()
+      })
     }
   }
 )
