@@ -1,7 +1,29 @@
 import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
-import { auth, AuthRequest, requireTeacher, requireStudent, requireAdmin } from '../middleware/auth'
+import { auth, AuthRequest, requireTeacher } from '../middleware/auth'
+
+interface ExamFormData {
+  title: string
+  description?: string
+  type: 'mcq' | 'written' | 'coding' | 'mixed' | 'ai_proctored'
+  duration_minutes: number
+  start_time: string
+  end_time: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  total_marks: number
+  passing_marks: number
+  is_published: boolean
+  fullscreen_required: boolean
+  tab_switch_detection: boolean
+  copy_paste_blocked: boolean
+  camera_required: boolean
+  face_detection_enabled: boolean
+  shuffle_questions: boolean
+  shuffle_options: boolean
+  assign_to_all: boolean
+  assigned_groups: string[]
+}
 
 const router = Router()
 
@@ -69,7 +91,7 @@ router.post('/exams/advanced',
         // Assignment settings
         assign_to_all = true,
         assigned_groups = []
-      } = req.body
+      }: ExamFormData = req.body
 
       // Validate that end_time is after start_time
       if (new Date(end_time) <= new Date(start_time)) {
@@ -199,25 +221,25 @@ router.get('/exams/advanced', auth, async (req: AuthRequest, res) => {
 
     const offset = (Number(page) - 1) * Number(limit)
     let whereClause = 'WHERE 1=1'
-    const params: any[] = []
+    const params: (string | number)[] = []
     let paramIndex = 1
 
     // Add filters
     if (type) {
       whereClause += ` AND e.type = $${paramIndex++}`
-      params.push(type)
+      params.push(String(type))
     }
     if (difficulty) {
       whereClause += ` AND e.difficulty = $${paramIndex++}`
-      params.push(difficulty)
+      params.push(String(difficulty))
     }
     if (status) {
       whereClause += ` AND e.status = $${paramIndex++}`
-      params.push(status)
+      params.push(String(status))
     }
     if (search) {
       whereClause += ` AND (e.title ILIKE $${paramIndex++} OR e.description ILIKE $${paramIndex++})`
-      params.push(`%${search}%`, `%${search}%`)
+      params.push(`%${String(search)}%`, `%${String(search)}%`)
     }
 
     // Add role-based filtering
@@ -239,7 +261,6 @@ router.get('/exams/advanced', auth, async (req: AuthRequest, res) => {
     )
 
     // Get total count
-    const countQuery = whereClause.replace('e.*, u.name as teacher_name', 'COUNT(*)')
     const countResult = await pool.query(
       `SELECT COUNT(*) as total
        FROM exams e

@@ -1,7 +1,20 @@
 import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
-import { auth, AuthRequest, requireTeacher, requireStudent, requireAdmin } from '../middleware/auth'
+import { auth, AuthRequest, requireTeacher, requireStudent } from '../middleware/auth'
+
+interface BehaviorData {
+  erratic_mouse_movements?: number
+  rapid_answers?: number
+  sudden_activity_spikes?: number
+  unusual_keyboard_pattern?: boolean
+}
+
+interface CameraData {
+  face_not_detected_ratio?: number
+  multiple_faces_detected?: boolean
+  look_away_ratio?: number
+}
 
 const router = Router()
 
@@ -300,7 +313,7 @@ async function updateCheatingScore(attemptId: string): Promise<void> {
   }
 }
 
-function calculateAICheatingScore(behavior_data: any, camera_data: any): number {
+function calculateAICheatingScore(behavior_data: BehaviorData, camera_data: CameraData): number {
   let score = 0
   
   // Analyze behavior patterns

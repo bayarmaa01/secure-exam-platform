@@ -327,7 +327,7 @@ export default function LearningDashboard() {
                   </li>
                 ))}
                 {weakTopics.filter(t => t.status === 'Critical' || t.status === 'Needs Improvement').length === 0 && (
-                  <li className="text-gray-500">You're doing great! Consider exploring advanced topics</li>
+                  <p className="text-gray-600">You&apos;re doing great! Consider exploring advanced topics</p>
                 )}
               </ul>
             </div>

@@ -71,7 +71,7 @@ export function notifyExamParticipants(examId: string, notification: Notificatio
 }
 
 // Helper function to send notifications when exam is created
-export async function notifyNewExam(examId: string, teacherId: string) {
+export async function notifyNewExam(examId: string, _teacherId: string) {
   try {
     const result = await pool.query(
       `SELECT e.title, u.name as teacher_name 

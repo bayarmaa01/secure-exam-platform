@@ -1,6 +1,34 @@
 import { Router } from 'express'
 import { pool } from '../db'
-import { auth, AuthRequest, requireTeacher, requireStudent, requireAdmin } from '../middleware/auth'
+import { auth, AuthRequest, requireTeacher, requireStudent } from '../middleware/auth'
+
+interface TopicPerformance {
+  topic: string
+  totalQuestions: number
+  correctAnswers: number
+  accuracy: number
+  status: string
+}
+
+interface ProgressData {
+  examName: string
+  date: string
+  score: number
+}
+
+interface OverallStats {
+  totalExams: number
+  totalQuestionsAnswered: number
+  totalCorrectAnswers: number
+  averageScore: number
+  examsPassed: number
+}
+
+interface DashboardData {
+  topicPerformance: TopicPerformance[]
+  progressOverTime: ProgressData[]
+  overallStats: OverallStats
+}
 
 const router = Router()
 
@@ -120,7 +148,7 @@ router.get('/analytics/student-dashboard',
           averageScore: parseFloat(overallStats.rows[0].average_score) || 0,
           examsPassed: parseInt(overallStats.rows[0].exams_passed)
         }
-      }
+      } as DashboardData
 
       res.json(dashboardData)
     } catch (error) {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Plus, Trash2, Save, Eye, EyeOff } from 'lucide-react'
@@ -51,7 +51,7 @@ export default function AdvancedExamCreation() {
   const [showPreview, setShowPreview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<ExamFormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<ExamFormData>({
     defaultValues: {
       title: '',
       description: '',
@@ -76,7 +76,6 @@ export default function AdvancedExamCreation() {
   })
 
   const examType = watch('type')
-  const assignToAll = watch('assign_to_all')
 
   const addQuestion = () => {
     const newQuestion: QuestionFormData = {

@@ -44,7 +44,7 @@ app.use('/api', securityRoutes)
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
 
 // Global error handler
-app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Global error handler:', err)
   res.status(500).json({ message: 'Internal server error' })
 })
@@ -68,7 +68,7 @@ async function start() {
     })
 
     // Handle server errors
-    server.on('error', (err: any) => {
+    server.on('error', (err: NodeJS.ErrnoException) => {
       console.error('Server error:', err)
       if (err.code === 'EADDRINUSE') {
         console.error(`Port ${PORT} is already in use`)
