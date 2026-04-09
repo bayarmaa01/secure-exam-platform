@@ -478,7 +478,7 @@ export default function AdvancedExamCreation() {
               
               {questions.length === 0 && (
                 <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                  <p className="text-gray-500">No questions added yet. Click "Add Question" to start.</p>
+                  <p className="text-gray-500">No questions added yet. Click &quot;Add Question&quot; to start.</p>
                 </div>
               )}
             </div>

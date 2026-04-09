@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { Users, TrendingUp, AlertTriangle, BookOpen, Target, Eye } from 'lucide-react'
 import api from '../../api'
 import toast from 'react-hot-toast'
@@ -30,6 +30,7 @@ interface WeakTopic {
   errorRate: number
   strugglingStudents: number
   recommendation: string
+  status: string
 }
 
 export default function AnalyticsDashboard() {
