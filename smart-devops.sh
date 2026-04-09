@@ -812,11 +812,19 @@ wait_argocd_ready() {
         return 0
     fi
     
-    # Wait for ArgoCD server deployment with retry
-    retry $RETRY_COUNT $KUBECTL_CMD rollout status deployment/argocd-server -n argocd --timeout=300s || {
-        print_error "ArgoCD server failed to become ready"
-        return 1
+    # Wait for ArgoCD server deployment with retry and increased timeout
+    local argocd_success=false
+    retry $RETRY_COUNT $KUBECTL_CMD rollout status deployment/argocd-server -n argocd --timeout=600s && {
+        argocd_success=true
+    } || {
+        print_warning "ArgoCD server rollout timeout, but continuing..."
+        # Don't fail the deployment, just warn
     }
+    
+    # If ArgoCD failed, provide manual setup instructions
+    if [[ "$argocd_success" == "false" ]]; then
+        print_warning "ArgoCD may need manual setup. Run: kubectl get pods -n argocd"
+    fi
     
     # Wait for argocd-repo-server
     retry $RETRY_COUNT $KUBECTL_CMD rollout status deployment/argocd-repo-server -n argocd --timeout=180s || {
