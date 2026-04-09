@@ -223,10 +223,12 @@ pre_checks() {
     fi
     
     if ! minikube status >/dev/null 2>&1; then
-        print_error "Minikube is not running"
-        exit 1
+        print_info "Minikube is not running, starting with Docker driver..."
+        minikube start --driver=docker --container-runtime=docker
+        print_success "Minikube started with Docker driver"
+    else
+        print_success "Minikube is running"
     fi
-    print_success "Minikube is running"
     
     # Check kubectl
     if ! command -v kubectl >/dev/null 2>&1; then
@@ -397,7 +399,7 @@ spec:
     spec:
       containers:
       - name: redis
-        image: redis:7-alpine
+        image: redis:6-alpine
         ports:
         - containerPort: 6379
         readinessProbe:
