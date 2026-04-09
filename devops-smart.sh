@@ -308,6 +308,92 @@ fix_argocd() {
     if ! kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
         print_warning "Installing ArgoCD CRDs..."
         kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/crds.yaml
+        sleep 10
+    fi
+    
+    # Fix CrashLoopBackOff pods by deleting and recreating
+    local argocd_pods=$(kubectl get pods -n "$ARGOCD_NAMESPACE" -o jsonpath='{.items[*].status.containerStatuses[*].state.waiting.reason}' 2>/dev/null || echo "")
+    
+    if [[ "$argocd_pods" == *"CrashLoopBackOff"* ]]; then
+        print_warning "Detected ArgoCD CrashLoopBackOff, fixing..."
+        
+        # Delete problematic deployments
+        kubectl delete deployment argocd-applicationset-controller -n "$ARGOCD_NAMESPACE" --ignore-not-found=true
+        kubectl delete deployment argocd-server -n "$ARGOCD_NAMESPACE" --ignore-not-found=true
+        
+        # Wait for pods to terminate
+        sleep 10
+        
+        # Recreate ArgoCD with fixed configuration
+        kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-applicationset-controller
+  namespace: $ARGOCD_NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-applicationset-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argocd-applicationset-controller
+    spec:
+      containers:
+      - name: argocd-applicationset-controller
+        image: quay.io/argoproj/argocd-applicationset-controller:v2.8.4
+        args:
+        - --argocd-repo-server
+        - argocd-repo-server.$ARGOCD_NAMESPACE.svc.cluster.local:8081
+        env:
+        - name: ARGOCD_NAMESPACE
+          value: $ARGOCD_NAMESPACE
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+  namespace: $ARGOCD_NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argocd-server
+    spec:
+      containers:
+      - name: argocd-server
+        image: quay.io/argoproj/argocd:v2.8.4
+        command:
+        - argocd-server
+        - --staticassets
+        - /shared/app
+        - --repo-server
+        - argocd-repo-server.$ARGOCD_NAMESPACE.svc.cluster.local:8081
+        - --dex-server
+        - https://argocd-dex-server.$ARGOCD_NAMESPACE.svc.cluster.local:5556
+        - --redis-server
+        - argocd-redis.$ARGOCD_NAMESPACE.svc.cluster.local:6379
+        - --loglevel
+        - info
+        env:
+        - name: ARGOCD_SERVER_INSECURE
+          value: "true"
+EOF
+        
+        # Wait for deployments to be ready
+        if wait_for_deployment argocd-applicationset-controller "$ARGOCD_NAMESPACE" 120; then
+            print_success "ArgoCD ApplicationSet Controller is ready"
+        fi
+        
+        if wait_for_deployment argocd-server "$ARGOCD_NAMESPACE" 120; then
+            print_success "ArgoCD Server is ready"
+        fi
     fi
     
     # Fix Application spec issues
