@@ -82,7 +82,7 @@ setup_port_forwards() {
     
     # Backend port forward  
     print_info "Setting up backend port forward (4005)..."
-    kubectl port-forward -n exam-platform svc/backend 4005:80 &
+    kubectl port-forward -n exam-platform svc/backend 4005:4000 &
     BACKEND_PID=$!
     
     # AI Service port forward
@@ -97,7 +97,7 @@ setup_port_forwards() {
     
     # ArgoCD port forward
     print_info "Setting up ArgoCD port forward (18081)..."
-    kubectl port-forward -n argocd svc/argocd-server 18081:443 &
+    kubectl port-forward -n argocd svc/argocd-server 18081:80 &
     ARGOCD_PID=$!
     
     # Wait a moment for port forwards to establish
