@@ -46,7 +46,11 @@ app.get('/health', (_, res) => res.json({ status: 'ok' }))
 // Global error handler
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Global error handler:', err)
-  res.status(500).json({ message: 'Internal server error' })
+  console.error('Request URL:', req.url)
+  console.error('Request method:', req.method)
+  console.error('Request body:', req.body)
+  console.error('Error stack:', err.stack)
+  res.status(500).json({ message: 'Internal server error', error: err.message })
 })
 
 // 404 handler

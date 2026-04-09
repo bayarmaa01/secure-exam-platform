@@ -122,15 +122,18 @@ router.post('/exams',
       const { title, description, durationMinutes, scheduledAt } = req.body
 
       const r = await pool.query(
-        `INSERT INTO exams (title, description, duration_minutes, teacher_id, scheduled_at, status)
-         VALUES ($1, $2, $3, $4, $5, 'draft')
+        `INSERT INTO exams (title, description, duration_minutes, teacher_id, start_time, end_time, status)
+         VALUES ($1, $2, $3, $4, $5, $5, 'draft')
          RETURNING *`,
         [title, description, durationMinutes, req.user!.id, scheduledAt]
       )
 
       res.status(201).json(r.rows[0])
     } catch (error) {
-      res.status(500).json({ message: 'Internal server error' })
+      console.error('POST /api/exams error:', error)
+      console.error('Request body:', req.body)
+      console.error('User:', req.user)
+      res.status(500).json({ message: 'Internal server error', error: error.message })
     }
   }
 )
