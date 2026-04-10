@@ -41,7 +41,7 @@ export default function ExamRoom() {
   const startExam = () => {
     if (!id) return
     examService.getExamById(id)
-      .then((exam: Exam) => {
+      .then((_exam: Exam) => {
         // Simulate creating an attempt - in real implementation, this would come from backend
         const attemptId = `attempt-${Date.now()}`
         setAttemptId(attemptId)

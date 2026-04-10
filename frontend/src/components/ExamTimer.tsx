@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 interface ExamTimerProps {
   durationMinutes: number
@@ -10,6 +10,11 @@ interface ExamTimerProps {
 export default function ExamTimer({ durationMinutes, startedAt, onExpire, className = '' }: ExamTimerProps) {
   const [remaining, setRemaining] = useState(0)
 
+  // Memoize onExpire to prevent unnecessary re-renders
+  const memoizedOnExpire = useCallback(() => {
+    onExpire()
+  }, [onExpire])
+
   useEffect(() => {
     const start = new Date(startedAt).getTime()
     const end = start + durationMinutes * 60 * 1000
@@ -18,13 +23,13 @@ export default function ExamTimer({ durationMinutes, startedAt, onExpire, classN
       const now = Date.now()
       const left = Math.max(0, Math.floor((end - now) / 1000))
       setRemaining(left)
-      if (left <= 0) onExpire()
+      if (left <= 0) memoizedOnExpire()
     }
 
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [durationMinutes, startedAt]) // Remove onExpire to prevent re-render issues
+  }, [durationMinutes, startedAt, memoizedOnExpire])
 
   const m = Math.floor(remaining / 60)
   const s = remaining % 60

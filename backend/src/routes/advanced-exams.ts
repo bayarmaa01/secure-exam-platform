@@ -318,6 +318,12 @@ router.get('/exams/:id/advanced', auth, async (req: AuthRequest, res) => {
     )
 
     // For students, don't send correct answers
+    interface TestCase {
+      input: string
+      expectedOutput: string
+      description?: string
+    }
+    
     interface AdvancedQuestionResponse {
       id: string
       text: string
@@ -327,7 +333,7 @@ router.get('/exams/:id/advanced', auth, async (req: AuthRequest, res) => {
       points: number
       languages: string[]
       correctAnswer?: string | string[]
-      testCases?: any[]
+      testCases?: TestCase[]
       templateCode?: Record<string, string>
     }
     
