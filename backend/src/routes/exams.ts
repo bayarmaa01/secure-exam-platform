@@ -156,7 +156,8 @@ router.post('/exams',
         face_detection_enabled = false,
         shuffle_questions = false,
         shuffle_options = false,
-        assign_to_all = true
+        assign_to_all = true,
+        assigned_groups = []
       } = req.body
 
       // Calculate end_time if not provided
@@ -168,10 +169,10 @@ router.post('/exams',
           start_time, end_time, difficulty, total_marks, passing_marks,
           fullscreen_required, tab_switch_detection, copy_paste_blocked,
           camera_required, face_detection_enabled, shuffle_questions,
-          shuffle_options, assign_to_all, status
+          shuffle_options, assign_to_all, assigned_groups, status
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16, $17, 'draft'
+          $11, $12, $13, $14, $15, $16, $17, $18, 'draft'
         ) RETURNING *
       `
       
@@ -180,7 +181,7 @@ router.post('/exams',
         start_time, calculatedEndTime, difficulty, total_marks, passing_marks,
         fullscreen_required, tab_switch_detection, copy_paste_blocked,
         camera_required, face_detection_enabled, shuffle_questions,
-        shuffle_options, assign_to_all
+        shuffle_options, assign_to_all, assigned_groups
       ]
 
       console.log('POST /api/exams - SQL Query:', query)
