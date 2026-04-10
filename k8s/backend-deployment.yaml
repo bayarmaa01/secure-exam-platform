@@ -34,7 +34,7 @@ spec:
         - 'until nc -z redis 6379; do echo waiting for redis; sleep 5; done;'
       containers:
       - name: backend
-        image: backend:latest
+        image: backend:v1.0.0
         imagePullPolicy: Never
         ports:
         - containerPort: 4000
