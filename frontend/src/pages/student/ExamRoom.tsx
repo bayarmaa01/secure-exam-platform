@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
@@ -40,7 +40,7 @@ export default function ExamRoom() {
   const intervalRef = useRef<number | null>(null)
   const timerRef = useRef<number | null>(null)
 
-  const submitExam = async () => {
+  const submitExam = useCallback(async () => {
     if (!attemptId || submitting) return
     
     setSubmitting(true)
@@ -56,7 +56,7 @@ export default function ExamRoom() {
       console.error('Failed to submit exam:', error)
       setSubmitting(false)
     }
-  }
+  }, [attemptId, submitting, answers, cheatingWarnings, navigate])
 
   useEffect(() => {
     if (!id) return

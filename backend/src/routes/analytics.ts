@@ -259,10 +259,11 @@ router.get('/analytics/leaderboard',
   auth,
   async (req: AuthRequest, res) => {
     try {
-      const { limit = 10 } = req.query
+      const { limit } = req.query
+      const limitNum = parseInt(limit as string) || 10
 
       let query = ''
-      let params: any[] = []
+      let params: (string | number)[] = []
 
       if (req.user!.role === 'teacher') {
         // Show leaderboard for teacher's students only
@@ -281,7 +282,7 @@ router.get('/analytics/leaderboard',
           ORDER BY total_score DESC, average_score DESC
           LIMIT $1
         `
-        params = [limit]
+        params = [limitNum]
       } else {
         // Global leaderboard for students and admins
         query = `
@@ -299,7 +300,7 @@ router.get('/analytics/leaderboard',
           ORDER BY total_score DESC, average_score DESC
           LIMIT $1
         `
-        params = [limit]
+        params = [limitNum]
       }
 
       const r = await pool.query(query, params)

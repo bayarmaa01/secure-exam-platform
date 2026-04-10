@@ -96,7 +96,7 @@ export default function AdvancedExamCreation() {
     setQuestions(questions.filter((_, i) => i !== index))
   }
 
-  const updateQuestion = (index: number, field: keyof QuestionFormData, value: any) => {
+  const updateQuestion = (index: number, field: keyof QuestionFormData, value: string | string[] | number | Array<{ input: string; expected_output: string }>) => {
     const updatedQuestions = [...questions]
     updatedQuestions[index] = { ...updatedQuestions[index], [field]: value }
     setQuestions(updatedQuestions)

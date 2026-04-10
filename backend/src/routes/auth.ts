@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
-import { auth } from '../middleware/auth'
+import { auth, AuthRequest } from '../middleware/auth'
 
 const router = Router()
 
@@ -130,8 +130,9 @@ router.post(
         refreshToken,
         user
       })
-    } catch (e: any) {
-      if (e.code === '23505') {
+    } catch (e: unknown) {
+      const error = e as Error & { code?: string }
+      if (error instanceof Error && error.code === '23505') {
         return res.status(400).json({ message: 'Email already registered' })
       }
 
@@ -183,9 +184,9 @@ router.post('/refresh', async (req, res) => {
 /**
  * GET CURRENT USER
  */
-router.get('/me', auth, async (req, res) => {
+router.get('/me', auth, async (req: AuthRequest, res) => {
   try {
-    const u = (req as any).user
+    const u = req.user!
 
     const r = await pool.query(
       'SELECT id, email, name, role, student_id, teacher_id FROM users WHERE id = $1',

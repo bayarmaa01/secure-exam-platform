@@ -322,8 +322,17 @@ router.get('/exams/:id/questions', auth, async (req: AuthRequest, res) => {
     )
 
     // For students, don't send correct answers
-    const questions = r.rows.map((row) => {
-      const question: any = {
+    interface QuestionResponse {
+      id: string
+      text: string
+      options: string[]
+      type: string
+      points: number
+      correctAnswer?: string | string[]
+    }
+    
+    const questions = r.rows.map((row): QuestionResponse => {
+      const question: QuestionResponse = {
         id: row.id,
         text: row.question_text,
         options: row.options || [],

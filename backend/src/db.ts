@@ -1,4 +1,4 @@
-import { Pool } from 'pg'
+import { Pool, PoolClient } from 'pg'
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
@@ -11,7 +11,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000,
 })
 
-async function ensureTablesExist(client: any) {
+async function ensureTablesExist(client: PoolClient) {
   console.log('Ensuring basic tables exist...')
   
   const tables = [
@@ -68,7 +68,7 @@ async function ensureTablesExist(client: any) {
   console.log('Basic tables ensured')
 }
 
-async function runMigrations(client: any) {
+async function runMigrations(client: PoolClient) {
   console.log('Running database migrations...')
   
   // Add any missing columns to existing tables
