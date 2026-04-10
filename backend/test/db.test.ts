@@ -3,9 +3,9 @@ import { Pool } from 'pg';
 import { pool, initDb } from '../src/db';
 
 // Mock the Pool constructor
-const mockPoolQuery = jest.fn();
-const mockPoolConnect = jest.fn();
-const mockPoolEnd = jest.fn();
+const mockPoolQuery = jest.fn() as jest.MockedFunction<any>;
+const mockPoolConnect = jest.fn() as jest.MockedFunction<any>;
+const mockPoolEnd = jest.fn() as jest.MockedFunction<any>;
 
 jest.mock('pg', () => ({
   Pool: jest.fn().mockImplementation(() => ({
@@ -29,7 +29,7 @@ describe('Database Module', () => {
 
     test('should execute queries', async () => {
       const mockResult = { rows: [{ id: 1, name: 'test' }] };
-      mockPoolQuery.mockResolvedValue(mockResult as never);
+      mockPoolQuery.mockResolvedValue(mockResult);
 
       const result = await pool.query('SELECT * FROM users');
 
@@ -41,7 +41,7 @@ describe('Database Module', () => {
   describe('Pool Query Method', () => {
     test('should execute query without parameters', async () => {
       const mockResult = { rows: [{ id: 1, name: 'test' }] };
-      mockPoolQuery.mockResolvedValue(mockResult as never);
+      mockPoolQuery.mockResolvedValue(mockResult);
 
       const result = await pool.query('SELECT * FROM users');
 
@@ -51,7 +51,7 @@ describe('Database Module', () => {
 
     test('should execute query with parameters', async () => {
       const mockResult = { rows: [{ id: 1, name: 'John' }] };
-      mockPoolQuery.mockResolvedValue(mockResult as never);
+      mockPoolQuery.mockResolvedValue(mockResult);
 
       const result = await pool.query('SELECT * FROM users WHERE id = $1', [1]);
 
@@ -61,7 +61,7 @@ describe('Database Module', () => {
 
     test('should handle query errors', async () => {
       const error = new Error('Query failed');
-      mockPoolQuery.mockRejectedValue(error as never);
+      mockPoolQuery.mockRejectedValue(error);
 
       await expect(pool.query('INVALID SQL')).rejects.toThrow('Query failed');
     });
@@ -73,7 +73,7 @@ describe('Database Module', () => {
         query: jest.fn(),
         release: jest.fn()
       };
-      mockPoolConnect.mockResolvedValue(mockClient as never);
+      mockPoolConnect.mockResolvedValue(mockClient);
 
       const client = await pool.connect();
 
@@ -83,7 +83,7 @@ describe('Database Module', () => {
 
     test('should handle connection errors', async () => {
       const error = new Error('Connection failed');
-      mockPoolConnect.mockRejectedValue(error as never);
+      mockPoolConnect.mockRejectedValue(error);
 
       await expect(pool.connect()).rejects.toThrow('Connection failed');
     });
@@ -92,18 +92,18 @@ describe('Database Module', () => {
   describe('initDb function', () => {
     test('should initialize database successfully', async () => {
       // Mock successful database operations
-      mockPoolQuery.mockResolvedValue({ rows: [] } as never);
+      mockPoolQuery.mockResolvedValue({ rows: [] });
       mockPoolConnect.mockResolvedValue({
         query: jest.fn().mockResolvedValue({ rows: [] }),
         release: jest.fn()
-      } as never);
+      });
 
       await expect(initDb()).resolves.not.toThrow();
     });
 
     test('should handle initialization errors gracefully', async () => {
       const error = new Error('Database initialization failed');
-      mockPoolConnect.mockRejectedValue(error as never);
+      mockPoolConnect.mockRejectedValue(error);
 
       // The function should handle errors and retry
       await expect(initDb()).rejects.toThrow();
@@ -113,7 +113,7 @@ describe('Database Module', () => {
   describe('Query Parameter Validation', () => {
     test('should handle null parameters', async () => {
       const mockResult = { rows: [] };
-      mockPoolQuery.mockResolvedValue(mockResult as never);
+      mockPoolQuery.mockResolvedValue(mockResult);
 
       await pool.query('SELECT * FROM users WHERE name IS NULL');
 
@@ -122,7 +122,7 @@ describe('Database Module', () => {
 
     test('should handle undefined parameters', async () => {
       const mockResult = { rows: [] };
-      mockPoolQuery.mockResolvedValue(mockResult as never);
+      mockPoolQuery.mockResolvedValue(mockResult);
 
       await pool.query('SELECT * FROM users WHERE active = $1', [undefined]);
 
@@ -131,7 +131,7 @@ describe('Database Module', () => {
 
     test('should handle empty arrays', async () => {
       const mockResult = { rows: [] };
-      mockPoolQuery.mockResolvedValue(mockResult as never);
+      mockPoolQuery.mockResolvedValue(mockResult);
 
       await pool.query('SELECT * FROM users WHERE id = ANY($1)', [[]]);
 
@@ -141,7 +141,7 @@ describe('Database Module', () => {
 
   describe('Database Connection Management', () => {
     test('should close pool gracefully', async () => {
-      mockPoolEnd.mockResolvedValue(undefined as never);
+      mockPoolEnd.mockResolvedValue(undefined);
 
       await pool.end();
 
@@ -150,7 +150,7 @@ describe('Database Module', () => {
 
     test('should handle pool closure errors', async () => {
       const error = new Error('Failed to close pool');
-      mockPoolEnd.mockRejectedValue(error as never);
+      mockPoolEnd.mockRejectedValue(error);
 
       await expect(pool.end()).rejects.toThrow('Failed to close pool');
     });
@@ -162,7 +162,7 @@ describe('Database Module', () => {
         query: jest.fn().mockResolvedValue({ rows: [] }),
         release: jest.fn()
       };
-      mockPoolConnect.mockResolvedValue(mockClient as never);
+      mockPoolConnect.mockResolvedValue(mockClient);
 
       const client = await pool.connect();
       

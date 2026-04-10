@@ -10,7 +10,7 @@ const mockJwt = jwt as jest.Mocked<typeof jwt>;
 describe('Authentication Middleware', () => {
   let mockRequest: Partial<AuthRequest>;
   let mockResponse: Partial<Response>;
-  let nextFunction: NextFunction;
+  let nextFunction: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();

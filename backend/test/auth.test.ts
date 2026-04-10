@@ -16,7 +16,7 @@ import bcrypt from 'bcrypt';
 import { pool } from '../src/db';
 import { authRoutes } from '../src/routes/auth';
 
-const mockPoolQuery = pool.query as jest.MockedFunction<typeof pool.query>;
+const mockPoolQuery = pool.query as jest.MockedFunction<any>;
 const mockJwt = jwt as jest.Mocked<typeof jwt>;
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 
@@ -46,7 +46,7 @@ describe('Authentication Routes', () => {
       const response = await request(app)
         .post('/api/auth/register')
         .send(userData)
-        .expect(200); // Changed from 201 to 200 based on actual API
+        .expect(200);
 
       expect(response.body).toHaveProperty('user');
       expect(response.body.user.email).toBe(userData.email);
@@ -65,7 +65,7 @@ describe('Authentication Routes', () => {
         .send(userData)
         .expect(400);
 
-      expect(response.body).toHaveProperty('errors'); // Changed from 'error' to 'errors'
+      expect(response.body).toHaveProperty('errors');
     });
 
     test('should return 400 for missing required fields', async () => {
@@ -79,7 +79,7 @@ describe('Authentication Routes', () => {
         .send(userData)
         .expect(400);
 
-      expect(response.body).toHaveProperty('errors'); // Changed from 'error' to 'errors'
+      expect(response.body).toHaveProperty('errors');
     });
   });
 
@@ -129,7 +129,7 @@ describe('Authentication Routes', () => {
         .send(loginData)
         .expect(401);
 
-      expect(response.body).toHaveProperty('message', 'Invalid credentials'); // Changed from 'error' to 'message'
+      expect(response.body).toHaveProperty('message', 'Invalid credentials');
     });
 
     test('should return 401 for wrong password', async () => {
@@ -156,7 +156,7 @@ describe('Authentication Routes', () => {
         .send(loginData)
         .expect(401);
 
-      expect(response.body).toHaveProperty('message', 'Invalid credentials'); // Changed from 'error' to 'message'
+      expect(response.body).toHaveProperty('message', 'Invalid credentials');
     });
   });
 
@@ -188,7 +188,7 @@ describe('Authentication Routes', () => {
         .get('/api/auth/me')
         .expect(401);
 
-      expect(response.body).toHaveProperty('message', 'Unauthorized'); // Changed from 'error' to 'message'
+      expect(response.body).toHaveProperty('message', 'Unauthorized');
     });
 
     test('should return 401 with invalid token', async () => {
@@ -201,7 +201,7 @@ describe('Authentication Routes', () => {
         .set('Authorization', 'Bearer invalidToken')
         .expect(401);
 
-      expect(response.body).toHaveProperty('message', 'Invalid token'); // Changed from 'error' to 'message'
+      expect(response.body).toHaveProperty('message', 'Invalid token');
     });
   });
 });
