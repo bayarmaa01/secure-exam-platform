@@ -131,7 +131,8 @@ router.post(
         user
       })
     } catch (e: unknown) {
-      if (e instanceof Error && (e as any).code === '23505') {
+      const error = e as Error & { code?: string }
+      if (error instanceof Error && error.code === '23505') {
         return res.status(400).json({ message: 'Email already registered' })
       }
 

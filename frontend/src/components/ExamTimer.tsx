@@ -24,7 +24,7 @@ export default function ExamTimer({ durationMinutes, startedAt, onExpire, classN
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [durationMinutes, startedAt, onExpire])
+  }, [durationMinutes, startedAt]) // Remove onExpire to prevent re-render issues
 
   const m = Math.floor(remaining / 60)
   const s = remaining % 60

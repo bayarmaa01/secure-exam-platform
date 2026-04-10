@@ -318,8 +318,21 @@ router.get('/exams/:id/advanced', auth, async (req: AuthRequest, res) => {
     )
 
     // For students, don't send correct answers
-    const questions = questionsQuery.rows.map((row) => {
-      const question: any = {
+    interface AdvancedQuestionResponse {
+      id: string
+      text: string
+      topic: string
+      options: string[]
+      type: string
+      points: number
+      languages: string[]
+      correctAnswer?: string | string[]
+      testCases?: any[]
+      templateCode?: Record<string, string>
+    }
+    
+    const questions = questionsQuery.rows.map((row): AdvancedQuestionResponse => {
+      const question: AdvancedQuestionResponse = {
         id: row.id,
         text: row.question_text,
         topic: row.topic,

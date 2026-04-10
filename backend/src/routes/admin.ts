@@ -50,8 +50,9 @@ router.post('/users',
       )
 
       res.status(201).json(r.rows[0])
-    } catch (error: any) {
-      if (error.code === '23505') {
+    } catch (error: unknown) {
+      const err = error as Error & { code?: string }
+      if (err.code === '23505') {
         return res.status(400).json({ message: 'Email already registered' })
       }
       res.status(500).json({ message: 'Internal server error' })
@@ -116,8 +117,9 @@ router.put('/users/:id',
       }
 
       res.json(r.rows[0])
-    } catch (error: any) {
-      if (error.code === '23505') {
+    } catch (error: unknown) {
+      const err = error as Error & { code?: string }
+      if (err.code === '23505') {
         return res.status(400).json({ message: 'Email already registered' })
       }
       res.status(500).json({ message: 'Internal server error' })

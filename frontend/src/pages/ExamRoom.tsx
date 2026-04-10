@@ -1,28 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { examService } from '../api/exams'
+import { examService, Exam } from '../api/exams'
 import ExamTimer from '../components/ExamTimer'
 import WebcamCapture from '../components/WebcamCapture'
 
 interface Question {
   id: string
   questionText: string
-  type: 'mcq' | 'written' | 'coding'
+  text: string // Add text property for backward compatibility
+  type: 'mcq' | 'written' | 'coding' | 'boolean'
   options?: string[]
   correctAnswer?: string | string[]
   points: number
 }
 
-interface Exam {
-  id: string
-  title: string
-  description: string
-  durationMinutes: number
+interface ExamWithQuestions extends Exam {
   questions?: Question[]
-}
-
-interface ApiResponse<T> {
-  data: T
 }
 
 export default function ExamRoom() {
@@ -39,9 +32,8 @@ export default function ExamRoom() {
   useEffect(() => {
     if (!id) return
     examService.getExamById(id)
-      .then((r: ApiResponse<Exam>) => {
-        const exam = r.data.durationMinutes ? r.data : { durationMinutes: 60 }
-        setDurationMinutes(exam.durationMinutes)
+      .then((exam: Exam) => {
+        setDurationMinutes(exam.durationMinutes || 60)
       })
       .catch(() => navigate('/dashboard'))
   }, [id, navigate])
@@ -49,13 +41,14 @@ export default function ExamRoom() {
   const startExam = () => {
     if (!id) return
     examService.getExamById(id)
-      .then((r: ApiResponse<Exam & { attemptId: string }>) => {
-        const data = r.data
-        setAttemptId(data.attemptId)
+      .then((exam: Exam) => {
+        // Simulate creating an attempt - in real implementation, this would come from backend
+        const attemptId = `attempt-${Date.now()}`
+        setAttemptId(attemptId)
         setStartedAt(new Date().toISOString())
-        return examService.getExamById(id)
+        return examService.getExamById(id) as Promise<ExamWithQuestions>
       })
-      .then((r: ApiResponse<Exam>) => setQuestions(r.data.questions || []))
+      .then((exam: ExamWithQuestions) => setQuestions(exam.questions || []))
       .catch(() => navigate('/dashboard'))
   }
 
@@ -64,7 +57,7 @@ export default function ExamRoom() {
     // Note: submitAnswer functionality removed as it's not needed for current implementation
   }
 
-  const submitExam = () => {
+  const submitExam = useCallback(() => {
     if (!attemptId) return
     examService.submitExam({ 
       examId: id!, 
@@ -78,7 +71,7 @@ export default function ExamRoom() {
         setTimeout(() => navigate('/dashboard'), 2000)
       })
       .catch(() => {})
-  }
+  }, [attemptId, id, answers, navigate])
 
   const sendFrameToAI = async (blob: Blob) => {
     try {
