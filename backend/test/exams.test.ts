@@ -10,13 +10,13 @@ jest.mock('../src/db', () => ({
 }));
 
 jest.mock('../src/middleware/auth', () => ({
-  auth: (req: any, res: any, next: any) => {
-    req.user = { id: '1', email: 'test@example.com', role: 'teacher' };
+  auth: jest.fn((req: any, res: any, next: any) => {
+    req.user = { id: '1', email: 'test@example.com', role: 'teacher', name: 'Test Teacher' };
     next();
-  },
-  requireStudent: (req: any, res: any, next: any) => next(),
-  requireTeacher: (req: any, res: any, next: any) => next(),
-  requireAdmin: (req: any, res: any, next: any) => next()
+  }),
+  requireStudent: jest.fn((req: any, res: any, next: any) => next()),
+  requireTeacher: jest.fn((req: any, res: any, next: any) => next()),
+  requireAdmin: jest.fn((req: any, res: any, next: any) => next())
 }));
 
 import { pool } from '../src/db';
@@ -66,7 +66,11 @@ describe('Exam Routes', () => {
         description: 'Basic mathematics',
         duration_minutes: 60,
         total_marks: 100,
-        teacher_name: 'John Doe'
+        teacher_id: '1', // Match the mock user ID
+        status: 'published',
+        start_time: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        teacher_name: 'Test Teacher'
       };
 
       mockPoolQuery.mockResolvedValueOnce({
@@ -79,7 +83,7 @@ describe('Exam Routes', () => {
 
       expect(response.body).toHaveProperty('id', 1);
       expect(response.body).toHaveProperty('title', 'Math Exam');
-      expect(response.body).toHaveProperty('teacherName', 'John Doe');
+      expect(response.body).toHaveProperty('teacherName', 'Test Teacher');
     });
 
     test('should return 404 for non-existent exam', async () => {
@@ -129,12 +133,18 @@ describe('Exam Routes', () => {
         description: 'Updated description'
       };
 
+      // Mock ownership check
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: [{ teacher_id: '1' }] // Match the mock user ID
+      } as never);
+
+      // Mock update result
       const mockUpdatedExam = {
         id: 1,
         title: updateData.title,
         description: updateData.description,
         duration_minutes: 60,
-        teacher_id: 1
+        teacher_id: '1'
       };
 
       mockPoolQuery.mockResolvedValueOnce({
@@ -192,13 +202,18 @@ describe('Exam Routes', () => {
 
   describe('Question Management', () => {
     test('should get exam questions', async () => {
+      // Mock exam access check
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: [{ teacher_id: '1', status: 'published' }] // Match the mock user ID and status
+      } as never);
+
       const mockQuestions = [
         {
           id: 1,
           question_text: 'What is 2+2?',
-          question_type: 'multiple_choice',
+          type: 'multiple_choice',
           options: ['3', '4', '5', '6'],
-          marks: 10
+          points: 10
         }
       ];
 
@@ -211,7 +226,7 @@ describe('Exam Routes', () => {
         .expect(200);
 
       expect(response.body).toHaveLength(1);
-      expect(response.body[0].question_text).toBe('What is 2+2?');
+      expect(response.body[0].text).toBe('What is 2+2?');
     });
   });
 
