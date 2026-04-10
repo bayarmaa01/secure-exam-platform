@@ -4,11 +4,32 @@ import { examService } from '../api/exams'
 import ExamTimer from '../components/ExamTimer'
 import WebcamCapture from '../components/WebcamCapture'
 
+interface Question {
+  id: string
+  questionText: string
+  type: 'mcq' | 'written' | 'coding'
+  options?: string[]
+  correctAnswer?: string | string[]
+  points: number
+}
+
+interface Exam {
+  id: string
+  title: string
+  description: string
+  durationMinutes: number
+  questions?: Question[]
+}
+
+interface ApiResponse<T> {
+  data: T
+}
+
 export default function ExamRoom() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [attemptId, setAttemptId] = useState<string | null>(null)
-  const [questions, setQuestions] = useState<any[]>([])
+  const [questions, setQuestions] = useState<Question[]>([])
   const [current, setCurrent] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [startedAt, setStartedAt] = useState('')
@@ -18,8 +39,8 @@ export default function ExamRoom() {
   useEffect(() => {
     if (!id) return
     examService.getExamById(id)
-      .then((r: any) => {
-        const exam = (r.data as any).durationMinutes ? (r.data as any) : { durationMinutes: 60 }
+      .then((r: ApiResponse<Exam>) => {
+        const exam = r.data.durationMinutes ? r.data : { durationMinutes: 60 }
         setDurationMinutes(exam.durationMinutes)
       })
       .catch(() => navigate('/dashboard'))
@@ -28,13 +49,13 @@ export default function ExamRoom() {
   const startExam = () => {
     if (!id) return
     examService.getExamById(id)
-      .then((r: any) => {
-        const data = r.data as any
+      .then((r: ApiResponse<Exam & { attemptId: string }>) => {
+        const data = r.data
         setAttemptId(data.attemptId)
         setStartedAt(new Date().toISOString())
         return examService.getExamById(id)
       })
-      .then((r: any) => setQuestions((r.data as any).questions ? (r.data as any).questions : []))
+      .then((r: ApiResponse<Exam>) => setQuestions(r.data.questions || []))
       .catch(() => navigate('/dashboard'))
   }
 

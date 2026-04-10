@@ -17,7 +17,7 @@ export default function Register() {
     try {
       await register(email, password, name, role)
       navigate('/dashboard')
-    } catch (error: any) {
+    } catch (error: Error) {
       setErr(error.message || 'Registration failed')
     }
   }
