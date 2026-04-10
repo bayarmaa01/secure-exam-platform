@@ -110,20 +110,21 @@ router.post('/exams',
     body('title').notEmpty().trim(),
     body('description').optional().trim(),
     body('type').optional().isIn(['mcq', 'written', 'coding', 'mixed', 'ai_proctored']),
-    body('durationMinutes').isInt({ min: 1, max: 480 }),
+    body('duration_minutes').isInt({ min: 1, max: 480 }),
     body('difficulty').optional().isIn(['easy', 'medium', 'hard']),
-    body('totalMarks').optional().isInt({ min: 1 }),
-    body('passingMarks').optional().isInt({ min: 1 }),
-    body('startTime').optional().isISO8601().toDate(),
-    body('endTime').optional().isISO8601().toDate(),
-    body('fullscreenRequired').optional().isBoolean(),
-    body('tabSwitchDetection').optional().isBoolean(),
-    body('copyPasteBlocked').optional().isBoolean(),
-    body('cameraRequired').optional().isBoolean(),
-    body('faceDetectionEnabled').optional().isBoolean(),
-    body('shuffleQuestions').optional().isBoolean(),
-    body('shuffleOptions').optional().isBoolean(),
-    body('assignToAll').optional().isBoolean()
+    body('total_marks').optional().isInt({ min: 1 }),
+    body('passing_marks').optional().isInt({ min: 1 }),
+    body('start_time').optional().isISO8601().toDate(),
+    body('end_time').optional().isISO8601().toDate(),
+    body('fullscreen_required').optional().isBoolean(),
+    body('tab_switch_detection').optional().isBoolean(),
+    body('copy_paste_blocked').optional().isBoolean(),
+    body('camera_required').optional().isBoolean(),
+    body('face_detection_enabled').optional().isBoolean(),
+    body('shuffle_questions').optional().isBoolean(),
+    body('shuffle_options').optional().isBoolean(),
+    body('assign_to_all').optional().isBoolean(),
+    body('assigned_groups').optional().isArray()
   ],
   async (req: AuthRequest, res) => {
     try {
@@ -136,28 +137,30 @@ router.post('/exams',
         return res.status(400).json({ errors: errors.array() })
       }
 
+      console.log("Validated body:", req.body);
+
       const { 
         title, 
         description, 
         type = 'mcq',
-        durationMinutes = 60,
+        duration_minutes = 60,
         difficulty = 'medium',
-        totalMarks = 100,
-        passingMarks = 50,
-        startTime,
-        endTime,
-        fullscreenRequired = false,
-        tabSwitchDetection = false,
-        copyPasteBlocked = false,
-        cameraRequired = false,
-        faceDetectionEnabled = false,
-        shuffleQuestions = false,
-        shuffleOptions = false,
-        assignToAll = true
+        total_marks = 100,
+        passing_marks = 50,
+        start_time,
+        end_time,
+        fullscreen_required = false,
+        tab_switch_detection = false,
+        copy_paste_blocked = false,
+        camera_required = false,
+        face_detection_enabled = false,
+        shuffle_questions = false,
+        shuffle_options = false,
+        assign_to_all = true
       } = req.body
 
       // Calculate end_time if not provided
-      const calculatedEndTime = endTime || new Date(startTime.getTime() + durationMinutes * 60 * 1000)
+      const calculatedEndTime = end_time || new Date(new Date(start_time).getTime() + duration_minutes * 60 * 1000)
 
       const query = `
         INSERT INTO exams (
@@ -173,11 +176,11 @@ router.post('/exams',
       `
       
       const values = [
-        title, description, type, durationMinutes, req.user!.id,
-        startTime, calculatedEndTime, difficulty, totalMarks, passingMarks,
-        fullscreenRequired, tabSwitchDetection, copyPasteBlocked,
-        cameraRequired, faceDetectionEnabled, shuffleQuestions,
-        shuffleOptions, assignToAll
+        title, description, type, duration_minutes, req.user!.id,
+        start_time, calculatedEndTime, difficulty, total_marks, passing_marks,
+        fullscreen_required, tab_switch_detection, copy_paste_blocked,
+        camera_required, face_detection_enabled, shuffle_questions,
+        shuffle_options, assign_to_all
       ]
 
       console.log('POST /api/exams - SQL Query:', query)
@@ -217,8 +220,9 @@ router.put('/exams/:id',
   [
     body('title').optional().notEmpty().trim(),
     body('description').optional().trim(),
-    body('durationMinutes').optional().isInt({ min: 1, max: 480 }),
-    body('scheduledAt').optional().isISO8601().toDate(),
+    body('duration_minutes').optional().isInt({ min: 1, max: 480 }),
+    body('start_time').optional().isISO8601().toDate(),
+    body('end_time').optional().isISO8601().toDate(),
     body('status').optional().isIn(['draft', 'published', 'ongoing', 'completed'])
   ],
   async (req: AuthRequest, res) => {
@@ -229,7 +233,7 @@ router.put('/exams/:id',
       }
 
       const examId = req.params.id
-      const { title, description, durationMinutes, scheduledAt, status } = req.body
+      const { title, description, duration_minutes, start_time, end_time, status } = req.body
 
       // Check ownership
       const examCheck = await pool.query(
@@ -255,13 +259,17 @@ router.put('/exams/:id',
         updates.push(`description = $${paramIndex++}`)
         values.push(description)
       }
-      if (durationMinutes !== undefined) {
+      if (duration_minutes !== undefined) {
         updates.push(`duration_minutes = $${paramIndex++}`)
-        values.push(durationMinutes)
+        values.push(duration_minutes)
       }
-      if (scheduledAt !== undefined) {
-        updates.push(`scheduled_at = $${paramIndex++}`)
-        values.push(scheduledAt)
+      if (start_time !== undefined) {
+        updates.push(`start_time = $${paramIndex++}`)
+        values.push(start_time)
+      }
+      if (end_time !== undefined) {
+        updates.push(`end_time = $${paramIndex++}`)
+        values.push(end_time)
       }
       if (status !== undefined) {
         updates.push(`status = $${paramIndex++}`)
