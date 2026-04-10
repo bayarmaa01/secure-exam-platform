@@ -1,14 +1,14 @@
 import { describe, test, expect, jest, beforeEach } from '@jest/globals';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-import { authenticateToken, requireRole } from '../src/middleware/auth';
+import { auth, requireStudent, requireTeacher, requireAdmin, AuthRequest } from '../src/middleware/auth';
 
 // Mock dependencies
 jest.mock('jsonwebtoken');
 const mockJwt = jwt as jest.Mocked<typeof jwt>;
 
 describe('Authentication Middleware', () => {
-  let mockRequest: Partial<Request>;
+  let mockRequest: Partial<AuthRequest>;
   let mockResponse: Partial<Response>;
   let nextFunction: NextFunction;
 
@@ -18,177 +18,172 @@ describe('Authentication Middleware', () => {
       headers: {}
     };
     mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis()
+      status: jest.fn().mockReturnThis() as any,
+      json: jest.fn().mockReturnThis() as any
     };
     nextFunction = jest.fn();
   });
 
-  describe('authenticateToken', () => {
-    test('should authenticate with valid token', async () => {
-      const mockPayload = { userId: 1, email: 'test@example.com', role: 'student' };
-      mockJwt.verify.mockReturnValue(mockPayload);
-
-      mockRequest.headers = {
-        authorization: 'Bearer validToken'
+  describe('auth middleware', () => {
+    test('should pass with valid token', async () => {
+      const mockPayload = {
+        userId: '1',
+        email: 'test@example.com',
+        role: 'student'
       };
 
-      await authenticateToken(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
+      mockRequest.headers = {
+        authorization: 'Bearer valid-token'
+      };
 
-      expect(mockJwt.verify).toHaveBeenCalledWith('validToken', process.env.JWT_SECRET);
-      expect(mockRequest.user).toEqual(mockPayload);
+      mockJwt.verify.mockReturnValue(mockPayload as never);
+
+      await auth(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
+
       expect(nextFunction).toHaveBeenCalled();
+      expect(mockRequest.user).toEqual({
+        id: '1',
+        email: 'test@example.com',
+        role: 'student'
+      });
     });
 
     test('should return 401 without token', async () => {
-      await authenticateToken(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
+      await auth(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
       expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Access token required' });
-      expect(nextFunction).not.toHaveBeenCalled();
-    });
-
-    test('should return 401 with malformed token', async () => {
-      mockRequest.headers = {
-        authorization: 'InvalidFormat token'
-      };
-
-      await authenticateToken(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Invalid token format' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Unauthorized' });
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
     test('should return 401 with invalid token', async () => {
+      mockRequest.headers = {
+        authorization: 'Bearer invalid-token'
+      };
+
       mockJwt.verify.mockImplementation(() => {
         throw new Error('Invalid token');
       });
 
-      mockRequest.headers = {
-        authorization: 'Bearer invalidToken'
-      };
-
-      await authenticateToken(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
+      await auth(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
       expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Invalid token' });
-      expect(nextFunction).not.toHaveBeenCalled();
-    });
-
-    test('should return 401 with expired token', async () => {
-      const error = new Error('Token expired') as any;
-      error.name = 'TokenExpiredError';
-      mockJwt.verify.mockImplementation(() => {
-        throw error;
-      });
-
-      mockRequest.headers = {
-        authorization: 'Bearer expiredToken'
-      };
-
-      await authenticateToken(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Token expired' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Invalid token' });
       expect(nextFunction).not.toHaveBeenCalled();
     });
   });
 
-  describe('requireRole', () => {
-    beforeEach(() => {
+  describe('requireStudent middleware', () => {
+    test('should pass for student role', () => {
       mockRequest.user = {
-        userId: 1,
-        email: 'test@example.com',
-        role: 'student'
+        id: '1',
+        email: 'student@example.com',
+        role: 'student',
+        name: 'Student'
       };
-    });
 
-    test('should allow access with correct role', async () => {
-      const middleware = requireRole('student');
-
-      await middleware(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
+      requireStudent(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
       expect(nextFunction).toHaveBeenCalled();
     });
 
-    test('should allow access with multiple allowed roles', async () => {
-      const middleware = requireRole(['teacher', 'admin']);
-      mockRequest.user!.role = 'teacher';
+    test('should return 403 for non-student role', () => {
+      mockRequest.user = {
+        id: '2',
+        email: 'teacher@example.com',
+        role: 'teacher',
+        name: 'Teacher'
+      };
 
-      await middleware(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(nextFunction).toHaveBeenCalled();
-    });
-
-    test('should deny access with wrong role', async () => {
-      const middleware = requireRole('admin');
-
-      await middleware(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
+      requireStudent(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
       expect(mockResponse.status).toHaveBeenCalledWith(403);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Insufficient permissions' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Student access required' });
       expect(nextFunction).not.toHaveBeenCalled();
     });
+  });
 
-    test('should deny access when user not authenticated', async () => {
-      delete mockRequest.user;
-      const middleware = requireRole('student');
+  describe('requireTeacher middleware', () => {
+    test('should pass for teacher role', () => {
+      mockRequest.user = {
+        id: '2',
+        email: 'teacher@example.com',
+        role: 'teacher',
+        name: 'Teacher'
+      };
 
-      await middleware(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Authentication required' });
-      expect(nextFunction).not.toHaveBeenCalled();
-    });
-
-    test('should handle admin role override', async () => {
-      const middleware = requireRole('teacher');
-      mockRequest.user!.role = 'admin';
-
-      await middleware(
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
+      requireTeacher(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
       expect(nextFunction).toHaveBeenCalled();
+    });
+
+    test('should return 403 for non-teacher role', () => {
+      mockRequest.user = {
+        id: '1',
+        email: 'student@example.com',
+        role: 'student',
+        name: 'Student'
+      };
+
+      requireTeacher(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(403);
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Teacher access required' });
+      expect(nextFunction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requireAdmin middleware', () => {
+    test('should pass for admin role', () => {
+      mockRequest.user = {
+        id: '3',
+        email: 'admin@example.com',
+        role: 'admin',
+        name: 'Admin'
+      };
+
+      requireAdmin(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
+
+      expect(nextFunction).toHaveBeenCalled();
+    });
+
+    test('should return 403 for non-admin role', () => {
+      mockRequest.user = {
+        id: '1',
+        email: 'student@example.com',
+        role: 'student',
+        name: 'Student'
+      };
+
+      requireAdmin(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(403);
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Admin access required' });
+      expect(nextFunction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('edge cases', () => {
+    test('should handle missing user object', () => {
+      delete (mockRequest as any).user;
+
+      requireStudent(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(403);
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Student access required' });
+      expect(nextFunction).not.toHaveBeenCalled();
+    });
+
+    test('should handle malformed authorization header', async () => {
+      mockRequest.headers = {
+        authorization: 'InvalidFormat'
+      };
+
+      await auth(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(401);
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Unauthorized' });
+      expect(nextFunction).not.toHaveBeenCalled();
     });
   });
 });

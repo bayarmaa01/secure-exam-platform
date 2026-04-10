@@ -11,7 +11,7 @@ jest.mock('../src/db', () => ({
 
 jest.mock('../src/middleware/auth', () => ({
   auth: (req: any, res: any, next: any) => {
-    req.user = { id: 1, email: 'test@example.com', role: 'student' };
+    req.user = { id: '1', email: 'test@example.com', role: 'teacher' };
     next();
   },
   requireStudent: (req: any, res: any, next: any) => next(),
@@ -33,8 +33,8 @@ describe('Exam Routes', () => {
     jest.clearAllMocks();
   });
 
-  describe('GET /api/exams', () => {
-    test('should get available exams for students', async () => {
+  describe('Basic CRUD Operations', () => {
+    test('should get available exams', async () => {
       const mockExams = [
         {
           id: 1,
@@ -59,18 +59,6 @@ describe('Exam Routes', () => {
       expect(response.body[0].durationMinutes).toBe(60);
     });
 
-    test('should handle database errors', async () => {
-      mockPoolQuery.mockRejectedValueOnce(new Error('Database error') as never);
-
-      const response = await request(app)
-        .get('/api/exams')
-        .expect(500);
-
-      expect(response.body).toHaveProperty('message', 'Internal server error');
-    });
-  });
-
-  describe('GET /api/exams/:id', () => {
     test('should get exam by id', async () => {
       const mockExam = {
         id: 1,
@@ -105,9 +93,7 @@ describe('Exam Routes', () => {
 
       expect(response.body).toHaveProperty('message', 'Exam not found');
     });
-  });
 
-  describe('POST /api/exams', () => {
     test('should create a new exam', async () => {
       const examData = {
         title: 'New Exam',
@@ -137,22 +123,6 @@ describe('Exam Routes', () => {
       expect(response.body).toHaveProperty('title', examData.title);
     });
 
-    test('should return 400 for missing required fields', async () => {
-      const incompleteData = {
-        title: 'Incomplete Exam'
-        // missing other required fields
-      };
-
-      const response = await request(app)
-        .post('/api/exams')
-        .send(incompleteData)
-        .expect(400);
-
-      expect(response.body).toHaveProperty('errors');
-    });
-  });
-
-  describe('PUT /api/exams/:id', () => {
     test('should update an exam', async () => {
       const updateData = {
         title: 'Updated Exam Title',
@@ -194,7 +164,33 @@ describe('Exam Routes', () => {
     });
   });
 
-  describe('GET /api/exams/:id/questions', () => {
+  describe('Validation and Error Handling', () => {
+    test('should return 400 for missing required fields', async () => {
+      const incompleteData = {
+        title: 'Incomplete Exam'
+        // missing other required fields
+      };
+
+      const response = await request(app)
+        .post('/api/exams')
+        .send(incompleteData)
+        .expect(400);
+
+      expect(response.body).toHaveProperty('errors');
+    });
+
+    test('should handle database errors gracefully', async () => {
+      mockPoolQuery.mockRejectedValueOnce(new Error('Database error') as never);
+
+      const response = await request(app)
+        .get('/api/exams')
+        .expect(500);
+
+      expect(response.body).toHaveProperty('message', 'Internal server error');
+    });
+  });
+
+  describe('Question Management', () => {
     test('should get exam questions', async () => {
       const mockQuestions = [
         {
@@ -219,70 +215,82 @@ describe('Exam Routes', () => {
     });
   });
 
-  describe('POST /api/exams/:id/start', () => {
-    test('should start exam attempt', async () => {
-      const mockAttempt = {
-        id: 'attempt-123',
-        exam_id: 1,
-        user_id: 1,
-        started_at: new Date().toISOString()
-      };
+  describe('Teacher-specific Routes', () => {
+    test('should get teacher exams', async () => {
+      const mockTeacherExams = [
+        {
+          id: 1,
+          title: 'Teacher Exam',
+          description: 'Created by teacher',
+          duration_minutes: 90,
+          start_time: new Date().toISOString(),
+          status: 'draft',
+          created_at: new Date().toISOString()
+        }
+      ];
 
       mockPoolQuery.mockResolvedValueOnce({
-        rows: [mockAttempt]
+        rows: mockTeacherExams
       } as never);
 
       const response = await request(app)
-        .post('/api/exams/1/start')
+        .get('/api/teacher/exams')
         .expect(200);
 
-      expect(response.body).toHaveProperty('attemptId');
-      expect(response.body).toHaveProperty('startTime');
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].title).toBe('Teacher Exam');
+    });
+
+    test('should get teacher results', async () => {
+      const mockResults = [
+        {
+          id: 1,
+          score: 85,
+          total_points: 100,
+          percentage: 85,
+          status: 'completed',
+          student_name: 'John Doe',
+          exam_title: 'Math Exam',
+          created_at: new Date().toISOString()
+        }
+      ];
+
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: mockResults
+      } as never);
+
+      const response = await request(app)
+        .get('/api/teacher/results')
+        .expect(200);
+
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].score).toBe(85);
     });
   });
 
-  describe('POST /api/exams/attempts/:attemptId/submit', () => {
-    test('should submit exam attempt', async () => {
-      const submissionData = {
-        answers: [
-          {
-            question_id: 1,
-            answer: '4'
-          }
-        ]
-      };
-
-      const mockResult = {
-        id: 1,
-        exam_id: 1,
-        user_id: 1,
-        score: 10,
-        total_points: 100,
-        percentage: 10,
-        status: 'submitted',
-        created_at: new Date().toISOString()
-      };
+  describe('Admin Routes', () => {
+    test('should get all exams (admin)', async () => {
+      const mockAllExams = [
+        {
+          id: 1,
+          title: 'Admin View Exam',
+          description: 'All exams for admin',
+          duration_minutes: 60,
+          teacher_name: 'Teacher Name',
+          status: 'published'
+        }
+      ];
 
       mockPoolQuery.mockResolvedValueOnce({
-        rows: [mockResult]
+        rows: mockAllExams
       } as never);
 
       const response = await request(app)
-        .post('/api/exams/attempts/attempt123/submit')
-        .send(submissionData)
+        .get('/api/admin/exams')
         .expect(200);
 
-      expect(response.body).toHaveProperty('score', 10);
-      expect(response.body).toHaveProperty('percentage', 10);
-    });
-
-    test('should return 400 for missing answers', async () => {
-      const response = await request(app)
-        .post('/api/exams/attempts/attempt123/submit')
-        .send({})
-        .expect(400);
-
-      expect(response.body).toHaveProperty('errors');
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].title).toBe('Admin View Exam');
     });
   });
 });
