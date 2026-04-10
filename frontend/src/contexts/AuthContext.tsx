@@ -29,7 +29,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('user')
       
       const token = localStorage.getItem('accessToken')
-      const refreshToken = localStorage.getItem('refreshToken')
 
       if (token) {
         try {
@@ -100,12 +99,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshToken = async (): Promise<void> => {
     try {
-      const refreshToken = localStorage.getItem('refreshToken')
-      if (!refreshToken) {
+      const token = localStorage.getItem('refreshToken')
+      if (!token) {
         throw new Error('No refresh token available')
       }
       
-      const newAccessToken = await authService.refreshToken(refreshToken)
+      const newAccessToken = await authService.refreshToken(token)
       localStorage.setItem('accessToken', newAccessToken)
     } catch (error) {
       console.error('Token refresh failed:', error)
