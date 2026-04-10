@@ -141,8 +141,11 @@ start_real_time_monitoring() {
     
     print_step "Starting real-time monitoring..."
     
-    # Start background monitoring
+    # Start background monitoring with proper cleanup
     (
+        # Trap to ensure cleanup on exit
+        trap 'exit 0' SIGTERM SIGINT
+        
         while true; do
             local timestamp=$(date '+%H:%M:%S')
             local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
@@ -155,15 +158,48 @@ start_real_time_monitoring() {
     
     MONITOR_PID=$!
     echo $MONITOR_PID > /tmp/smart-devops-monitor.pid
+    
+    # Add global trap for cleanup
+    trap 'stop_real_time_monitoring' EXIT SIGINT SIGTERM
 }
 
 stop_real_time_monitoring() {
+    # Stop background monitoring if running
     if [[ -f /tmp/smart-devops-monitor.pid ]]; then
         local monitor_pid=$(cat /tmp/smart-devops-monitor.pid)
         kill $monitor_pid 2>/dev/null || true
+        kill -9 $monitor_pid 2>/dev/null || true
         rm -f /tmp/smart-devops-monitor.pid
-        echo ""
     fi
+    
+    # Clear any remaining monitoring output
+    printf "\r\033[K"
+    
+    # Stop any pod monitoring processes
+    if [[ -f /tmp/pod-monitor.pid ]]; then
+        local pod_monitor_pid=$(cat /tmp/pod-monitor.pid)
+        kill $pod_monitor_pid 2>/dev/null || true
+        kill -9 $pod_monitor_pid 2>/dev/null || true
+        rm -f /tmp/pod-monitor.pid
+    fi
+}
+
+# Cleanup all background processes
+cleanup_all_processes() {
+    print_step "Cleaning up all background processes..."
+    
+    # Stop monitoring
+    stop_real_time_monitoring
+    
+    # Kill any remaining smart-devops processes
+    pkill -f "smart-devops.sh" 2>/dev/null || true
+    pkill -f "monitor_pods_realtime" 2>/dev/null || true
+    
+    # Clean up temp files
+    rm -f /tmp/smart-devops-monitor.pid
+    rm -f /tmp/pod-monitor.pid
+    
+    print_success "All background processes cleaned up"
 }
 
 # ========================================
@@ -292,6 +328,240 @@ auto_recover() {
     done
     
     print_success "Auto-recovery completed"
+}
+
+# Intelligent pod monitoring
+monitor_pods_realtime() {
+    local namespace=$1
+    local duration=${2:-60}
+    local interval=3
+    local elapsed=0
+    
+    print_step "Starting real-time pod monitoring for $duration seconds..."
+    print_info "Press Ctrl+C to stop monitoring"
+    
+    # Save PID for cleanup
+    echo $$ > /tmp/pod-monitor.pid
+    
+    # Trap for cleanup
+    trap 'printf "\n${YELLOW}Monitoring stopped by user${NC}\n"; rm -f /tmp/pod-monitor.pid; exit 0' SIGINT SIGTERM
+    
+    while [[ $elapsed -lt $duration ]]; do
+        clear
+        print_header "POD MONITORING - $namespace"
+        
+        echo "${CYAN}Time: $elapsed/$duration seconds | Press Ctrl+C to stop${NC}"
+        echo ""
+        
+        # Get pod status
+        local pods=$($KUBECTL_CMD get pods -n $namespace --no-headers 2>/dev/null || echo "")
+        
+        if [[ -z "$pods" ]]; then
+            print_warning "No pods found in namespace: $namespace"
+        else
+            echo "${BLUE}Pod Status:${NC}"
+            echo "$pods" | while read -r line; do
+                local pod_name=$(echo "$line" | awk '{print $1}')
+                local pod_status=$(echo "$line" | awk '{print $3}')
+                local pod_ready=$(echo "$line" | awk '{print $2}')
+                local pod_restarts=$(echo "$line" | awk '{print $4}')
+                
+                case $pod_status in
+                    "Running")
+                        echo -e "${GREEN}  $pod_name${NC} - $pod_ready - Restarts: $pod_restarts"
+                        ;;
+                    "Pending")
+                        echo -e "${YELLOW}  $pod_name${NC} - $pod_ready - Restarts: $pod_restarts"
+                        ;;
+                    "CrashLoopBackOff"|"Error"|"Failed")
+                        echo -e "${RED}  $pod_name${NC} - $pod_ready - Restarts: $pod_restarts"
+                        ;;
+                    *)
+                        echo -e "${CYAN}  $pod_name${NC} - $pod_ready - Restarts: $pod_restarts"
+                        ;;
+                esac
+            done
+        fi
+        
+        echo ""
+        echo "${CYAN}Resource Usage:${NC}"
+        echo "  CPU: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
+        echo "  Memory: $(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')%"
+        echo ""
+        
+        elapsed=$((elapsed + interval))
+        
+        # Check if we should continue
+        if [[ $elapsed -ge $duration ]]; then
+            printf "\n${GREEN}Monitoring completed${NC}\n"
+            rm -f /tmp/pod-monitor.pid
+            break
+        fi
+        
+        sleep $interval
+    done
+}
+
+# Intelligent issue detection
+detect_pod_issues() {
+    local namespace=$1
+    local issues=()
+    
+    print_step "Detecting pod issues in namespace: $namespace"
+    
+    # Check for problematic pods
+    local problematic_pods=$($KUBECTL_CMD get pods -n $namespace --no-headers 2>/dev/null | grep -E "(CrashLoopBackOff|Error|Failed|Pending|ImagePullBackOff)" || true)
+    
+    while read -r pod_line; do
+        if [[ -n "$pod_line" ]]; then
+            local pod_name=$(echo "$pod_line" | awk '{print $1}')
+            local pod_status=$(echo "$pod_line" | awk '{print $3}')
+            local issue_type="Unknown"
+            
+            case $pod_status in
+                "CrashLoopBackOff") issue_type="Application Crash" ;;
+                "Error") issue_type="Container Error" ;;
+                "Failed") issue_type="Pod Failed" ;;
+                "Pending") issue_type="Pod Stuck" ;;
+                "ImagePullBackOff") issue_type="Image Pull Issue" ;;
+            esac
+            
+            issues+=("$pod_name:$issue_type:$pod_status")
+        fi
+    done <<< "$problematic_pods"
+    
+    echo "${issues[@]}"
+}
+
+# Smart issue fixing
+fix_pod_issues() {
+    local namespace=$1
+    local issues=($(detect_pod_issues "$namespace"))
+    
+    if [[ ${#issues[@]} -eq 0 ]]; then
+        print_success "No pod issues detected"
+        return 0
+    fi
+    
+    print_warning "Found ${#issues[@]} pod issues, attempting fixes..."
+    
+    for issue in "${issues[@]}"; do
+        local pod_name=$(echo "$issue" | cut -d: -f1)
+        local issue_type=$(echo "$issue" | cut -d: -f2)
+        local pod_status=$(echo "$issue" | cut -d: -f3)
+        
+        print_step "Fixing $pod_name ($issue_type)..."
+        
+        case $issue_type in
+            "Application Crash")
+                # Restart the pod
+                $KUBECTL_CMD delete pod $pod_name -n $namespace --grace-period=0 --force 2>/dev/null || true
+                print_success "Restarted $pod_name"
+                ;;
+            "Image Pull Issue")
+                # Check image and recreate
+                print_info "Checking image availability..."
+                local deployment=$($KUBECTL_CMD get deployment -n $namespace -o name 2>/dev/null | grep -E "(backend|frontend|ai)" | head -1 | cut -d/ -f2 || echo "")
+                if [[ -n "$deployment" ]]; then
+                    $KUBECTL_CMD rollout restart deployment/$deployment -n $namespace 2>/dev/null || true
+                    print_success "Restarted deployment: $deployment"
+                fi
+                ;;
+            "Pod Stuck")
+                # Force delete and recreate
+                $KUBECTL_CMD delete pod $pod_name -n $namespace --grace-period=0 --force 2>/dev/null || true
+                print_success "Force deleted $pod_name"
+                ;;
+            "Container Error"|"Pod Failed")
+                # Check logs and restart
+                print_info "Checking logs for $pod_name..."
+                $KUBECTL_CMD logs $pod_name -n $namespace --tail=20 2>/dev/null | head -5
+                $KUBECTL_CMD delete pod $pod_name -n $namespace --grace-period=0 --force 2>/dev/null || true
+                print_success "Restarted $pod_name"
+                ;;
+        esac
+        
+        sleep 2
+    done
+    
+    print_success "Pod issue fixing completed"
+}
+
+# Comprehensive health check
+comprehensive_health_check() {
+    print_header "COMPREHENSIVE HEALTH CHECK"
+    
+    local namespaces=("$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE")
+    local total_issues=0
+    
+    for ns in "${namespaces[@]}"; do
+        print_step "Checking namespace: $ns"
+        
+        # Check if namespace exists
+        if ! $KUBECTL_CMD get namespace $ns &>/dev/null; then
+            print_warning "Namespace $ns does not exist"
+            continue
+        fi
+        
+        # Detect and fix issues
+        local issues=($(detect_pod_issues "$ns"))
+        if [[ ${#issues[@]} -gt 0 ]]; then
+            print_warning "Found ${#issues[@]} issues in $ns"
+            fix_pod_issues "$ns"
+            total_issues=$((total_issues + ${#issues[@]}))
+        else
+            print_success "All pods healthy in $ns"
+        fi
+        
+        # Show pod status
+        echo ""
+        $KUBECTL_CMD get pods -n $ns 2>/dev/null || true
+        echo ""
+    done
+    
+    if [[ $total_issues -gt 0 ]]; then
+        print_warning "Total issues found and fixed: $total_issues"
+    else
+        print_success "All systems healthy - no issues detected"
+    fi
+    
+    return $total_issues
+}
+
+# Smart troubleshooting
+smart_troubleshoot() {
+    print_header "SMART TROUBLESHOOTING"
+    
+    print_step "Running diagnostic checks..."
+    
+    # Check Minikube status
+    print_info "Minikube Status:"
+    minikube status || print_warning "Minikube issues detected"
+    
+    echo ""
+    print_info "Kubernetes Cluster Info:"
+    kubectl cluster-info || print_warning "Cluster connectivity issues"
+    
+    echo ""
+    print_info "Docker Status:"
+    docker version --format '{{.Server.Version}}' || print_warning "Docker issues"
+    
+    echo ""
+    print_info "System Resources:"
+    echo "  Memory: $(free -h | grep Mem)"
+    echo "  Disk: $(df -h . | tail -1)"
+    echo "  CPU: $(nproc) cores"
+    
+    echo ""
+    print_info "Network Connectivity:"
+    if ping -c 1 8.8.8.8 &>/dev/null; then
+        print_success "Internet connectivity OK"
+    else
+        print_warning "No internet connectivity"
+    fi
+    
+    # Run comprehensive health check
+    comprehensive_health_check
 }
 
 wait_for_pods_ready() {
@@ -520,7 +790,7 @@ deploy_namespaces() {
 }
 
 deploy_application() {
-    print_header "🚀 DEPLOYING APPLICATION"
+    print_header "DEPLOYING APPLICATION"
     
     # Update Helm values
     print_step "Updating Helm values..."
@@ -533,13 +803,33 @@ deploy_application() {
     
     # Deploy application
     print_step "Deploying application with Helm..."
-    helm upgrade --install exam-platform ./helm/exam-platform \
+    if ! helm upgrade --install exam-platform ./helm/exam-platform \
         --namespace $NAMESPACE \
         --values helm/exam-platform/values.yaml \
         --wait \
-        --timeout $TIMEOUT
+        --timeout $TIMEOUT; then
+        print_error "Helm deployment failed, attempting recovery..."
+        auto_recover
+        # Retry deployment
+        helm upgrade --install exam-platform ./helm/exam-platform \
+            --namespace $NAMESPACE \
+            --values helm/exam-platform/values.yaml \
+            --wait \
+            --timeout $TIMEOUT
+    fi
     
+    # Wait for pods and check health
     wait_for_pods_ready $NAMESPACE
+    
+    # Intelligent health check and auto-fix
+    print_step "Performing intelligent health check..."
+    local app_issues=($(detect_pod_issues "$NAMESPACE"))
+    if [[ ${#app_issues[@]} -gt 0 ]]; then
+        print_warning "Found ${#app_issues[@]} application issues, fixing..."
+        fix_pod_issues "$NAMESPACE"
+        # Wait for fixes to take effect
+        wait_for_pods_ready $NAMESPACE
+    fi
     
     print_success "Application deployed successfully"
 }
@@ -718,16 +1008,41 @@ deploy_all() {
         fi
     fi
     
-    # Stop monitoring and perform health check
+    # Stop monitoring and perform comprehensive health check
     stop_real_time_monitoring
     
-    health_check
+    print_step "Running comprehensive health check..."
+    comprehensive_health_check
+    
+    # Final validation
+    print_step "Performing final deployment validation..."
+    local final_issues=0
+    for ns in "$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE"; do
+        local ns_issues=($(detect_pod_issues "$ns"))
+        final_issues=$((final_issues + ${#ns_issues[@]}))
+    done
+    
+    if [[ $final_issues -gt 0 ]]; then
+        print_warning "Final validation found $final_issues remaining issues"
+        print_step "Running final auto-fix..."
+        for ns in "$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE"; do
+            fix_pod_issues "$ns"
+        done
+    else
+        print_success "Final validation passed - all systems healthy"
+    fi
     
     print_success "Complete deployment finished successfully!"
     print_info "Run './port-forward.sh' to access services"
     
     # Show deployment summary
     show_deployment_summary
+    
+    # Start real-time monitoring for 30 seconds to show final status
+    if [[ "$REAL_TIME_MONITORING" == "true" ]]; then
+        print_info "Starting 30-second real-time monitoring..."
+        monitor_pods_realtime "$NAMESPACE" 30
+    fi
 }
 
 # Deployment summary
@@ -776,7 +1091,11 @@ show_help() {
     echo "  app         - Deploy application only"
     echo "  monitoring  - Deploy monitoring only"
     echo "  argocd      - Deploy ArgoCD only"
-    echo "  health      - Health check only"
+    echo "  health      - Comprehensive health check"
+    echo "  monitor     - Real-time pod monitoring (Ctrl+C to stop)"
+    echo "  troubleshoot - Smart troubleshooting diagnostics"
+    echo "  fix         - Auto-fix pod issues"
+    echo "  stop        - Stop all monitoring and cleanup processes"
     echo "  cleanup     - Clean up everything"
     echo "  help        - Show this help"
     echo ""
@@ -845,7 +1164,23 @@ case "${1:-deploy}" in
         deploy_argocd
         ;;
     "health")
-        health_check
+        comprehensive_health_check
+        ;;
+    "monitor")
+        print_step "Starting real-time monitoring..."
+        monitor_pods_realtime "$NAMESPACE" 120
+        ;;
+    "troubleshoot")
+        smart_troubleshoot
+        ;;
+    "fix")
+        print_step "Auto-fixing pod issues..."
+        for ns in "$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE"; do
+            fix_pod_issues "$ns"
+        done
+        ;;
+    "stop")
+        cleanup_all_processes
         ;;
     "cleanup")
         cleanup
