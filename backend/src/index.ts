@@ -9,6 +9,7 @@ import { adminRoutes } from './routes/admin'
 import { advancedExamRoutes } from './routes/advanced-exams'
 import { analyticsRoutes } from './routes/analytics'
 import { securityRoutes } from './routes/security'
+import { resultsRoutes } from './routes/results'
 
 const app = express()
 
@@ -40,6 +41,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api', advancedExamRoutes)
 app.use('/api', analyticsRoutes)
 app.use('/api', securityRoutes)
+app.use('/api/results', resultsRoutes)
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
 

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { AuthProvider } from './contexts/AuthContext'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Register from './pages/Register'
 
@@ -10,7 +11,7 @@ import ExamRoom from './pages/student/ExamRoom'
 import StudentResults from './pages/student/StudentResults'
 
 // Teacher Pages
-import TeacherDashboard from './pages/TeacherDashboard'
+import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import CreateExam from './pages/teacher/CreateExam'
 import ManageExams from './pages/teacher/ManageExams'
 import AddQuestions from './pages/teacher/AddQuestions'
@@ -22,25 +23,6 @@ import UserManagement from './pages/admin/UserManagement'
 import AdminExams from './pages/admin/AdminExams'
 import AdminResults from './pages/admin/AdminResults'
 
-function ProtectedRoute({ 
-  children, 
-  allowedRoles = ['student', 'teacher', 'admin'] 
-}: { 
-  children: React.ReactNode; 
-  allowedRoles?: string[] 
-}) {
-  const { user, loading } = useAuth()
-  if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>
-  if (!user) return <Navigate to="/login" replace />
-  if (!allowedRoles.includes(user.role)) {
-    // Redirect to appropriate dashboard based on role
-    if (user.role === 'admin') return <Navigate to="/admin-dashboard" replace />
-    if (user.role === 'teacher') return <Navigate to="/teacher/dashboard" replace />
-    return <Navigate to="/dashboard" replace />
-  }
-  return <>{children}</>
-}
-
 function AppRoutes() {
   return (
     <Routes>
@@ -51,33 +33,65 @@ function AppRoutes() {
 
       {/* Student Routes */}
       <Route 
+        path="/student-dashboard" 
+        element={
+          <ProtectedRoute role="student">
+            <StudentDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
         path="/dashboard" 
         element={
-          <ProtectedRoute allowedRoles={['student']}>
+          <ProtectedRoute role="student">
             <StudentDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/student/exams" 
+        element={
+          <ProtectedRoute role="student">
+            <ExamList />
           </ProtectedRoute>
         } 
       />
       <Route 
         path="/exams" 
         element={
-          <ProtectedRoute allowedRoles={['student']}>
+          <ProtectedRoute role="student">
             <ExamList />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/student/exam/:id" 
+        element={
+          <ProtectedRoute role="student">
+            <ExamRoom />
           </ProtectedRoute>
         } 
       />
       <Route 
         path="/exam/:id" 
         element={
-          <ProtectedRoute allowedRoles={['student']}>
+          <ProtectedRoute role="student">
             <ExamRoom />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/student/results" 
+        element={
+          <ProtectedRoute role="student">
+            <StudentResults />
           </ProtectedRoute>
         } 
       />
       <Route 
         path="/results" 
         element={
-          <ProtectedRoute allowedRoles={['student']}>
+          <ProtectedRoute role="student">
             <StudentResults />
           </ProtectedRoute>
         } 
@@ -85,9 +99,9 @@ function AppRoutes() {
 
       {/* Teacher Routes */}
       <Route 
-        path="/teacher/dashboard" 
+        path="/teacher-dashboard" 
         element={
-          <ProtectedRoute allowedRoles={['teacher']}>
+          <ProtectedRoute role="teacher">
             <TeacherDashboard />
           </ProtectedRoute>
         } 
@@ -95,7 +109,7 @@ function AppRoutes() {
       <Route 
         path="/teacher/create-exam" 
         element={
-          <ProtectedRoute allowedRoles={['teacher']}>
+          <ProtectedRoute role="teacher">
             <CreateExam />
           </ProtectedRoute>
         } 
@@ -103,7 +117,7 @@ function AppRoutes() {
       <Route 
         path="/teacher/exams" 
         element={
-          <ProtectedRoute allowedRoles={['teacher']}>
+          <ProtectedRoute role="teacher">
             <ManageExams />
           </ProtectedRoute>
         } 
@@ -111,7 +125,7 @@ function AppRoutes() {
       <Route 
         path="/teacher/exam/:id/questions" 
         element={
-          <ProtectedRoute allowedRoles={['teacher']}>
+          <ProtectedRoute role="teacher">
             <AddQuestions />
           </ProtectedRoute>
         } 
@@ -119,7 +133,7 @@ function AppRoutes() {
       <Route 
         path="/teacher/results" 
         element={
-          <ProtectedRoute allowedRoles={['teacher']}>
+          <ProtectedRoute role="teacher">
             <ViewResults />
           </ProtectedRoute>
         } 
@@ -129,7 +143,7 @@ function AppRoutes() {
       <Route 
         path="/admin-dashboard" 
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute role="admin">
             <AdminDashboard />
           </ProtectedRoute>
         } 
@@ -137,7 +151,7 @@ function AppRoutes() {
       <Route 
         path="/admin/users" 
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute role="admin">
             <UserManagement />
           </ProtectedRoute>
         } 
@@ -145,7 +159,7 @@ function AppRoutes() {
       <Route 
         path="/admin/exams" 
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute role="admin">
             <AdminExams />
           </ProtectedRoute>
         } 
@@ -153,14 +167,14 @@ function AppRoutes() {
       <Route 
         path="/admin/results" 
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute role="admin">
             <AdminResults />
           </ProtectedRoute>
         } 
       />
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Fallback - redirect based on auth status */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }
