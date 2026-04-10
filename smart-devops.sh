@@ -141,8 +141,11 @@ start_real_time_monitoring() {
     
     print_step "Starting real-time monitoring..."
     
-    # Start background monitoring
+    # Start background monitoring with proper cleanup
     (
+        # Trap to ensure cleanup on exit
+        trap 'exit 0' SIGTERM SIGINT
+        
         while true; do
             local timestamp=$(date '+%H:%M:%S')
             local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
@@ -155,15 +158,48 @@ start_real_time_monitoring() {
     
     MONITOR_PID=$!
     echo $MONITOR_PID > /tmp/smart-devops-monitor.pid
+    
+    # Add global trap for cleanup
+    trap 'stop_real_time_monitoring' EXIT SIGINT SIGTERM
 }
 
 stop_real_time_monitoring() {
+    # Stop background monitoring if running
     if [[ -f /tmp/smart-devops-monitor.pid ]]; then
         local monitor_pid=$(cat /tmp/smart-devops-monitor.pid)
         kill $monitor_pid 2>/dev/null || true
+        kill -9 $monitor_pid 2>/dev/null || true
         rm -f /tmp/smart-devops-monitor.pid
-        echo ""
     fi
+    
+    # Clear any remaining monitoring output
+    printf "\r\033[K"
+    
+    # Stop any pod monitoring processes
+    if [[ -f /tmp/pod-monitor.pid ]]; then
+        local pod_monitor_pid=$(cat /tmp/pod-monitor.pid)
+        kill $pod_monitor_pid 2>/dev/null || true
+        kill -9 $pod_monitor_pid 2>/dev/null || true
+        rm -f /tmp/pod-monitor.pid
+    fi
+}
+
+# Cleanup all background processes
+cleanup_all_processes() {
+    print_step "Cleaning up all background processes..."
+    
+    # Stop monitoring
+    stop_real_time_monitoring
+    
+    # Kill any remaining smart-devops processes
+    pkill -f "smart-devops.sh" 2>/dev/null || true
+    pkill -f "monitor_pods_realtime" 2>/dev/null || true
+    
+    # Clean up temp files
+    rm -f /tmp/smart-devops-monitor.pid
+    rm -f /tmp/pod-monitor.pid
+    
+    print_success "All background processes cleaned up"
 }
 
 # ========================================
@@ -302,12 +338,19 @@ monitor_pods_realtime() {
     local elapsed=0
     
     print_step "Starting real-time pod monitoring for $duration seconds..."
+    print_info "Press Ctrl+C to stop monitoring"
+    
+    # Save PID for cleanup
+    echo $$ > /tmp/pod-monitor.pid
+    
+    # Trap for cleanup
+    trap 'printf "\n${YELLOW}Monitoring stopped by user${NC}\n"; rm -f /tmp/pod-monitor.pid; exit 0' SIGINT SIGTERM
     
     while [[ $elapsed -lt $duration ]]; do
         clear
         print_header "POD MONITORING - $namespace"
         
-        echo "${CYAN}Time: $elapsed/$duration seconds${NC}"
+        echo "${CYAN}Time: $elapsed/$duration seconds | Press Ctrl+C to stop${NC}"
         echo ""
         
         # Get pod status
@@ -347,6 +390,14 @@ monitor_pods_realtime() {
         echo ""
         
         elapsed=$((elapsed + interval))
+        
+        # Check if we should continue
+        if [[ $elapsed -ge $duration ]]; then
+            printf "\n${GREEN}Monitoring completed${NC}\n"
+            rm -f /tmp/pod-monitor.pid
+            break
+        fi
+        
         sleep $interval
     done
 }
@@ -1041,9 +1092,10 @@ show_help() {
     echo "  monitoring  - Deploy monitoring only"
     echo "  argocd      - Deploy ArgoCD only"
     echo "  health      - Comprehensive health check"
-    echo "  monitor     - Real-time pod monitoring"
+    echo "  monitor     - Real-time pod monitoring (Ctrl+C to stop)"
     echo "  troubleshoot - Smart troubleshooting diagnostics"
     echo "  fix         - Auto-fix pod issues"
+    echo "  stop        - Stop all monitoring and cleanup processes"
     echo "  cleanup     - Clean up everything"
     echo "  help        - Show this help"
     echo ""
@@ -1126,6 +1178,9 @@ case "${1:-deploy}" in
         for ns in "$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE"; do
             fix_pod_issues "$ns"
         done
+        ;;
+    "stop")
+        cleanup_all_processes
         ;;
     "cleanup")
         cleanup
