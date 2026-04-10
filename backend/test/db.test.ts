@@ -1,6 +1,5 @@
 import { describe, test, expect, jest, beforeEach, beforeAll } from '@jest/globals';
 import { Pool } from 'pg';
-import { pool, initDb } from '../src/db';
 
 // Mock the Pool constructor
 const mockPoolQuery = jest.fn() as jest.MockedFunction<any>;
@@ -22,8 +21,11 @@ jest.mock('../src/db', () => ({
     connect: mockPoolConnect,
     end: mockPoolEnd
   },
-  initDb: jest.fn()
+  initDb: jest.fn().mockResolvedValue(undefined as never)
 }));
+
+// Import after mocking
+import { pool, initDb } from '../src/db';
 
 describe('Database Module', () => {
   beforeEach(() => {
@@ -114,6 +116,10 @@ describe('Database Module', () => {
     test('should handle initialization errors gracefully', async () => {
       const error = new Error('Database initialization failed');
       mockPoolConnect.mockRejectedValue(error);
+      
+      // Override the initDb mock to reject for this test
+      const { initDb } = require('../src/db');
+      initDb.mockRejectedValueOnce(error);
 
       // The function should handle errors and retry
       await expect(initDb()).rejects.toThrow();

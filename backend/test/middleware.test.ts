@@ -5,7 +5,15 @@ import { auth, requireStudent, requireTeacher, requireAdmin, AuthRequest } from 
 
 // Mock dependencies
 jest.mock('jsonwebtoken');
+jest.mock('../src/db', () => ({
+  pool: {
+    query: jest.fn()
+  }
+}));
+
 const mockJwt = jwt as jest.Mocked<typeof jwt>;
+const { pool } = require('../src/db');
+const mockPoolQuery = pool.query as jest.MockedFunction<any>;
 
 describe('Authentication Middleware', () => {
   let mockRequest: Partial<AuthRequest>;
@@ -32,11 +40,21 @@ describe('Authentication Middleware', () => {
         role: 'student'
       };
 
+      const mockUser = {
+        id: '1',
+        email: 'test@example.com',
+        role: 'student',
+        name: 'Test User'
+      };
+
       mockRequest.headers = {
         authorization: 'Bearer valid-token'
       };
 
       mockJwt.verify.mockReturnValue(mockPayload as never);
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: [mockUser]
+      } as never);
 
       await auth(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
@@ -44,7 +62,8 @@ describe('Authentication Middleware', () => {
       expect(mockRequest.user).toEqual({
         id: '1',
         email: 'test@example.com',
-        role: 'student'
+        role: 'student',
+        name: 'Test User'
       });
     });
 
