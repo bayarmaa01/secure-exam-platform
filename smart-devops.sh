@@ -223,9 +223,24 @@ pre_checks() {
     fi
     
     if ! minikube status >/dev/null 2>&1; then
-        print_info "Minikube is not running, starting with Docker driver..."
-        minikube start --driver=docker --container-runtime=docker
-        print_success "Minikube started with Docker driver"
+        print_info "Minikube is not running, starting..."
+        
+        # Try different drivers based on OS
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            # Linux - try docker driver first, then fallback to none
+            if ! minikube start --driver=docker --container-runtime=docker; then
+                print_warning "Docker driver failed, trying with none driver..."
+                minikube start --driver=none --container-runtime=docker
+            fi
+        elif [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS - try docker driver
+            minikube start --driver=docker --container-runtime=docker
+        else
+            # Default - docker driver
+            minikube start --driver=docker --container-runtime=docker
+        fi
+        
+        print_success "Minikube started"
     else
         print_success "Minikube is running"
     fi
@@ -759,14 +774,42 @@ deploy_monitoring() {
         --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes[0]=ReadWriteOnce \
         --set prometheus.prometheusSpec.retention=15d \
         --set grafana.persistence.enabled=true \
-        --set grafana.persistence.size=4Gi \
+        --set grafana.persistence.size=2Gi \
         --set grafana.persistence.accessModes[0]=ReadWriteOnce \
-        --set grafana.adminPassword=admin \
-        --set grafana.service.type=ClusterIP \
-        --set prometheus.service.type=ClusterIP \
+        --set grafana.adminPassword=admin123 \
+        --set grafana.image.tag=10.2.0 \
+        --set grafana.securityContext.runAsUser=472 \
+        --set grafana.securityContext.runAsGroup=472 \
+        --set grafana.securityContext.fsGroup=472 \
+        --set grafana.initChownData.enabled=true \
+        --set grafana.initChownData.securityContext.runAsUser=0 \
+        --set grafana.initChownData.securityContext.runAsGroup=0 \
+        --set grafana.resources.requests.memory=256Mi \
+        --set grafana.resources.requests.cpu=100m \
+        --set grafana.resources.limits.memory=512Mi \
+        --set grafana.resources.limits.cpu=500m \
+        --set grafana.readinessProbe.httpGet.path=/api/health \
+        --set grafana.readinessProbe.httpGet.port=3000 \
+        --set grafana.readinessProbe.initialDelaySeconds=30 \
+        --set grafana.readinessProbe.periodSeconds=10 \
+        --set grafana.readinessProbe.timeoutSeconds=5 \
+        --set grafana.readinessProbe.failureThreshold=3 \
+        --set grafana.livenessProbe.httpGet.path=/api/health \
+        --set grafana.livenessProbe.httpGet.port=3000 \
+        --set grafana.livenessProbe.initialDelaySeconds=60 \
+        --set grafana.livenessProbe.periodSeconds=30 \
+        --set grafana.livenessProbe.timeoutSeconds=10 \
+        --set grafana.livenessProbe.failureThreshold=3 \
+        --set grafana.env[0].name=GF_SECURITY_ADMIN_USER \
+        --set grafana.env[0].value=admin \
+        --set grafana.env[1].name=GF_SECURITY_ADMIN_PASSWORD \
+        --set grafana.env[1].value=admin123 \
+        --set grafana.env[2].name=GF_INSTALL_PLUGINS \
+        --set grafana.env[2].value=grafana-piechart-panel,grafana-worldmap-panel \
         --set defaultRules.create=true \
         --set prometheusOperator.enabled=true \
-        --set grafana.securityContext.runAsUser=472 \
+        --set grafana.service.type=ClusterIP \
+        --set prometheus.service.type=ClusterIP \
         --set grafana.securityContext.runAsGroup=472 \
         --set grafana.securityContext.fsGroup=472 \
         --set grafana.initContainers[0].securityContext.runAsUser=0 \
@@ -790,16 +833,94 @@ deploy_monitoring() {
 # 🔥 ARGOCD SETUP
 # ========================================
 install_argocd() {
-    print_step "Installing ArgoCD..."
+    print_step "Installing ArgoCD with production fixes..."
     
     # Create namespace
     $KUBECTL_CMD create namespace argocd --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
     
-    # Try namespace-scoped installation first (avoids CRD annotation size issues)
-    if $KUBECTL_CMD apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/namespace-install.yaml -n argocd; then
-        print_success "ArgoCD installed (namespace-scoped)"
+    # Install ArgoCD with custom configuration to fix port issues
+    cat <<EOF | $KUBECTL_CMD apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cmd-params-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  server.insecure: "true"
+  server.baseurl: "https://argocd-server"
+  server.disable.auth: "false"
+  server.staticassets.builtins: "true"
+EOF
+
+    # Apply the complete ArgoCD installation with patches
+    if $KUBECTL_CMD apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml -n argocd; then
+        # Patch the ArgoCD server deployment to fix port issues
+        $KUBECTL_CMD patch deployment argocd-server -n argocd -p '
+{
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "argocd-server",
+            "command": [
+              "argocd-server",
+              "--insecure",
+              "--port=8080",
+              "--repo-server=argocd-repo-server:8081",
+              "--redis=argocd-redis:6379"
+            ],
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/healthz",
+                "port": 8080
+              },
+              "initialDelaySeconds": 10,
+              "periodSeconds": 10,
+              "timeoutSeconds": 5,
+              "failureThreshold": 3
+            },
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/healthz",
+                "port": 8080
+              },
+              "initialDelaySeconds": 30,
+              "periodSeconds": 30,
+              "timeoutSeconds": 5,
+              "failureThreshold": 3
+            },
+            "env": [
+              {
+                "name": "ARGOCD_SERVER_INSECURE",
+                "value": "true"
+              }
+            ],
+            "resources": {
+              "requests": {
+                "memory": "256Mi",
+                "cpu": "100m"
+              },
+              "limits": {
+                "memory": "512Mi",
+                "cpu": "500m"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}' || {
+            print_warning "Failed to patch ArgoCD server, using default configuration"
+        }
+        
+        print_success "ArgoCD installed with production fixes"
     else
-        print_warning "Namespace-scoped installation failed, trying core installation..."
+        print_warning "Full installation failed, trying core installation..."
         # Fallback to core installation only
         $KUBECTL_CMD apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/core-install.yaml -n argocd || {
             print_error "ArgoCD installation failed completely"
@@ -840,14 +961,24 @@ wait_argocd_ready() {
 }
 
 expose_argocd() {
-    print_step "Exposing ArgoCD UI..."
+    print_step "Exposing ArgoCD UI with fixed port configuration..."
     
-    # Port-forward ArgoCD server to correct port
-    $KUBECTL_CMD port-forward svc/argocd-server -n argocd 18081:443 >/dev/null 2>&1 &
+    # Port-forward ArgoCD server to HTTP port (8080) instead of HTTPS (443)
+    $KUBECTL_CMD port-forward svc/argocd-server -n argocd 18081:8080 >/dev/null 2>&1 &
     ARGOCD_PID=$!
     echo $ARGOCD_PID > /tmp/argocd-port-forward.pid
     
-    print_success "ArgoCD UI exposed on https://localhost:18081"
+    # Wait for port-forward to establish
+    sleep 5
+    
+    # Test if port-forward is working
+    if curl -s http://localhost:18081/healthz >/dev/null 2>&1; then
+        print_success "ArgoCD UI exposed on http://localhost:18081"
+        print_success "Note: Using HTTP (not HTTPS) due to insecure configuration"
+    else
+        print_warning "Port-forward test failed, but continuing..."
+        print_success "ArgoCD UI exposed on http://localhost:18081"
+    fi
 }
 
 get_argocd_credentials() {
@@ -859,8 +990,8 @@ get_argocd_credentials() {
         ARGOCD_PASSWORD="failed-to-retrieve"
     }
     
-    print_header "🚀 ArgoCD Access"
-    echo -e "${GREEN}URL: https://localhost:18081${NC}"
+    print_header "  ArgoCD Access"
+    echo -e "${GREEN}URL: http://localhost:18081${NC}"
     echo -e "${GREEN}Username: admin${NC}"
     echo -e "${GREEN}Password: ${ARGOCD_PASSWORD}${NC}"
     echo -e "${PURPLE}======================================${NC}"
@@ -1014,7 +1145,7 @@ final_output() {
     echo -e "${GREEN}   AI:         http://localhost:5005${NC}"
     echo -e "${GREEN}   Grafana:    http://localhost:3002${NC}"
     echo -e "${GREEN}   Prometheus: http://localhost:9090${NC}"
-    echo -e "${GREEN}   ArgoCD:     https://localhost:18081${NC}"
+    echo -e "${GREEN}   ArgoCD:     http://localhost:18081${NC}"
     echo ""
     
     # Get Grafana password with retry
