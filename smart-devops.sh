@@ -13,6 +13,10 @@ set -euo pipefail
 export MAKEFLAGS="-j$(nproc)"
 export DOCKER_BUILDKIT=1
 
+# Global signal handling
+trap 'print_warning "Script interrupted by user"; cleanup_all_processes; exit 130' SIGINT SIGTERM
+trap 'cleanup_all_processes' EXIT
+
 # ========================================
 #  COLORS
 # ========================================
@@ -158,9 +162,6 @@ start_real_time_monitoring() {
     
     MONITOR_PID=$!
     echo $MONITOR_PID > /tmp/smart-devops-monitor.pid
-    
-    # Add global trap for cleanup
-    trap 'stop_real_time_monitoring' EXIT SIGINT SIGTERM
 }
 
 stop_real_time_monitoring() {
@@ -852,7 +853,7 @@ deploy_application() {
         --namespace $NAMESPACE \
         --values helm/exam-platform/values.yaml \
         --wait \
-        --timeout $TIMEOUT; then
+        --timeout ${TIMEOUT}s; then
         print_error "Helm deployment failed, attempting recovery..."
         auto_recover
         # Retry deployment
@@ -860,7 +861,7 @@ deploy_application() {
             --namespace $NAMESPACE \
             --values helm/exam-platform/values.yaml \
             --wait \
-            --timeout $TIMEOUT
+            --timeout ${TIMEOUT}s
     fi
     
     # Wait for pods and check health
@@ -893,12 +894,12 @@ deploy_monitoring() {
     helm repo update
     
     # Deploy Prometheus stack with custom Grafana values
-    print_step "Deploylying Prometheus stack..."
+    print_step "Deploying Prometheus stack..."
     helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
         --namespace $MONITORING_NAMESPACE \
         --values grafana-values.yaml \
         --wait \
-        --timeout $TIMEOUT
+        --timeout ${TIMEOUT}s
     
     # Wait for monitoring services
     wait_for_pods_ready $MONITORING_NAMESPACE
