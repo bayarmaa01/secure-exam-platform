@@ -1,32 +1,16 @@
-prometheus:
-  enabled: true
-
-alertmanager:
-  enabled: true
+# ========================================
+#  GRAFANA VALUES - Secure Exam Platform
+# ========================================
+# Production-ready Grafana configuration
+# ========================================
 
 grafana:
-  enabled: true
-  image:
-    repository: grafana/grafana
-    tag: "10.2.0"
-    pullPolicy: IfNotPresent
+  # Admin password configuration
+  adminPassword: "admin123"
   
-  # Security context fixes for non-root policy compliance
-  securityContext:
-    runAsUser: 472
-    runAsGroup: 472
-    fsGroup: 472
-  
-  # Init container security context
-  initChownData:
-    enabled: true
-    securityContext:
-      runAsUser: 0
-      runAsGroup: 0
-  
-  # Admin user configuration
-  adminUser: admin
-  adminPassword: admin123
+  # Disable environment file references to avoid GF_SECURITY_ADMIN_PASSWORD__FILE error
+  env: {}
+  envValueFrom: {}
   
   # Service configuration
   service:
@@ -34,141 +18,107 @@ grafana:
     port: 3000
     targetPort: 3000
   
-  # Ingress (disabled for local deployment)
+  # Ingress configuration (optional)
   ingress:
     enabled: false
   
-  # Persistence
+  # Persistence configuration
   persistence:
     enabled: true
-    type: pvc
-    accessModes:
-      - ReadWriteOnce
-    size: 2Gi
+    size: 10Gi
     storageClassName: standard
   
-  # Data sources
-  datasources:
-    datasources.yaml:
-      apiVersion: 1
-      datasources:
-        - name: Prometheus
-          type: prometheus
-          url: http://prometheus-server.monitoring.svc.cluster.local
-          access: proxy
-          isDefault: true
-        - name: Alertmanager
-          type: alertmanager
-          url: http://alertmanager.monitoring.svc.cluster.local
-          access: proxy
-  
-  # Dashboard providers
-  dashboardProviders:
-    dashboardproviders.yaml:
-      apiVersion: 1
-      providers:
-        - name: 'default'
-          orgId: 1
-          folder: ''
-          type: file
-          disableDeletion: false
-          editable: true
-          options:
-            path: /var/lib/grafana/dashboards/default
-  
-  # Dashboards
-  dashboards:
-    default:
-      # Kubernetes overview dashboard
-      kubernetes-overview:
-        gnetId: 15757
-        revision: 1
-        datasource: Prometheus
-      # Node exporter dashboard
-      node-exporter:
-        gnetId: 1860
-        revision: 21
-        datasource: Prometheus
-  
-  # Resources
+  # Resource configuration
   resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
     limits:
-      memory: "512Mi"
-      cpu: "500m"
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
   
-  # Readiness and liveness probes
-  readinessProbe:
-    httpGet:
-      path: /api/health
-      port: 3000
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+  # Security configuration
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 472
+    fsGroup: 472
   
-  livenessProbe:
-    httpGet:
-      path: /api/health
-      port: 3000
-    initialDelaySeconds: 60
-    periodSeconds: 30
-    timeoutSeconds: 10
-    failureThreshold: 3
-  
-  # Environment variables
-  env:
-    - name: GF_SECURITY_ADMIN_USER
-      value: "admin"
-    - name: GF_SECURITY_ADMIN_PASSWORD
-      value: "admin123"
-    - name: GF_INSTALL_PLUGINS
-      value: "grafana-piechart-panel,grafana-worldmap-panel"
-    - name: GF_PATHS_PLUGINS
-      value: "/var/lib/grafana/plugins"
-    - name: GF_PATHS_PROVISIONING
-      value: "/etc/grafana/provisioning"
+  # Sidecar configuration
+  sidecar:
+    datasources:
+      enabled: false
+    dashboards:
+      enabled: false
 
 # Prometheus configuration
 prometheus:
-  prometheusSpec:
-    retention: 30d
-    resources:
-      requests:
-        memory: "400Mi"
-        cpu: "200m"
-      limits:
-        memory: "800Mi"
-        cpu: "500m"
-    storageSpec:
-      volumeClaimTemplate:
-        spec:
-          storageClassName: standard
-          accessModes: ["ReadWriteOnce"]
-          resources:
-            requests:
-              storage: 4Gi
-
-# Node Exporter
-nodeExporter:
-  enabled: true
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 9090
+    targetPort: 9090
+  
+  # Resource configuration
   resources:
-    requests:
-      memory: "64Mi"
-      cpu: "50m"
     limits:
-      memory: "128Mi"
-      cpu: "100m"
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  
+  # Persistence configuration
+  server:
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+      storageClassName: standard
 
-# AlertManager
+# AlertManager configuration
 alertmanager:
   enabled: true
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 9093
+    targetPort: 9093
+  
+  # Resource configuration
   resources:
-    requests:
-      memory: "64Mi"
-      cpu: "50m"
     limits:
-      memory: "128Mi"
-      cpu: "100m"
+      cpu: 200m
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+# Node Exporter configuration
+nodeExporter:
+  enabled: true
+  
+  # Resource configuration
+  resources:
+    limits:
+      cpu: 200m
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+# Kube State Metrics configuration
+kubeStateMetrics:
+  enabled: true
+  
+  # Resource configuration
+  resources:
+    limits:
+      cpu: 200m
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+# Default namespace
+global:
+  namespace: monitoring

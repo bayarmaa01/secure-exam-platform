@@ -4,6 +4,48 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Register from './pages/Register'
 
+// Version checking and cache busting
+const checkVersionAndCache = () => {
+  // Check for version mismatch and clear cache if needed
+  const checkVersion = async () => {
+    try {
+      const response = await fetch('/version.json')
+      const { version, buildDate } = await response.json()
+      
+      const storedVersion = localStorage.getItem('appVersion')
+      const storedBuildDate = localStorage.getItem('appBuildDate')
+      
+      // Clear cache if version or build date changed
+      if (storedVersion !== version || storedBuildDate !== buildDate) {
+        console.log('Version changed, clearing cache...')
+        
+        // Clear all localStorage in development
+        if (import.meta.env.DEV) {
+          localStorage.clear()
+        } else {
+          // In production, only clear auth-related items
+          localStorage.removeItem('accessToken')
+          localStorage.removeItem('refreshToken')
+          localStorage.removeItem('user')
+        }
+        
+        // Store new version info
+        localStorage.setItem('appVersion', version)
+        localStorage.setItem('appBuildDate', buildDate)
+        
+        // Force reload
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error('Version check failed:', error)
+    }
+  }
+  
+  checkVersion()
+  // Check version every 5 minutes
+  setInterval(checkVersion, 5 * 60 * 1000)
+}
+
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard'
 import ExamList from './pages/student/ExamList'
@@ -180,6 +222,9 @@ function AppRoutes() {
 }
 
 export default function App() {
+  // Initialize version checking on app load
+  checkVersionAndCache()
+  
   return (
     <BrowserRouter>
       <AuthProvider>

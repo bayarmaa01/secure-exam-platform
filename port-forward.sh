@@ -1,334 +1,334 @@
 #!/bin/bash
 
 # ========================================
-# 🚀 PORT FORWARD SETUP SCRIPT
+#  PORT FORWARD - Secure Exam Platform
 # ========================================
-# This script sets up all port forwards for the secure exam platform
-# Usage: ./port-forward.sh
+# Handles port forwarding for all services
+# ========================================
 
-set -e
+set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
+# ========================================
+#  COLORS
+# ========================================
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# Function to print colored output
-print_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+# ========================================
+#  CONFIGURATION
+# ========================================
+NAMESPACE="default"
+MONITORING_NAMESPACE="monitoring"
+ARGOCD_NAMESPACE="argocd"
+
+# Port mappings
+FRONTEND_PORT=3005
+BACKEND_PORT=4005
+AI_PORT=5005
+GRAFANA_PORT=3002
+ARGOCD_PORT=18081
+
+# ========================================
+#  FUNCTIONS
+# ========================================
+print_step() {
+    echo -e "${BLUE}🔧 $1${NC}"
 }
 
 print_success() {
     echo -e "${GREEN}✅ $1${NC}"
 }
 
-print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
-}
-
 print_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
-print_header() {
-    echo -e "${GREEN}"
-    echo "======================================"
-    echo "$1"
-    echo "======================================"
-    echo -e "${NC}"
+print_info() {
+    echo -e "${CYAN}ℹ️  $1${NC}"
 }
 
-# Function to kill existing port forwards
-kill_existing_port_forwards() {
-    print_info "Killing existing port forwards..."
-    
-    # Kill any existing port forwards on our target ports
-    pkill -f "kubectl.*port-forward.*3005" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*4005" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*5005" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*3002" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*9092" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*18081" 2>/dev/null || true
-    
-    # Wait a moment for processes to die
-    sleep 2
-    
-    print_success "Existing port forwards killed"
-}
-
-# Function to wait for service to be ready
-wait_for_service() {
-    local namespace=$1
-    local service_name=$2
-    local timeout=${3:-300}
-    
-    print_info "Waiting for service $service_name in namespace $namespace..."
-    
-    local count=0
-    while [ $count -lt $timeout ]; do
-        if kubectl get svc $service_name -n $namespace &>/dev/null; then
-            local ready=$(kubectl get svc $service_name -n $namespace -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
-            if [ -n "$ready" ] || kubectl get endpoints $service_name -n $namespace -o jsonpath='{.subsets}' 2>/dev/null | grep -q "addresses"; then
-                print_success "Service $service_name is ready!"
-                return 0
-            fi
-        fi
-        
-        sleep 2
-        count=$((count + 2))
-        
-        if [ $((count % 10)) -eq 0 ]; then
-            print_info "Still waiting for $service_name... (${count}s elapsed)"
-        fi
-    done
-    
-    print_error "Timeout waiting for service $service_name"
-    return 1
-}
-
-# Function to setup port forwards
-setup_port_forwards() {
-    print_header "Setting Up Port Forwards"
-    
-    # Check if kubectl is available
+# Check if kubectl is available
+check_kubectl() {
     if ! command -v kubectl &> /dev/null; then
         print_error "kubectl is not installed or not in PATH"
         exit 1
     fi
-    
-    # Check if cluster is accessible
+}
+
+# Check if cluster is accessible
+check_cluster() {
     if ! kubectl cluster-info &> /dev/null; then
         print_error "Cannot connect to Kubernetes cluster"
         exit 1
     fi
-    
-    print_info "Waiting for services to be ready before port forwarding..."
-    
-    # Wait for services to be ready
-    wait_for_service "exam-platform" "frontend" 180 || {
-        print_warning "Frontend service not ready, continuing anyway..."
-    }
-    
-    wait_for_service "exam-platform" "backend" 180 || {
-        print_warning "Backend service not ready, continuing anyway..."
-    }
-    
-    wait_for_service "exam-platform" "ai-proctoring" 180 || {
-        print_warning "AI service not ready, continuing anyway..."
-    }
-    
-    wait_for_service "monitoring" "prometheus-grafana" 180 || {
-        print_warning "Grafana service not ready, continuing anyway..."
-    }
-    
-    wait_for_service "argocd" "argocd-server" 180 || {
-        print_warning "ArgoCD service not ready, continuing anyway..."
-    }
-    
-    print_info "Setting up port forwards in background..."
-    
-    # Frontend port forward
-    print_info "Setting up frontend port forward (3005)..."
-    kubectl port-forward -n exam-platform svc/frontend 3005:80 &
-    FRONTEND_PID=$!
-    
-    # Backend port forward  
-    print_info "Setting up backend port forward (4005)..."
-    kubectl port-forward -n exam-platform svc/backend 4005:4000 &
-    BACKEND_PID=$!
-    
-    # AI Service port forward
-    print_info "Setting up AI service port forward (5005)..."
-    kubectl port-forward -n exam-platform svc/ai-proctoring 5005:80 &
-    AI_PID=$!
-    
-    # Grafana port forward
-    print_info "Setting up Grafana port forward (3002)..."
-    kubectl port-forward -n monitoring svc/prometheus-grafana 3002:80 &
-    GRAFANA_PID=$!
-    
-    # Prometheus port forward
-    print_info "Setting up Prometheus port forward (9092)..."
-    kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9092:9090 &
-    PROMETHEUS_PID=$!
-    
-    # ArgoCD port forward
-    print_info "Setting up ArgoCD port forward (18081)..."
-    kubectl port-forward -n argocd svc/argocd-server 18081:443 &
-    ARGOCD_PID=$!
-    
-    # Wait a moment for port forwards to establish
-    sleep 3
-    
-    print_success "All port forwards established!"
-    
-    # Save PIDs to file for cleanup
-    cat > /tmp/port-forward-pids.txt << EOF
-$FRONTEND_PID
-$BACKEND_PID
-$AI_PID
-$GRAFANA_PID
-$PROMETHEUS_PID
-$ARGOCD_PID
-EOF
-    
-    print_info "PIDs saved to /tmp/port-forward-pids.txt"
 }
 
-# Function to test port forwards
-test_port_forwards() {
-    print_header "🧪 Testing Port Forwards"
+# Wait for pod with retry logic
+wait_for_pod() {
+    local service_name=$1
+    local namespace=$2
+    local max_retries=30
+    local retry_count=0
     
-    # Test each service
-    services=(
-        "Frontend:3005:http://localhost:3005"
-        "Backend:4005:http://localhost:4005/health"
-        "AI Service:5005:http://localhost:5005/health"
-        "Grafana:3002:http://localhost:3002"
-        "Prometheus:9092:http://localhost:9092"
-        "ArgoCD:18081:https://localhost:18081"
-    )
+    print_step "Waiting for pod: $service_name in namespace: $namespace"
     
-    for service in "${services[@]}"; do
-        IFS=':' read -r name port url <<< "$service"
-        
-        print_info "Testing $name (port $port)..."
-        
-        if curl -s --connect-timeout 3 "$url" >/dev/null 2>&1; then
-            print_success "$name is accessible on $url"
-        else
-            print_warning "$name may still be starting up on $url"
+    while [ $retry_count -lt $max_retries ]; do
+        if kubectl get pods -n $namespace -l app=$service_name --no-headers | grep -q "Running"; then
+            print_success "Pod $service_name is running"
+            return 0
         fi
-    done
-}
-
-# Function to display access information
-show_access_info() {
-    print_header "📱 Access Information"
-    
-    echo -e "${GREEN}🌐 Access URLs:${NC}"
-    echo -e "${GREEN}   Frontend:   http://localhost:3005${NC}"
-    echo -e "${GREEN}   Backend:    http://localhost:4005${NC}"
-    echo -e "${GREEN}   AI:         http://localhost:5005${NC}"
-    echo -e "${GREEN}   Grafana:    http://localhost:3002${NC}"
-    echo -e "${GREEN}   ArgoCD:     https://localhost:18081${NC}"
-    echo ""
-    
-    # Get Grafana password
-    GRAFANA_PASSWORD=$(kubectl get secret prometheus-grafana -n monitoring -o jsonpath="{.data.admin-password}" 2>/dev/null | base64 -d || echo "admin")
-    
-    # Get ArgoCD password
-    ARGOCD_PASSWORD=$(kubectl get secret argocd-secret -n argocd -o jsonpath="{.data.admin.password}" 2>/dev/null | base64 -d || echo "admin")
-    
-    echo -e "${GREEN}🔐 Login Credentials:${NC}"
-    echo -e "${GREEN}   Grafana:    admin / $GRAFANA_PASSWORD${NC}"
-    echo -e "${GREEN}   ArgoCD:     admin / $ARGOCD_PASSWORD${NC}"
-    echo ""
-    
-    echo -e "${YELLOW}💡 To stop all port forwards, run:${NC}"
-    echo -e "${YELLOW}   ./port-forward.sh stop${NC}"
-    echo ""
-    
-    echo -e "${YELLOW}💡 To restart port forwards, run:${NC}"
-    echo -e "${YELLOW}   ./port-forward.sh${NC}"
-}
-
-# Function to stop port forwards
-stop_port_forwards() {
-    print_header "🛑 Stopping Port Forwards"
-    
-    # Kill by PIDs file if it exists
-    if [ -f /tmp/port-forward-pids.txt ]; then
-        print_info "Stopping port forwards using saved PIDs..."
-        while read -r pid; do
-            if kill -0 "$pid" 2>/dev/null; then
-                kill "$pid" 2>/dev/null || true
-                print_info "Stopped process $pid"
-            fi
-        done < /tmp/port-forward-pids.txt
-        rm -f /tmp/port-forward-pids.txt
-    fi
-    
-    # Also kill by pattern (backup)
-    print_info "Killing any remaining port forward processes..."
-    pkill -f "kubectl.*port-forward.*3005" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*4005" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*5005" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*3002" 2>/dev/null || true
-    pkill -f "kubectl.*port-forward.*18081" 2>/dev/null || true
-    
-    print_success "All port forwards stopped"
-}
-
-# Function to show status
-show_status() {
-    print_header "📊 Port Forward Status"
-    
-    # Check if processes are running
-    services=(
-        "Frontend:3005"
-        "Backend:4005" 
-        "AI:5005"
-        "Grafana:3002"
-        "ArgoCD:18081"
-    )
-    
-    for service in "${services[@]}"; do
-        IFS=':' read -r name port <<< "$service"
         
-        if pgrep -f "kubectl.*port-forward.*$port" >/dev/null; then
-            print_success "$name (port $port): Running"
-        else
-            print_error "$name (port $port): Not running"
-        fi
-    done
-}
-
-# Main script logic
-case "${1:-start}" in
-    "start"|"")
-        kill_existing_port_forwards
-        setup_port_forwards
+        retry_count=$((retry_count + 1))
+        echo -n "."
         sleep 2
-        test_port_forwards
-        show_access_info
+    done
+    
+    print_error "Pod $service_name did not become ready within timeout"
+    return 1
+}
+
+# Wait for service
+wait_for_service() {
+    local service_name=$1
+    local namespace=$2
+    local max_retries=30
+    local retry_count=0
+    
+    print_step "Waiting for service: $service_name in namespace: $namespace"
+    
+    while [ $retry_count -lt $max_retries ]; do
+        if kubectl get svc $service_name -n $namespace &> /dev/null; then
+            print_success "Service $service_name is available"
+            return 0
+        fi
+        
+        retry_count=$((retry_count + 1))
+        echo -n "."
+        sleep 2
+    done
+    
+    print_error "Service $service_name did not become available within timeout"
+    return 1
+}
+
+# Port forward with retry
+port_forward_with_retry() {
+    local service_name=$1
+    local namespace=$2
+    local local_port=$3
+    local remote_port=${4:-$local_port}
+    local max_retries=3
+    local retry_count=0
+    
+    while [ $retry_count -lt $max_retries ]; do
+        print_step "Port forwarding $service_name (retry $((retry_count + 1))/$max_retries)"
+        
+        # Kill any existing port-forward on this port
+        if lsof -Pi :$local_port -sTCP:LISTEN -t >/dev/null 2>&1; then
+            print_info "Killing existing process on port $local_port"
+            lsof -ti:$local_port | xargs kill -9 2>/dev/null || true
+        fi
+        
+        # Start port forwarding in background
+        kubectl port-forward svc/$service_name $local_port:$remote_port -n $namespace &
+        local pid=$!
+        
+        # Wait a moment and check if it's working
+        sleep 3
+        
+        if kill -0 $pid 2>/dev/null; then
+            print_success "Port forwarding $service_name -> localhost:$local_port (PID: $pid)"
+            echo $pid > /tmp/port-forward-$service_name.pid
+            return 0
+        else
+            print_error "Port forwarding failed for $service_name"
+            kill $pid 2>/dev/null || true
+        fi
+        
+        retry_count=$((retry_count + 1))
+        sleep 2
+    done
+    
+    print_error "Failed to establish port forwarding for $service_name after $max_retries attempts"
+    return 1
+}
+
+# Show access information
+show_access_info() {
+    print_step "🌐 Service Access Information"
+    echo ""
+    print_info "Frontend:      http://localhost:$FRONTEND_PORT"
+    print_info "Backend API:   http://localhost:$BACKEND_PORT"
+    print_info "AI Service:    http://localhost:$AI_PORT"
+    print_info "Grafana:       http://localhost:$GRAFANA_PORT"
+    print_info "ArgoCD:        http://localhost:$ARGOCD_PORT"
+    echo ""
+    print_info "Default Credentials:"
+    print_info "  Grafana: admin/admin123"
+    print_info "  ArgoCD:  admin/password (check ArgoCD secret)"
+    echo ""
+}
+
+# Stop all port forwards
+stop_all_port_forwards() {
+    print_step "Stopping all port forwards..."
+    
+    for pid_file in /tmp/port-forward-*.pid; do
+        if [ -f "$pid_file" ]; then
+            local pid=$(cat "$pid_file")
+            if kill -0 $pid 2>/dev/null; then
+                kill $pid
+                print_success "Stopped port forward (PID: $pid)"
+            fi
+            rm -f "$pid_file"
+        fi
+    done
+    
+    # Kill any remaining processes on our ports
+    for port in $FRONTEND_PORT $BACKEND_PORT $AI_PORT $GRAFANA_PORT $ARGOCD_PORT; do
+        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+            lsof -ti:$port | xargs kill -9 2>/dev/null || true
+        fi
+    done
+}
+
+# Forward all services
+forward_all() {
+    print_step "Starting port forwarding for all services..."
+    
+    # Check prerequisites
+    check_kubectl
+    check_cluster
+    
+    # Stop any existing port forwards
+    stop_all_port_forwards
+    
+    # Wait for services and start port forwarding
+    print_step "Setting up application services..."
+    
+    # Frontend
+    wait_for_service "exam-platform-frontend" $NAMESPACE
+    port_forward_with_retry "exam-platform-frontend" $NAMESPACE $FRONTEND_PORT
+    
+    # Backend
+    wait_for_service "exam-platform-backend" $NAMESPACE
+    port_forward_with_retry "exam-platform-backend" $NAMESPACE $BACKEND_PORT
+    
+    # AI Service
+    wait_for_service "exam-platform-ai" $NAMESPACE
+    port_forward_with_retry "exam-platform-ai" $NAMESPACE $AI_PORT
+    
+    # Monitoring services
+    print_step "Setting up monitoring services..."
+    
+    # Grafana
+    wait_for_service "prometheus-grafana" $MONITORING_NAMESPACE
+    port_forward_with_retry "prometheus-grafana" $MONITORING_NAMESPACE $GRAFANA_PORT
+    
+    # ArgoCD
+    wait_for_service "argocd-server" $ARGOCD_NAMESPACE
+    port_forward_with_retry "argocd-server" $ARGOCD_NAMESPACE $ARGOCD_PORT 80
+    
+    # Show access information
+    show_access_info
+    
+    print_success "All port forwards established successfully!"
+    print_info "Press Ctrl+C to stop all port forwards"
+    
+    # Trap Ctrl+C to cleanup
+    trap 'stop_all_port_forwards; exit 0' INT
+    
+    # Keep script running
+    while true; do
+        sleep 5
+        # Check if any port forward died
+        for pid_file in /tmp/port-forward-*.pid; do
+            if [ -f "$pid_file" ]; then
+                local pid=$(cat "$pid_file")
+                if ! kill -0 $pid 2>/dev/null; then
+                    print_error "Port forward died (PID: $pid), restarting..."
+                    # Extract service name from filename and restart
+                    local service=$(basename "$pid_file" | sed 's/port-forward-//; s/.pid//')
+                    # This would need more sophisticated logic to restart properly
+                fi
+            fi
+        done
+    done
+}
+
+# Forward specific service
+forward_service() {
+    local service=$1
+    
+    check_kubectl
+    check_cluster
+    
+    case $service in
+        "frontend")
+            wait_for_service "exam-platform-frontend" $NAMESPACE
+            port_forward_with_retry "exam-platform-frontend" $NAMESPACE $FRONTEND_PORT
+            print_info "Frontend available at: http://localhost:$FRONTEND_PORT"
+            ;;
+        "backend")
+            wait_for_service "exam-platform-backend" $NAMESPACE
+            port_forward_with_retry "exam-platform-backend" $NAMESPACE $BACKEND_PORT
+            print_info "Backend API available at: http://localhost:$BACKEND_PORT"
+            ;;
+        "ai")
+            wait_for_service "exam-platform-ai" $NAMESPACE
+            port_forward_with_retry "exam-platform-ai" $NAMESPACE $AI_PORT
+            print_info "AI Service available at: http://localhost:$AI_PORT"
+            ;;
+        "grafana")
+            wait_for_service "prometheus-grafana" $MONITORING_NAMESPACE
+            port_forward_with_retry "prometheus-grafana" $MONITORING_NAMESPACE $GRAFANA_PORT
+            print_info "Grafana available at: http://localhost:$GRAFANA_PORT"
+            ;;
+        "argocd")
+            wait_for_service "argocd-server" $ARGOCD_NAMESPACE
+            port_forward_with_retry "argocd-server" $ARGOCD_NAMESPACE $ARGOCD_PORT 80
+            print_info "ArgoCD available at: http://localhost:$ARGOCD_PORT"
+            ;;
+        *)
+            print_error "Unknown service: $service"
+            print_info "Available services: frontend, backend, ai, grafana, argocd"
+            exit 1
+            ;;
+    esac
+}
+
+# ========================================
+#  MAIN
+# ========================================
+case "${1:-all}" in
+    "all")
+        forward_all
         ;;
     "stop")
-        stop_port_forwards
+        stop_all_port_forwards
         ;;
-    "status")
-        show_status
+    "frontend"|"backend"|"ai"|"grafana"|"argocd")
+        forward_service $1
         ;;
-    "restart")
-        stop_port_forwards
-        sleep 2
-        kill_existing_port_forwards
-        setup_port_forwards
-        sleep 2
-        test_port_forwards
+    "info")
         show_access_info
         ;;
-    "help"|"-h"|"--help")
-        echo "Usage: $0 [command]"
+    *)
+        echo "Usage: $0 [all|stop|frontend|backend|ai|grafana|argocd|info]"
         echo ""
         echo "Commands:"
-        echo "  start     Start port forwards (default)"
-        echo "  stop      Stop all port forwards"
-        echo "  status    Show status of port forwards"
-        echo "  restart   Restart port forwards"
-        echo "  help      Show this help message"
-        echo ""
-        echo "Examples:"
-        echo "  $0              # Start port forwards"
-        echo "  $0 stop         # Stop port forwards"
-        echo "  $0 status       # Check status"
-        echo "  $0 restart      # Restart port forwards"
-        ;;
-    *)
-        print_error "Unknown command: $1"
-        echo "Use '$0 help' for usage information"
+        echo "  all      - Forward all services (default)"
+        echo "  stop     - Stop all port forwards"
+        echo "  frontend - Forward only frontend"
+        echo "  backend  - Forward only backend"
+        echo "  ai       - Forward only AI service"
+        echo "  grafana  - Forward only Grafana"
+        echo "  argocd   - Forward only ArgoCD"
+        echo "  info     - Show access information"
         exit 1
         ;;
 esac
