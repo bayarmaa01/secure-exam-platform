@@ -103,6 +103,16 @@ async function runMigrations(client: any) {
     }
   }
   
+  // Create exam_user role if it doesn't exist
+  try {
+    await client.query('CREATE ROLE exam_user')
+    console.log('Created exam_user role')
+  } catch (error) {
+    if (!error.message.includes('already exists')) {
+      console.warn('Failed to create exam_user role:', error.message)
+    }
+  }
+
   // Grant permissions
   await client.query('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO exam_user')
   await client.query('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO exam_user')
