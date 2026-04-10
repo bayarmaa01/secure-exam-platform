@@ -409,6 +409,13 @@ detect_pod_issues() {
     
     print_step "Detecting pod issues in namespace: $namespace"
     
+    # Check if namespace exists first
+    if ! $KUBECTL_CMD get namespace $namespace &>/dev/null; then
+        print_debug "Namespace $namespace does not exist, skipping issue detection"
+        echo "${issues[@]}"
+        return 0
+    fi
+    
     # Check for problematic pods
     local problematic_pods=$($KUBECTL_CMD get pods -n $namespace --no-headers 2>/dev/null | grep -E "(CrashLoopBackOff|Error|Failed|Pending|ImagePullBackOff)" || true)
     
@@ -436,6 +443,13 @@ detect_pod_issues() {
 # Smart issue fixing
 fix_pod_issues() {
     local namespace=$1
+    
+    # Check if namespace exists first
+    if ! $KUBECTL_CMD get namespace $namespace &>/dev/null; then
+        print_debug "Namespace $namespace does not exist, skipping issue fixing"
+        return 0
+    fi
+    
     local issues=($(detect_pod_issues "$namespace"))
     
     if [[ ${#issues[@]} -eq 0 ]]; then
@@ -475,7 +489,7 @@ fix_pod_issues() {
             "Container Error"|"Pod Failed")
                 # Check logs and restart
                 print_info "Checking logs for $pod_name..."
-                $KUBECTL_CMD logs $pod_name -n $namespace --tail=20 2>/dev/null | head -5
+                $KUBECTL_CMD logs $pod_name -n $namespace --tail=20 2>/dev/null | head -5 || true
                 $KUBECTL_CMD delete pod $pod_name -n $namespace --grace-period=0 --force 2>/dev/null || true
                 print_success "Restarted $pod_name"
                 ;;
@@ -491,16 +505,22 @@ fix_pod_issues() {
 comprehensive_health_check() {
     print_header "COMPREHENSIVE HEALTH CHECK"
     
+    # Ensure namespaces exist first
+    ensure_namespaces
+    
     local namespaces=("$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE")
     local total_issues=0
     
     for ns in "${namespaces[@]}"; do
         print_step "Checking namespace: $ns"
         
-        # Check if namespace exists
+        # Check if namespace exists (should already exist from ensure_namespaces)
         if ! $KUBECTL_CMD get namespace $ns &>/dev/null; then
-            print_warning "Namespace $ns does not exist"
-            continue
+            print_warning "Namespace $ns does not exist, creating it..."
+            $KUBECTL_CMD create namespace $ns || {
+                print_error "Failed to create namespace: $ns"
+                continue
+            }
         fi
         
         # Detect and fix issues
@@ -645,7 +665,32 @@ check_prerequisites() {
         fi
     done
     
+    # Check and create required namespaces
+    ensure_namespaces
+    
     print_success "All prerequisites are installed"
+}
+
+# Ensure namespaces exist before any operations
+ensure_namespaces() {
+    print_step "Ensuring required namespaces exist..."
+    
+    local namespaces=("$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE")
+    
+    for ns in "${namespaces[@]}"; do
+        if ! $KUBECTL_CMD get namespace $ns &>/dev/null; then
+            print_info "Creating namespace: $ns"
+            $KUBECTL_CMD create namespace $ns || {
+                print_error "Failed to create namespace: $ns"
+                return 1
+            }
+            print_success "Namespace $ns created"
+        else
+            print_debug "Namespace $ns already exists"
+        fi
+    done
+    
+    print_success "All namespaces are ready"
 }
 
 # ========================================
