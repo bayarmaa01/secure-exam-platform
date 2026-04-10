@@ -765,7 +765,12 @@ deploy_monitoring() {
         --set grafana.service.type=ClusterIP \
         --set prometheus.service.type=ClusterIP \
         --set defaultRules.create=true \
-        --set prometheusOperator.enabled=true
+        --set prometheusOperator.enabled=true \
+        --set grafana.securityContext.runAsUser=0 \
+        --set grafana.securityContext.runAsGroup=0 \
+        --set grafana.securityContext.fsGroup=472 \
+        --set grafana.initContainers[0].securityContext.runAsUser=0 \
+        --set grafana.initContainers[0].securityContext.runAsGroup=0
     
     # Wait for monitoring stack to be ready
     if [[ "$DEBUG_MODE" != "true" ]]; then
