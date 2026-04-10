@@ -9,17 +9,17 @@ const router = Router()
 router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, title, description, duration_minutes, scheduled_at, status 
+      `SELECT id, title, description, duration_minutes, start_time, status 
        FROM exams 
-       WHERE status = 'published' AND scheduled_at <= NOW()
-       ORDER BY scheduled_at ASC`
+       WHERE status = 'published' AND start_time <= NOW()
+       ORDER BY start_time ASC`
     )
     res.json(r.rows.map((row) => ({
       id: row.id,
       title: row.title,
       description: row.description,
       durationMinutes: row.duration_minutes,
-      scheduledAt: row.scheduled_at,
+      startTime: row.start_time,
       status: row.status
     })))
   } catch (error) {
@@ -31,7 +31,7 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
 router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, title, description, duration_minutes, scheduled_at, status, created_at
+      `SELECT id, title, description, duration_minutes, start_time, status, created_at
        FROM exams 
        WHERE teacher_id = $1
        ORDER BY created_at DESC`,
@@ -42,7 +42,7 @@ router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res)
       title: row.title,
       description: row.description,
       durationMinutes: row.duration_minutes,
-      scheduledAt: row.scheduled_at,
+      startTime: row.start_time,
       status: row.status,
       createdAt: row.created_at
     })))
@@ -92,7 +92,7 @@ router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
       title: row.title,
       description: row.description,
       durationMinutes: row.duration_minutes,
-      scheduledAt: row.scheduled_at,
+      startTime: row.start_time,
       status: row.status,
       teacherName: row.teacher_name,
       createdAt: row.created_at
@@ -399,7 +399,7 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
 
     // Check if exam is available
     const examCheck = await pool.query(
-      'SELECT status, scheduled_at FROM exams WHERE id = $1',
+      'SELECT status, start_time FROM exams WHERE id = $1',
       [examId]
     )
     if (examCheck.rows.length === 0) {
@@ -560,47 +560,50 @@ router.get('/teacher/students', auth, requireTeacher, async (req: AuthRequest, r
       createdAt: row.created_at
     })))
   } catch (error) {
-    console.error('Get students error:', error)
     res.status(500).json({ message: 'Internal server error' })
   }
 })
 
-// Teacher: Create exam
+// Teacher: Create exam (legacy route - redirects to main route)
 router.post('/teacher/exams', auth, requireTeacher, [
   body('title').notEmpty().withMessage('Title is required'),
   body('description').optional(),
   body('duration_minutes').isInt({ min: 1 }).withMessage('Duration must be at least 1 minute'),
-  body('scheduled_at').isISO8601().withMessage('Valid schedule date required')
+  body('start_time').isISO8601().withMessage('Valid start date required')
 ], async (req: AuthRequest, res) => {
-  try {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
-    }
-
-    const { title, description, duration_minutes, scheduled_at } = req.body
-
-    const r = await pool.query(
-      `INSERT INTO exams (title, description, duration_minutes, teacher_id, scheduled_at, status)
-       VALUES ($1, $2, $3, $4, $5, 'draft')
-       RETURNING id, title, description, duration_minutes, teacher_id, scheduled_at, status, created_at`,
-      [title, description, parseInt(duration_minutes), req.user!.id, scheduled_at]
-    )
-
-    const exam = r.rows[0]
-    res.status(201).json({
-      id: exam.id,
-      title: exam.title,
-      description: exam.description,
-      durationMinutes: exam.duration_minutes,
-      scheduledAt: exam.scheduled_at,
-      status: exam.status,
-      createdAt: exam.created_at
-    })
-  } catch (error) {
-    console.error('Create exam error:', error)
-    res.status(500).json({ message: 'Internal server error' })
+try {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
   }
+
+  const { title, description, duration_minutes, start_time } = req.body
+
+  // Calculate end_time if not provided (default to duration_minutes after start_time)
+  const end_time = new Date(new Date(start_time).getTime() + duration_minutes * 60 * 1000).toISOString()
+
+  const r = await pool.query(
+    `INSERT INTO exams (title, description, duration_minutes, teacher_id, start_time, end_time, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'draft')
+     RETURNING id, title, description, duration_minutes, teacher_id, start_time, end_time, status, created_at`,
+    [title, description, parseInt(duration_minutes), req.user!.id, start_time, end_time]
+  )
+
+  const exam = r.rows[0]
+  res.status(201).json({
+    id: exam.id,
+    title: exam.title,
+    description: exam.description,
+    durationMinutes: exam.duration_minutes,
+    startTime: exam.start_time,
+    endTime: exam.end_time,
+    status: exam.status,
+    createdAt: exam.created_at
+  })
+} catch (error) {
+  console.error('Error creating exam:', error)
+  res.status(500).json({ message: 'Internal server error' })
+}
 })
 
 // Teacher: Get results with student names
