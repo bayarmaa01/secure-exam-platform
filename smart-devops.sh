@@ -804,8 +804,6 @@ deploy_monitoring() {
         --set grafana.env[0].value=admin \
         --set grafana.env[1].name=GF_SECURITY_ADMIN_PASSWORD \
         --set grafana.env[1].value=admin123 \
-        --set grafana.env[2].name=GF_INSTALL_PLUGINS \
-        --set grafana.env[2].value=grafana-piechart-panel,grafana-worldmap-panel \
         --set defaultRules.create=true \
         --set prometheusOperator.enabled=true \
         --set grafana.service.type=ClusterIP \
