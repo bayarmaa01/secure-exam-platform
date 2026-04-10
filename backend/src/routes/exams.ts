@@ -137,6 +137,8 @@ router.post('/exams',
         return res.status(400).json({ errors: errors.array() })
       }
 
+      console.log("Validated body:", req.body);
+
       const { 
         title, 
         description, 
@@ -218,8 +220,9 @@ router.put('/exams/:id',
   [
     body('title').optional().notEmpty().trim(),
     body('description').optional().trim(),
-    body('durationMinutes').optional().isInt({ min: 1, max: 480 }),
-    body('scheduledAt').optional().isISO8601().toDate(),
+    body('duration_minutes').optional().isInt({ min: 1, max: 480 }),
+    body('start_time').optional().isISO8601().toDate(),
+    body('end_time').optional().isISO8601().toDate(),
     body('status').optional().isIn(['draft', 'published', 'ongoing', 'completed'])
   ],
   async (req: AuthRequest, res) => {
@@ -230,7 +233,7 @@ router.put('/exams/:id',
       }
 
       const examId = req.params.id
-      const { title, description, durationMinutes, scheduledAt, status } = req.body
+      const { title, description, duration_minutes, start_time, end_time, status } = req.body
 
       // Check ownership
       const examCheck = await pool.query(
@@ -256,13 +259,17 @@ router.put('/exams/:id',
         updates.push(`description = $${paramIndex++}`)
         values.push(description)
       }
-      if (durationMinutes !== undefined) {
+      if (duration_minutes !== undefined) {
         updates.push(`duration_minutes = $${paramIndex++}`)
-        values.push(durationMinutes)
+        values.push(duration_minutes)
       }
-      if (scheduledAt !== undefined) {
-        updates.push(`scheduled_at = $${paramIndex++}`)
-        values.push(scheduledAt)
+      if (start_time !== undefined) {
+        updates.push(`start_time = $${paramIndex++}`)
+        values.push(start_time)
+      }
+      if (end_time !== undefined) {
+        updates.push(`end_time = $${paramIndex++}`)
+        values.push(end_time)
       }
       if (status !== undefined) {
         updates.push(`status = $${paramIndex++}`)
