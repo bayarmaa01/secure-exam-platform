@@ -14,8 +14,9 @@ export MAKEFLAGS="-j$(nproc)"
 export DOCKER_BUILDKIT=1
 
 # Global signal handling
-trap 'print_warning "Script interrupted by user"; cleanup_all_processes; exit 130' SIGINT SIGTERM
-trap 'cleanup_all_processes' EXIT
+SCRIPT_RUNNING=true
+trap 'if [[ "$SCRIPT_RUNNING" == "true" ]]; then print_warning "Script interrupted by user"; SCRIPT_RUNNING=false; cleanup_all_processes; exit 130; fi' SIGINT SIGTERM
+trap 'if [[ "$SCRIPT_RUNNING" == "true" ]]; then SCRIPT_RUNNING=false; cleanup_all_processes; fi' EXIT
 
 # ========================================
 #  COLORS
@@ -187,13 +188,21 @@ stop_real_time_monitoring() {
 
 # Cleanup all background processes
 cleanup_all_processes() {
+    # Prevent recursive cleanup
+    if [[ "${CLEANUP_RUNNING:-false}" == "true" ]]; then
+        return 0
+    fi
+    
+    CLEANUP_RUNNING=true
     print_step "Cleaning up all background processes..."
     
     # Stop monitoring
     stop_real_time_monitoring
     
-    # Kill any remaining smart-devops processes
+    # Kill any remaining smart-devops processes (excluding current script)
+    local current_pid=$$
     pkill -f "smart-devops.sh" 2>/dev/null || true
+    # Don't kill the current script process
     pkill -f "monitor_pods_realtime" 2>/dev/null || true
     
     # Clean up temp files
@@ -201,6 +210,7 @@ cleanup_all_processes() {
     rm -f /tmp/pod-monitor.pid
     
     print_success "All background processes cleaned up"
+    CLEANUP_RUNNING=false
 }
 
 # ========================================
