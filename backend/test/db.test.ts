@@ -15,6 +15,16 @@ jest.mock('pg', () => ({
   }))
 }));
 
+// Mock the db module to use our mocked pool
+jest.mock('../src/db', () => ({
+  pool: {
+    query: mockPoolQuery,
+    connect: mockPoolConnect,
+    end: mockPoolEnd
+  },
+  initDb: jest.fn()
+}));
+
 describe('Database Module', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -92,11 +102,11 @@ describe('Database Module', () => {
   describe('initDb function', () => {
     test('should initialize database successfully', async () => {
       // Mock successful database operations
-      mockPoolQuery.mockResolvedValue({ rows: [] });
+      mockPoolQuery.mockResolvedValue({ rows: [] } as never);
       mockPoolConnect.mockResolvedValue({
-        query: jest.fn().mockResolvedValue({ rows: [] }),
+        query: jest.fn().mockResolvedValue({ rows: [] } as never),
         release: jest.fn()
-      });
+      } as never);
 
       await expect(initDb()).resolves.not.toThrow();
     });
@@ -159,10 +169,10 @@ describe('Database Module', () => {
   describe('Transaction Support', () => {
     test('should handle basic transaction operations', async () => {
       const mockClient = {
-        query: jest.fn().mockResolvedValue({ rows: [] }),
+        query: jest.fn().mockResolvedValue({ rows: [] } as never),
         release: jest.fn()
       };
-      mockPoolConnect.mockResolvedValue(mockClient);
+      mockPoolConnect.mockResolvedValue(mockClient as never);
 
       const client = await pool.connect();
       

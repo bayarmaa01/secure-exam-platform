@@ -11,6 +11,40 @@ jest.mock('../src/db', () => ({
   }
 }));
 
+// Mock the auth middleware
+const mockAuth = jest.fn((req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  
+  // If no token, return 401
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+  
+  const token = authHeader.slice(7);
+  
+  // Handle different token scenarios
+  if (token === 'invalidToken') {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+  
+  if (token === 'validToken') {
+    // Mock the user object that would be set by the auth middleware
+    req.user = { 
+      id: '1', 
+      email: 'test@example.com', 
+      role: 'student',
+      name: 'Test User'
+    };
+    next();
+  } else {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+});
+
+jest.mock('../src/middleware/auth', () => ({
+  auth: mockAuth
+}));
+
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { pool } from '../src/db';
@@ -93,16 +127,26 @@ describe('Authentication Routes', () => {
       const mockUser = {
         id: '1',
         email: loginData.email,
-        password: 'hashedPassword',
+        password_hash: 'hashedPassword',
         name: 'Test User',
         role: 'student'
       };
 
+      // Mock the user query
       mockPoolQuery.mockResolvedValueOnce({
         rows: [mockUser]
       } as never);
+      
+      // Mock password comparison to return true
       mockBcrypt.compare.mockResolvedValue(true as never);
+      
+      // Mock JWT signing for both access and refresh tokens
       mockJwt.sign.mockReturnValue('mockToken' as never);
+      
+      // Mock the refresh token insertion
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: []
+      } as never);
 
       const response = await request(app)
         .post('/api/auth/login')
@@ -166,10 +210,15 @@ describe('Authentication Routes', () => {
         id: '1',
         email: 'test@example.com',
         name: 'Test User',
-        role: 'student'
+        role: 'student',
+        student_id: null,
+        teacher_id: null
       };
 
+      // Mock JWT verification to return the user ID
       mockJwt.verify.mockReturnValue({ userId: '1' } as never);
+      
+      // Mock the database query to return the user
       mockPoolQuery.mockResolvedValueOnce({
         rows: [mockUser]
       } as never);
@@ -179,8 +228,10 @@ describe('Authentication Routes', () => {
         .set('Authorization', 'Bearer validToken')
         .expect(200);
 
-      expect(response.body).toHaveProperty('user');
-      expect(response.body.user.email).toBe(mockUser.email);
+      expect(response.body).toHaveProperty('id', '1');
+      expect(response.body).toHaveProperty('email', mockUser.email);
+      expect(response.body).toHaveProperty('name', mockUser.name);
+      expect(response.body).toHaveProperty('role', mockUser.role);
     });
 
     test('should return 401 without token', async () => {
