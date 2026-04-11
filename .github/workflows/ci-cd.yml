@@ -34,7 +34,8 @@ jobs:
         if: matrix.service != 'ai-proctoring'
         uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: '24'
+          force-include-node: '24'
 
       - name: Setup Python
         if: matrix.service == 'ai-proctoring'
