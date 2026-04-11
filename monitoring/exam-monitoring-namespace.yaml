@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: exam-monitoring
+  labels:
+    name: exam-monitoring
+    purpose: monitoring
+    project: exam-platform

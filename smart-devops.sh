@@ -389,17 +389,18 @@ setup_namespace() {
 }
 
 setup_monitoring_namespace() {
-    if kubectl get namespace monitoring &>/dev/null; then
-        log_info "Monitoring namespace already exists"
+    if kubectl get namespace exam-monitoring &>/dev/null; then
+        log_info "Exam-monitoring namespace already exists"
         return 0
     fi
     
-    log_info "Creating monitoring namespace..."
-    kubectl create namespace monitoring || {
-        log_error "Failed to create monitoring namespace"
-        return 1
+    log_info "Creating exam-monitoring namespace..."
+    kubectl create namespace exam-monitoring || {
+        log_error "Failed to create exam-monitoring namespace"
+        exit 1
     }
-    log_success "Monitoring namespace created"
+    
+    log_success "Exam-monitoring namespace created"
 }
 
 setup_argocd_namespace() {
@@ -1342,11 +1343,11 @@ main() {
         
         # Get Grafana password
         local grafana_password="admin123"
-        if kubectl get secret grafana-admin-credentials -n monitoring &>/dev/null; then
+        if kubectl get secret grafana-admin-credentials -n exam-monitoring &>/dev/null; then
             if command -v jq &> /dev/null; then
-                grafana_password=$(kubectl get secret grafana-admin-credentials -n monitoring -o json 2>/dev/null | jq -r '.data.GF_SECURITY_ADMIN_PASSWORD' | base64 -d 2>/dev/null || echo "admin123")
+                grafana_password=$(kubectl get secret grafana-admin-credentials -n exam-monitoring -o json 2>/dev/null | jq -r '.data.GF_SECURITY_ADMIN_PASSWORD' | base64 -d 2>/dev/null || echo "admin123")
             else
-                grafana_password=$(kubectl get secret grafana-admin-credentials -n monitoring -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' 2>/dev/null | base64 -d || echo "admin123")
+                grafana_password=$(kubectl get secret grafana-admin-credentials -n exam-monitoring -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' 2>/dev/null | base64 -d || echo "admin123")
             fi
         else
             grafana_password="admin123 (default)"

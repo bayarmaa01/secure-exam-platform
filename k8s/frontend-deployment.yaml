@@ -21,9 +21,9 @@ spec:
         - containerPort: 80
         env:
         - name: VITE_API_URL
-          value: "http://localhost:4005/api"
+          value: "/api"
         - name: VITE_AI_PROCTORING_URL
-          value: "http://localhost:5005/api"
+          value: "/ai"
         readinessProbe:
           httpGet:
             path: /
