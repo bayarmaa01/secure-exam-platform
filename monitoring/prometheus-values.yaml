@@ -25,6 +25,7 @@ prometheus:
 grafana:
   enabled: true
   adminPassword: admin123
+  namespace: exam-monitoring
   # Fix datasource configuration
   datasources:
     datasources.yaml:
@@ -32,7 +33,7 @@ grafana:
       datasources:
         - name: Prometheus
           type: prometheus
-          url: http://prometheus-operated.monitoring:9090
+          url: http://prometheus-operated.exam-monitoring:9090
           access: proxy
           isDefault: true
   persistence:
