@@ -31,6 +31,8 @@ MODE="auto"
 FAST_MODE=false
 FULL_MODE=false
 NAMESPACE="exam-platform"
+MONITORING_NAMESPACE="exam-monitoring"
+ARGOCD_NAMESPACE="argocd"
 DOCKER_REGISTRY="bayarmaa"
 TIMEOUT=60
 RETRY_COUNT=3
@@ -389,32 +391,33 @@ setup_namespace() {
 }
 
 setup_monitoring_namespace() {
-    if kubectl get namespace exam-monitoring &>/dev/null; then
-        log_info "Exam-monitoring namespace already exists"
+    if kubectl get namespace $MONITORING_NAMESPACE &>/dev/null; then
+        log_info "$MONITORING_NAMESPACE namespace already exists"
         return 0
     fi
     
-    log_info "Creating exam-monitoring namespace..."
-    kubectl create namespace exam-monitoring || {
-        log_error "Failed to create exam-monitoring namespace"
+    log_info "Creating $MONITORING_NAMESPACE namespace..."
+    kubectl create namespace $MONITORING_NAMESPACE || {
+        log_error "Failed to create $MONITORING_NAMESPACE namespace"
         exit 1
     }
     
-    log_success "Exam-monitoring namespace created"
+    log_success "$MONITORING_NAMESPACE namespace created"
 }
 
 setup_argocd_namespace() {
-    if kubectl get namespace argocd &>/dev/null; then
-        log_info "ArgoCD namespace already exists"
+    if kubectl get namespace $ARGOCD_NAMESPACE &>/dev/null; then
+        log_info "$ARGOCD_NAMESPACE namespace already exists"
         return 0
     fi
     
-    log_info "Creating ArgoCD namespace..."
-    kubectl create namespace argocd || {
-        log_error "Failed to create ArgoCD namespace"
-        return 1
+    log_info "Creating $ARGOCD_NAMESPACE namespace..."
+    kubectl create namespace $ARGOCD_NAMESPACE || {
+        log_error "Failed to create $ARGOCD_NAMESPACE namespace"
+        exit 1
     }
-    log_success "ArgoCD namespace created"
+    
+    log_success "$ARGOCD_NAMESPACE namespace created"
 }
 
 deploy_manifests() {
@@ -482,7 +485,12 @@ deploy_manifests() {
     fi
     
     # Deploy monitoring (optional but recommended)
-    if [[ -f "k8s/grafana.yaml" ]]; then
+    if [[ -f "k8s/grafana-enhanced.yaml" ]]; then
+        kubectl apply -f k8s/grafana-enhanced.yaml || {
+            log_warning "Failed to deploy enhanced grafana, creating basic grafana deployment"
+            create_grafana_manifest
+        }
+    elif [[ -f "k8s/grafana.yaml" ]]; then
         kubectl apply -f k8s/grafana.yaml || {
             log_warning "Failed to deploy grafana, creating basic grafana deployment"
             create_grafana_manifest
@@ -764,7 +772,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana
-  namespace: exam-monitoring
+  namespace: $MONITORING_NAMESPACE
 spec:
   replicas: 1
   selector:
@@ -812,7 +820,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: grafana
-  namespace: exam-monitoring
+  namespace: $MONITORING_NAMESPACE
 spec:
   selector:
     app: grafana
@@ -830,7 +838,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: exam-monitoring
+  namespace: $MONITORING_NAMESPACE
 spec:
   replicas: 1
   selector:
@@ -869,7 +877,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: exam-monitoring
+  namespace: $MONITORING_NAMESPACE
 data:
   prometheus.yml: |
     global:
@@ -882,21 +890,25 @@ data:
       - job_name: 'backend'
         static_configs:
           - targets: ['backend.exam-platform.svc.cluster.local:4000']
+        metrics_path: '/api/health'
+        scrape_interval: 15s
+      - job_name: 'ai-proctoring'
+        static_configs:
+          - targets: ['ai-proctoring.exam-platform.svc.cluster.local:8000']
+        metrics_path: '/health'
+        scrape_interval: 15s
       - job_name: 'postgres'
         static_configs:
           - targets: ['postgres.exam-platform.svc.cluster.local:5432']
       - job_name: 'redis'
         static_configs:
           - targets: ['redis.exam-platform.svc.cluster.local:6379']
-      - job_name: 'ai-proctoring'
-        static_configs:
-          - targets: ['ai-proctoring.exam-platform.svc.cluster.local:8000']
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
-  namespace: exam-monitoring
+  namespace: $MONITORING_NAMESPACE
 spec:
   selector:
     app: prometheus
@@ -1138,9 +1150,9 @@ setup_port_forwards() {
     start_port_forward "frontend" $FRONTEND_PORT 80
     start_port_forward "backend" $BACKEND_PORT 4000
     start_port_forward "ai-proctoring" $AI_PORT 8000
-    start_port_forward "grafana" $GRAFANA_PORT 3000 monitoring
-    start_port_forward "prometheus" $PROMETHEUS_PORT 9090 monitoring
-    start_port_forward "argocd-server" $ARGOCD_PORT 8080 argocd
+    start_port_forward "grafana" $GRAFANA_PORT 3000 $MONITORING_NAMESPACE
+    start_port_forward "prometheus" $PROMETHEUS_PORT 9090 $MONITORING_NAMESPACE
+    start_port_forward "argocd-server" $ARGOCD_PORT 8080 $ARGOCD_NAMESPACE
     
     log_success "All port forwards started"
 }
@@ -1331,11 +1343,11 @@ main() {
     if health_check; then
         # Get ArgoCD password (with fallback for missing jq)
         local argocd_password="admin"
-        if kubectl get namespace argocd &>/dev/null; then
+        if kubectl get namespace $ARGOCD_NAMESPACE &>/dev/null; then
             if command -v jq &> /dev/null; then
-                argocd_password=$(kubectl get secret argocd-initial-admin-secret -n argocd -o json 2>/dev/null | jq -r '.data.password' | base64 -d 2>/dev/null || echo "admin")
+                argocd_password=$(kubectl get secret argocd-initial-admin-secret -n $ARGOCD_NAMESPACE -o json 2>/dev/null | jq -r '.data.password' | base64 -d 2>/dev/null || echo "admin")
             else
-                argocd_password=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || echo "admin")
+                argocd_password=$(kubectl get secret argocd-initial-admin-secret -n $ARGOCD_NAMESPACE -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || echo "admin")
             fi
         else
             argocd_password="ArgoCD not deployed"
@@ -1343,11 +1355,11 @@ main() {
         
         # Get Grafana password
         local grafana_password="admin123"
-        if kubectl get secret grafana-admin-credentials -n exam-monitoring &>/dev/null; then
+        if kubectl get secret grafana-admin-credentials -n $MONITORING_NAMESPACE &>/dev/null; then
             if command -v jq &> /dev/null; then
-                grafana_password=$(kubectl get secret grafana-admin-credentials -n exam-monitoring -o json 2>/dev/null | jq -r '.data.GF_SECURITY_ADMIN_PASSWORD' | base64 -d 2>/dev/null || echo "admin123")
+                grafana_password=$(kubectl get secret grafana-admin-credentials -n $MONITORING_NAMESPACE -o json 2>/dev/null | jq -r '.data.GF_SECURITY_ADMIN_PASSWORD' | base64 -d 2>/dev/null || echo "admin123")
             else
-                grafana_password=$(kubectl get secret grafana-admin-credentials -n exam-monitoring -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' 2>/dev/null | base64 -d || echo "admin123")
+                grafana_password=$(kubectl get secret grafana-admin-credentials -n $MONITORING_NAMESPACE -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' 2>/dev/null | base64 -d || echo "admin123")
             fi
         else
             grafana_password="admin123 (default)"
