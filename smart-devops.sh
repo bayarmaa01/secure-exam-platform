@@ -33,17 +33,17 @@ NC='\033[0m'
 #  GLOBAL VARIABLES
 # ========================================
 DEPLOY_MODE=""
-NAMESPACE="default"
+NAMESPACE="exam-platform"
 MONITORING_NAMESPACE="monitoring"
 ARGOCD_NAMESPACE="argocd"
 KUBECTL_CMD="kubectl"
-TIMEOUT=300
+TIMEOUT=120
 RETRY_COUNT=3
 DEBUG_MODE=false
 ENABLE_ANALYTICS=true
 ENABLE_AI_PROCTORING=true
-ENABLE_MONITORING=true
-ENABLE_ARGOCD=true
+ENABLE_MONITORING=false
+ENABLE_ARGOCD=false
 
 # Smart optimization variables
 PARALLEL_BUILDS=${PARALLEL_BUILDS:-"true"}
@@ -732,14 +732,13 @@ setup_minikube() {
         --cpus=$MINIKUBE_CPU_CORES \
         --memory=$MINIKUBE_MEMORY_MB \
         --disk-size=20g \
-        --addons=ingress,metrics-server
+        --addons=metrics-server
     
-    # Enable additional addons
+    # Enable essential addons (skip slow ingress for faster deployment)
     print_step "Enabling Minikube addons..."
-    minikube addons enable ingress
-    minikube addons enable metrics-server
-    
-    # Set docker environment
+    # Skip ingress addon for faster deployment - can be enabled later if needed
+    print_info "Skipping ingress addon for faster deployment"
+    minikube addons enable metrics-server --wait=false
     eval $(minikube docker-env)
     
     # Verify Minikube status
@@ -1048,20 +1047,19 @@ deploy_all() {
         deploy_application
     fi
     
-    # Parallel monitoring and ArgoCD deployment
-    if [[ "$PARALLEL_BUILDS" == "true" ]] && [[ "$ENABLE_MONITORING" == "true" ]] && [[ "$ENABLE_ARGOCD" == "true" ]]; then
-        show_progress $((++current_step)) $steps "Deploying monitoring and ArgoCD in parallel"
-        run_parallel "deploy_monitoring" "deploy_argocd"
-    else
-        if [[ "$ENABLE_MONITORING" == "true" ]]; then
-            show_progress $((++current_step)) $steps "Deploying monitoring"
-            deploy_monitoring
-        fi
-        
-        if [[ "$ENABLE_ARGOCD" == "true" ]]; then
-            show_progress $((++current_step)) $steps "Deploying ArgoCD"
-            deploy_argocd
-        fi
+    # Skip monitoring and ArgoCD for faster deployment
+    if [[ "$ENABLE_MONITORING" == "true" ]]; then
+        show_progress $((++current_step)) $steps "Deploying monitoring"
+        deploy_monitoring
+    fi
+    
+    if [[ "$ENABLE_ARGOCD" == "true" ]]; then
+        show_progress $((++current_step)) $steps "Deploying ArgoCD"
+        deploy_argocd
+    fi
+    
+    if [[ "$ENABLE_MONITORING" == "false" ]] && [[ "$ENABLE_ARGOCD" == "false" ]]; then
+        print_info "Skipping monitoring and ArgoCD for faster deployment"
     fi
     
     # Stop monitoring and perform comprehensive health check
