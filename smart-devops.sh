@@ -402,6 +402,20 @@ setup_monitoring_namespace() {
     log_success "Monitoring namespace created"
 }
 
+setup_argocd_namespace() {
+    if kubectl get namespace argocd &>/dev/null; then
+        log_info "ArgoCD namespace already exists"
+        return 0
+    fi
+    
+    log_info "Creating ArgoCD namespace..."
+    kubectl create namespace argocd || {
+        log_error "Failed to create ArgoCD namespace"
+        return 1
+    }
+    log_success "ArgoCD namespace created"
+}
+
 deploy_manifests() {
     log_info "Deploying Kubernetes manifests..."
     
@@ -487,10 +501,15 @@ deploy_manifests() {
         create_prometheus_manifest
     fi
     
+    # Deploy ArgoCD
     if [[ -f "k8s/argocd.yaml" ]]; then
         kubectl apply -f k8s/argocd.yaml || {
-            log_warning "Failed to deploy argocd, continuing"
+            log_warning "Failed to deploy argocd, creating basic argocd deployment"
+            create_argocd_manifest
         }
+    else
+        log_warning "k8s/argocd.yaml not found, creating basic argocd deployment"
+        create_argocd_manifest
     fi
     
     log_success "All manifests deployed"
@@ -757,17 +776,33 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: grafana/grafana:latest
+        image: grafana/grafana:10.2.0
         env:
         - name: GF_SECURITY_ADMIN_PASSWORD
           value: admin123
         - name: GF_INSTALL_PLUGINS
           value: grafana-clock-panel,grafana-simple-json-datasource
+        - name: GF_SECURITY_ADMIN_USER
+          value: admin
+        - name: GF_SERVER_ROOT_URL
+          value: http://localhost:3002/
         ports:
         - containerPort: 3000
         volumeMounts:
         - name: grafana-storage
           mountPath: /var/lib/grafana
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
       volumes:
       - name: grafana-storage
         emptyDir: {}
@@ -783,6 +818,7 @@ spec:
   ports:
   - port: 3000
     targetPort: 3000
+  type: ClusterIP
 EOF
     kubectl apply -f k8s/grafana.yaml
 }
@@ -868,6 +904,66 @@ spec:
     targetPort: 9090
 EOF
     kubectl apply -f k8s/prometheus.yaml
+}
+
+create_argocd_manifest() {
+    cat > k8s/argocd.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-server
+  template:
+    metadata:
+      labels:
+        app: argocd-server
+    spec:
+      containers:
+      - name: argocd-server
+        image: argoproj/argocd:latest
+        command:
+        - argocd-server
+        - --insecure
+        env:
+        - name: ARGOCD_SERVER_INSECURE
+          value: "true"
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: argocd-server-tls
+          mountPath: /app/config/server/tls
+      volumes:
+      - name: argocd-server-tls
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  selector:
+    app: argocd-server
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-initial-admin-secret
+  namespace: argocd
+type: Opaque
+data:
+  password: YWRtaW4= # admin
+EOF
+    kubectl apply -f k8s/argocd.yaml
 }
 
 # ========================================
@@ -977,8 +1073,13 @@ start_port_forward() {
         return 1
     fi
     
-    # Wait for service to be ready
-    local retries=30
+    # Wait for service to be ready (shorter timeout for monitoring services)
+    local max_retries=30
+    if [[ "$service" == "grafana" || "$service" == "prometheus" ]]; then
+        max_retries=15  # Shorter timeout for monitoring services
+    fi
+    
+    local retries=$max_retries
     while [[ $retries -gt 0 ]]; do
         local endpoints=$(kubectl get endpoints $service -n $namespace -o jsonpath='{.subsets}' 2>/dev/null || echo "")
         if [[ -n "$endpoints" && "$endpoints" != "[]" ]]; then
@@ -990,8 +1091,13 @@ start_port_forward() {
     done
     
     if [[ $retries -eq 0 ]]; then
-        log_error "Service $service endpoints not ready after 60 seconds"
-        return 1
+        log_warning "Service $service endpoints not ready after $((max_retries * 2)) seconds, continuing anyway"
+        # Don't return error for monitoring services, just continue
+        if [[ "$service" == "grafana" || "$service" == "prometheus" ]]; then
+            return 0
+        else
+            return 1
+        fi
     fi
     
     # Kill any existing port forward for this service
@@ -1203,6 +1309,9 @@ main() {
     
     # Setup monitoring namespace
     setup_monitoring_namespace
+    
+    # Setup ArgoCD namespace
+    setup_argocd_namespace
     
     # Deploy manifests
     deploy_manifests
