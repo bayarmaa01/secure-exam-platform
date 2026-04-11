@@ -111,6 +111,65 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ========================================
+#  DEPENDENCY CHECK FUNCTIONS
+# ========================================
+check_dependencies() {
+    log_info "Checking dependencies..."
+    
+    # Check for jq
+    if ! command -v jq &> /dev/null; then
+        log_warning "jq is not installed. Installing jq..."
+        install_jq || {
+            log_error "Failed to install jq. Some features may not work."
+            return 1
+        }
+    fi
+    
+    # Check for curl
+    if ! command -v curl &> /dev/null; then
+        log_error "curl is not installed. Please install curl first."
+        return 1
+    fi
+    
+    log_success "All dependencies are available"
+}
+
+install_jq() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y jq
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y jq
+        else
+            log_error "Cannot install jq automatically on this Linux distribution"
+            return 1
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if command -v brew &> /dev/null; then
+            brew install jq
+        else
+            log_error "Please install Homebrew first: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            return 1
+        fi
+    elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+        # Windows
+        if command -v choco &> /dev/null; then
+            choco install jq
+        else
+            log_error "Please install Chocolatey first and then: choco install jq"
+            return 1
+        fi
+    else
+        log_error "Unsupported operating system for automatic jq installation"
+        return 1
+    fi
+}
+
+# ========================================
 #  SERVICE STARTUP FUNCTIONS
 # ========================================
 start_docker() {
@@ -663,34 +722,77 @@ EOF
 auto_fix_pods() {
     log_info "Running auto-fix on pods..."
     
+    # Check if jq is available
+    if ! command -v jq &> /dev/null; then
+        log_warning "jq not available, using fallback auto-fix methods"
+        auto_fix_pods_fallback
+        return 0
+    fi
+    
     # Fix ImagePullBackOff
-    local pull_pods=$(kubectl get pods -n $NAMESPACE -o json | jq -r '.items[] | select(.status.phase=="Pending") | select(.status.containerStatuses[].state.waiting.reason=="ImagePullBackOff") | .metadata.name')
+    local pull_pods=$(kubectl get pods -n $NAMESPACE -o json 2>/dev/null | jq -r '.items[] | select(.status.phase=="Pending") | select(.status.containerStatuses[].state.waiting.reason=="ImagePullBackOff") | .metadata.name' 2>/dev/null || echo "")
     for pod in $pull_pods; do
-        if [[ -n "$pod" ]]; then
+        if [[ -n "$pod" && "$pod" != "null" ]]; then
             log_warning "Fixing ImagePullBackOff: $pod"
             kubectl delete pod $pod -n $NAMESPACE --grace-period=0 || true
         fi
     done
     
     # Fix CrashLoopBackOff
-    local crash_pods=$(kubectl get pods -n $NAMESPACE -o json | jq -r '.items[] | select(.status.phase=="CrashLoopBackOff") | .metadata.name')
+    local crash_pods=$(kubectl get pods -n $NAMESPACE -o json 2>/dev/null | jq -r '.items[] | select(.status.phase=="CrashLoopBackOff") | .metadata.name' 2>/dev/null || echo "")
     for pod in $crash_pods; do
-        if [[ -n "$pod" ]]; then
+        if [[ -n "$pod" && "$pod" != "null" ]]; then
             log_warning "Fixing CrashLoopBackOff: $pod"
             kubectl delete pod $pod -n $NAMESPACE --grace-period=0 || true
         fi
     done
     
     # Restart failed deployments
-    local failed_deployments=$(kubectl get deployments -n $NAMESPACE -o json | jq -r '.items[] | select(.status.readyReplicas==0) | .metadata.name')
+    local failed_deployments=$(kubectl get deployments -n $NAMESPACE -o json 2>/dev/null | jq -r '.items[] | select(.status.readyReplicas==0) | .metadata.name' 2>/dev/null || echo "")
     for deployment in $failed_deployments; do
-        if [[ -n "$deployment" ]]; then
+        if [[ -n "$deployment" && "$deployment" != "null" ]]; then
             log_warning "Restarting failed deployment: $deployment"
             kubectl rollout restart deployment/$deployment -n $NAMESPACE || true
         fi
     done
     
     log_success "Auto-fix completed"
+}
+
+auto_fix_pods_fallback() {
+    log_info "Using fallback auto-fix without jq..."
+    
+    # Get all pods and check their status manually
+    local pods=$(kubectl get pods -n $NAMESPACE --no-headers | awk '{print $1}')
+    
+    for pod in $pods; do
+        if [[ -n "$pod" ]]; then
+            local status=$(kubectl get pod $pod -n $NAMESPACE -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+            local reason=$(kubectl get pod $pod -n $NAMESPACE -o jsonpath='{.status.containerStatuses[0].state.waiting.reason}' 2>/dev/null || echo "")
+            
+            if [[ "$status" == "Pending" && "$reason" == "ImagePullBackOff" ]]; then
+                log_warning "Fixing ImagePullBackOff: $pod"
+                kubectl delete pod $pod -n $NAMESPACE --grace-period=0 || true
+            elif [[ "$status" == "CrashLoopBackOff" ]]; then
+                log_warning "Fixing CrashLoopBackOff: $pod"
+                kubectl delete pod $pod -n $NAMESPACE --grace-period=0 || true
+            fi
+        fi
+    done
+    
+    # Check deployments
+    local deployments=$(kubectl get deployments -n $NAMESPACE --no-headers | awk '{print $1}')
+    for deployment in $deployments; do
+        if [[ -n "$deployment" ]]; then
+            local ready=$(kubectl get deployment $deployment -n $NAMESPACE -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+            if [[ "$ready" == "0" ]]; then
+                log_warning "Restarting failed deployment: $deployment"
+                kubectl rollout restart deployment/$deployment -n $NAMESPACE || true
+            fi
+        fi
+    done
+    
+    log_success "Fallback auto-fix completed"
 }
 
 # ========================================
@@ -713,21 +815,55 @@ start_port_forward() {
     local target_port=$3
     local namespace=${4:-$NAMESPACE}
     
-    log_info "Starting port forward: $service → $port"
+    log_info "Starting port forward: $service -> $port"
     
-    # Start port forward in background
-    kubectl port-forward svc/$service $port:$target_port -n $namespace &>/dev/null &
+    # Check if service exists and is ready
+    if ! kubectl get svc $service -n $namespace &>/dev/null; then
+        log_error "Service $service not found in namespace $namespace"
+        return 1
+    fi
+    
+    # Wait for service to be ready
+    local retries=30
+    while [[ $retries -gt 0 ]]; do
+        local endpoints=$(kubectl get endpoints $service -n $namespace -o jsonpath='{.subsets}' 2>/dev/null || echo "")
+        if [[ -n "$endpoints" && "$endpoints" != "[]" ]]; then
+            break
+        fi
+        log_warning "Waiting for $service endpoints to be ready..."
+        sleep 2
+        ((retries--))
+    done
+    
+    if [[ $retries -eq 0 ]]; then
+        log_error "Service $service endpoints not ready after 60 seconds"
+        return 1
+    fi
+    
+    # Kill any existing port forward for this service
+    pkill -f "kubectl port-forward.*$port:" 2>/dev/null || true
+    
+    # Start port forward in background with better error handling
+    kubectl port-forward svc/$service $port:$target_port -n $namespace 2>/dev/null &
     local pid=$!
-    echo $pid > $PID_DIR/${service}.pid
     
     # Wait a moment to ensure it starts
-    sleep 2
+    sleep 3
     
-    # Check if still running
+    # Check if still running and port is accessible
     if kill -0 $pid 2>/dev/null; then
+        echo $pid > $PID_DIR/${service}.pid
         log_success "$service port forward started (PID: $pid)"
+        
+        # Test if port is actually accessible
+        sleep 2
+        if netstat -ln 2>/dev/null | grep -q ":$port " || ss -ln 2>/dev/null | grep -q ":$port "; then
+            log_success "$service port $port is accessible"
+        else
+            log_warning "$service port $port may not be accessible yet"
+        fi
     else
-        log_error "$service port forward failed"
+        log_error "$service port forward failed to start"
         return 1
     fi
 }
@@ -878,6 +1014,12 @@ main() {
     # Create PID directory
     mkdir -p $PID_DIR
     
+    # Check dependencies first
+    check_dependencies || {
+        log_error "Dependency check failed"
+        exit 1
+    }
+    
     # Run smart detection
     smart_detection
     
@@ -920,25 +1062,52 @@ main() {
     
     # Health check
     if health_check; then
-        # Get ArgoCD password
-        local argocd_password=$(kubectl get secret argocd-initial-admin-secret -n argocd -o json | jq -r '.data.password' | base64 -d 2>/dev/null || echo "admin")
+        # Get ArgoCD password (with fallback for missing jq)
+        local argocd_password="admin"
+        if kubectl get namespace argocd &>/dev/null; then
+            if command -v jq &> /dev/null; then
+                argocd_password=$(kubectl get secret argocd-initial-admin-secret -n argocd -o json 2>/dev/null | jq -r '.data.password' | base64 -d 2>/dev/null || echo "admin")
+            else
+                argocd_password=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || echo "admin")
+            fi
+        else
+            argocd_password="ArgoCD not deployed"
+        fi
+        
+        # Get Grafana password
+        local grafana_password="admin123"
+        if kubectl get secret grafana-admin-credentials -n monitoring &>/dev/null; then
+            if command -v jq &> /dev/null; then
+                grafana_password=$(kubectl get secret grafana-admin-credentials -n monitoring -o json 2>/dev/null | jq -r '.data.GF_SECURITY_ADMIN_PASSWORD' | base64 -d 2>/dev/null || echo "admin123")
+            else
+                grafana_password=$(kubectl get secret grafana-admin-credentials -n monitoring -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' 2>/dev/null | base64 -d || echo "admin123")
+            fi
+        else
+            grafana_password="admin123 (default)"
+        fi
         
         # Final output
         echo ""
         echo "----------------------------------------"
-        echo "🚀 Secure Exam Platform is running!"
         echo "----------------------------------------"
         echo ""
-        echo "Frontend: http://localhost:${FRONTEND_PORT}"
-        echo "Backend:  http://localhost:${BACKEND_PORT}"
-        echo "AI:       http://localhost:${AI_PORT}"
+        echo "Frontend:    http://localhost:${FRONTEND_PORT}"
+        echo "Backend:     http://localhost:${BACKEND_PORT}"
+        echo "AI Service:  http://localhost:${AI_PORT}"
         echo ""
-        echo "Grafana:  http://localhost:${GRAFANA_PORT}"
-        echo "Prometheus: http://localhost:${PROMETHEUS_PORT}"
+        echo "Grafana:     http://localhost:${GRAFANA_PORT}"
+        echo "Username:    admin"
+        echo "Password:    $grafana_password"
         echo ""
-        echo "ArgoCD:   https://localhost:${ARGOCD_PORT}"
-        echo "Username: admin"
-        echo "Password: $argocd_password"
+        echo "Prometheus:  http://localhost:${PROMETHEUS_PORT}"
+        echo ""
+        echo "ArgoCD:      https://localhost:${ARGOCD_PORT}"
+        echo "Username:    admin"
+        echo "Password:    $argocd_password"
+        echo "----------------------------------------"
+        echo ""
+        echo "All services are running and accessible!"
+        echo "Use Ctrl+C to stop port forwards"
         echo "----------------------------------------"
         echo ""
         
