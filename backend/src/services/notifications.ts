@@ -12,7 +12,7 @@ export interface NotificationData {
   studentId?: string
   message: string
   timestamp: Date
-  data?: any
+  data?: Record<string, unknown>
 }
 
 export function initializeSocketIO(server: HTTPServer) {

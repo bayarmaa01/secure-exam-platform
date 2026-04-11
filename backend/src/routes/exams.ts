@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireTeacher, requireStudent, requireAdmin } from '../middleware/auth'
-import { notifyNewExam, notifyExamPublished, notifyExamStarted } from '../services/notifications'
+import { notifyNewExam, notifyExamStarted } from '../services/notifications'
 
 const router = Router()
 

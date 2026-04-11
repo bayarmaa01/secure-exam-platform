@@ -25,13 +25,6 @@ const httpRequestDuration = new Histogram({
   registers: [register]
 })
 
-const httpRequestTotal = new Counter({
-  name: 'http_requests_total',
-  help: 'Total number of HTTP requests',
-  labelNames: ['method', 'route', 'status_code'],
-  registers: [register]
-})
-
 const activeExamSessions = new Gauge({
   name: 'exam_sessions_active',
   help: 'Number of active exam sessions',
@@ -192,5 +185,5 @@ async function start() {
 
 start()
 
-// Export app for testing
-export { app }
+// Export app and metrics for testing
+export { app, activeExamSessions, suspiciousEventsTotal }
