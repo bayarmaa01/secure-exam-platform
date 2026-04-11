@@ -19,8 +19,6 @@ jobs:
   test:
     name: Code Quality & Tests
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     strategy:
       matrix:
         service: [frontend, backend, ai-proctoring]
@@ -34,8 +32,7 @@ jobs:
         if: matrix.service != 'ai-proctoring'
         uses: actions/setup-node@v5
         with:
-          node-version: '24'
-          force-include-node: '24'
+          node-version: '20'
 
       - name: Setup Python
         if: matrix.service == 'ai-proctoring'
