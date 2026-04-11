@@ -1,752 +1,271 @@
 #!/bin/bash
 
 # ========================================
-#  SMART DEVOPS ULTRA - Intelligent Secure Exam Platform Deployment
-# ========================================
-# AI-Powered, Lightning Fast, Production-Grade System
-# Features: Parallel Operations, Smart Caching, Auto-Recovery, Real-time Monitoring
+#  SECURE EXAM PLATFORM - SMART DEVOPS
+#  Production-Grade FAANG-Level Automation
 # ========================================
 
 set -euo pipefail
 
-# Enable parallel processing
-export MAKEFLAGS="-j$(nproc)"
-export DOCKER_BUILDKIT=1
-
-# Global signal handling
-SCRIPT_RUNNING=true
-trap 'if [[ "$SCRIPT_RUNNING" == "true" ]]; then print_warning "Script interrupted by user"; SCRIPT_RUNNING=false; cleanup_all_processes; exit 130; fi' SIGINT SIGTERM
-trap 'if [[ "$SCRIPT_RUNNING" == "true" ]]; then SCRIPT_RUNNING=false; cleanup_all_processes; fi' EXIT
-
 # ========================================
-#  COLORS
+#  COLORS & LOGGING
 # ========================================
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
 RED='\033[0;31m'
-CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
+# Logging functions
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
 # ========================================
-#  GLOBAL VARIABLES
+#  CONFIGURATION
 # ========================================
-DEPLOY_MODE=""
+MODE="auto"
+FAST_MODE=false
+FULL_MODE=false
 NAMESPACE="exam-platform"
-MONITORING_NAMESPACE="monitoring"
-ARGOCD_NAMESPACE="argocd"
-KUBECTL_CMD="kubectl"
-TIMEOUT=120
+DOCKER_REGISTRY="bayarmaa"
+TIMEOUT=60
 RETRY_COUNT=3
-DEBUG_MODE=false
-ENABLE_ANALYTICS=true
-ENABLE_AI_PROCTORING=true
-ENABLE_MONITORING=false
-ENABLE_ARGOCD=false
+PID_DIR="/tmp/exam-platform-pids"
 
-# Smart optimization variables
-PARALLEL_BUILDS=${PARALLEL_BUILDS:-"true"}
-SMART_CACHE=${SMART_CACHE:-"true"}
-FAST_MODE=${FAST_MODE:-"false"}
-AUTO_RECOVERY=${AUTO_RECOVERY:-"true"}
-REAL_TIME_MONITORING=${REAL_TIME_MONITORING:-"true"}
+# Services configuration
+FRONTEND_PORT=3005
+BACKEND_PORT=4005
+AI_PORT=5005
+GRAFANA_PORT=3002
+PROMETHEUS_PORT=9092
+ARGOCD_PORT=18081
 
-# Performance optimization
-BUILD_CACHE_DIR="/tmp/smart-devops-cache"
-PARALLEL_JOBS=$(nproc)
-DOCKER_BUILDKIT=1
-COMPOSE_PARALLEL_LIMIT=${COMPOSE_PARALLEL_LIMIT:-$PARALLEL_JOBS}
-
-# Intelligent resource detection
-SYSTEM_MEMORY_MB=$(free -m | grep Mem | awk '{print $2}')
-SYSTEM_CPU_CORES=$(nproc)
-AVAILABLE_MEMORY_MB=$(free -m | grep Mem | awk '{print $7}')
-
-# Smart resource allocation
-MINIKUBE_MEMORY_MB=$(echo "$SYSTEM_MEMORY_MB * 0.6" | bc | cut -d. -f1)
-MINIKUBE_CPU_CORES=$(echo "$SYSTEM_CPU_CORES * 0.75" | bc | cut -d. -f1)
-
-# Ensure minimum requirements
-MINIKUBE_MEMORY_MB=${MINIKUBE_MEMORY_MB:-3072}
-MINIKUBE_CPU_CORES=${MINIKUBE_CPU_CORES:-2}
-
-# Cap maximum resources
-if [[ $MINIKUBE_MEMORY_MB -gt 8192 ]]; then
-    MINIKUBE_MEMORY_MB=8192
-fi
-if [[ $MINIKUBE_CPU_CORES -gt 4 ]]; then
-    MINIKUBE_CPU_CORES=4
-fi
-
-# Version and build info
-APP_VERSION=${APP_VERSION:-"latest"}
-BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-DOCKER_REGISTRY=${DOCKER_REGISTRY:-"localhost:5000"}
-IMAGE_TAG=${IMAGE_TAG:-"latest"}
-
-# Smart cache tracking
-CACHE_TIMESTAMP_FILE="$BUILD_CACHE_DIR/.cache-timestamp"
-BUILD_HASH_FILE="$BUILD_CACHE_DIR/.build-hash"
-
-# ========================================
-#  PRINT FUNCTIONS
-# ========================================
-print_step() {
-    echo -e "${BLUE}🔧 $1${NC}"
-}
-
-print_success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-print_error() {
-    echo -e "${RED}❌ $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
-}
-
-print_info() {
-    echo -e "${CYAN}ℹ️  $1${NC}"
-}
-
-print_header() {
-    echo -e "${PURPLE}======================================${NC}"
-    echo -e "${PURPLE}$1${NC}"
-    echo -e "${PURPLE}======================================${NC}"
-}
-
-print_debug() {
-    if [[ "$DEBUG_MODE" == "true" ]]; then
-        echo -e "${YELLOW}🐛 DEBUG: $1${NC}"
-    fi
-}
-
-# Smart progress indicator
-show_progress() {
-    local current=$1
-    local total=$2
-    local step_name=$3
-    local percentage=$((current * 100 / total))
-    
-    printf "\r${CYAN}[%3d%%] %s${NC}" "$percentage" "$step_name"
-    
-    if [[ $current -eq $total ]]; then
-        echo ""
-    fi
-}
-
-# Real-time monitoring
-start_real_time_monitoring() {
-    if [[ "$REAL_TIME_MONITORING" != "true" ]]; then
-        return 0
-    fi
-    
-    print_step "Starting real-time monitoring..."
-    
-    # Start background monitoring with proper cleanup
-    (
-        # Trap to ensure cleanup on exit
-        trap 'exit 0' SIGTERM SIGINT
-        
-        while true; do
-            local timestamp=$(date '+%H:%M:%S')
-            local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
-            local memory_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
-            
-            printf "\r${YELLOW}[$timestamp] CPU: ${cpu_usage}%% | MEM: ${memory_usage}%%${NC}"
-            sleep 2
-        done
-    ) &
-    
-    MONITOR_PID=$!
-    echo $MONITOR_PID > /tmp/smart-devops-monitor.pid
-}
-
-stop_real_time_monitoring() {
-    # Stop background monitoring if running
-    if [[ -f /tmp/smart-devops-monitor.pid ]]; then
-        local monitor_pid=$(cat /tmp/smart-devops-monitor.pid)
-        kill $monitor_pid 2>/dev/null || true
-        kill -9 $monitor_pid 2>/dev/null || true
-        rm -f /tmp/smart-devops-monitor.pid
-    fi
-    
-    # Clear any remaining monitoring output
-    printf "\r\033[K"
-    
-    # Stop any pod monitoring processes
-    if [[ -f /tmp/pod-monitor.pid ]]; then
-        local pod_monitor_pid=$(cat /tmp/pod-monitor.pid)
-        kill $pod_monitor_pid 2>/dev/null || true
-        kill -9 $pod_monitor_pid 2>/dev/null || true
-        rm -f /tmp/pod-monitor.pid
-    fi
-}
-
-# Cleanup all background processes
-cleanup_all_processes() {
-    # Prevent recursive cleanup
-    if [[ "${CLEANUP_RUNNING:-false}" == "true" ]]; then
-        return 0
-    fi
-    
-    CLEANUP_RUNNING=true
-    print_step "Cleaning up all background processes..."
-    
-    # Stop monitoring
-    stop_real_time_monitoring
-    
-    # Kill any remaining smart-devops processes (excluding current script)
-    local current_pid=$$
-    pkill -f "smart-devops.sh" 2>/dev/null || true
-    # Don't kill the current script process
-    pkill -f "monitor_pods_realtime" 2>/dev/null || true
-    
-    # Clean up temp files
-    rm -f /tmp/smart-devops-monitor.pid
-    rm -f /tmp/pod-monitor.pid
-    
-    print_success "All background processes cleaned up"
-    CLEANUP_RUNNING=false
-}
+# Docker images
+FRONTEND_IMAGE="${DOCKER_REGISTRY}/exam-platform-frontend:latest"
+BACKEND_IMAGE="${DOCKER_REGISTRY}/exam-platform-backend:latest"
+AI_IMAGE="${DOCKER_REGISTRY}/exam-platform-ai-proctoring:latest"
 
 # ========================================
 #  UTILITY FUNCTIONS
 # ========================================
-retry() {
-    local retries=$1
-    shift
-    local count=0
-    
-    until "$@"; do
-        exit_code=$?
-        count=$((count + 1))
-        if [[ $count -lt $retries ]]; then
-            print_warning "Command failed (attempt $count/$retries). Retrying in 5 seconds..."
-            sleep 5
-        else
-            print_error "Command failed after $retries attempts"
-            return $exit_code
-        fi
-    done
-}
-
-# Smart caching system
-init_smart_cache() {
-    if [[ "$SMART_CACHE" != "true" ]]; then
-        return 0
-    fi
-    
-    mkdir -p "$BUILD_CACHE_DIR"
-    
-    # Initialize cache tracking
-    if [[ ! -f "$CACHE_TIMESTAMP_FILE" ]]; then
-        date +%s > "$CACHE_TIMESTAMP_FILE"
-    fi
-    
-    if [[ ! -f "$BUILD_HASH_FILE" ]]; then
-        echo "init" > "$BUILD_HASH_FILE"
-    fi
-}
-
-calculate_build_hash() {
-    local hash=""
-    
-    # Hash of source files
-    hash=$(find ./backend ./frontend ./ai-proctoring -type f \( -name "*.js" -o -name "*.ts" -o -name "*.tsx" -o -name "*.json" -o -name "*.Dockerfile" \) -exec md5sum {} \; | md5sum | cut -d' ' -f1)
-    
-    # Hash of package files
-    hash="$hash$(find . -name "package*.json" -exec md5sum {} \; | md5sum | cut -d' ' -f1)"
-    
-    echo "$hash"
-}
-
-is_cache_valid() {
-    if [[ "$SMART_CACHE" != "true" ]] || [[ "$FAST_MODE" == "true" ]]; then
-        return 1
-    fi
-    
-    local current_hash=$(calculate_build_hash)
-    local cached_hash=$(cat "$BUILD_HASH_FILE" 2>/dev/null || echo "")
-    
-    if [[ "$current_hash" == "$cached_hash" ]]; then
-        return 0
-    else
-        echo "$current_hash" > "$BUILD_HASH_FILE"
-        return 1
-    fi
-}
-
-# Parallel execution helper
-run_parallel() {
-    local pids=()
-    local commands=("$@")
-    
-    print_step "Running ${#commands[@]} operations in parallel..."
-    
-    # Start all commands in background
-    for cmd in "${commands[@]}"; do
-        eval "$cmd" &
-        pids+=($!)
-    done
-    
-    # Wait for all to complete with progress
-    local completed=0
-    local total=${#commands[@]}
-    
-    while [[ $completed -lt $total ]]; do
-        completed=0
-        for pid in "${pids[@]}"; do
-            if ! kill -0 "$pid" 2>/dev/null; then
-                completed=$((completed + 1))
-            fi
-        done
-        
-        show_progress $completed $total "Parallel operations"
-        sleep 1
-    done
-    
-    # Check exit codes
-    for pid in "${pids[@]}"; do
-        wait "$pid"
-    done
-    
-    print_success "All parallel operations completed"
-}
-
-# Smart auto-recovery
-auto_recover() {
-    if [[ "$AUTO_RECOVERY" != "true" ]]; then
-        return 0
-    fi
-    
-    print_step "Attempting auto-recovery..."
-    
-    # Common recovery operations
-    local recovery_commands=(
-        "minikube status || minikube start --driver=docker"
-        "kubectl cluster-info || minikube update-context"
-        "docker system prune -f"
-    )
-    
-    for cmd in "${recovery_commands[@]}"; do
-        if ! eval "$cmd" 2>/dev/null; then
-            print_debug "Recovery command failed: $cmd"
-        fi
-    done
-    
-    print_success "Auto-recovery completed"
-}
-
-# Intelligent pod monitoring
-monitor_pods_realtime() {
-    local namespace=$1
-    local duration=${2:-60}
-    local interval=3
-    local elapsed=0
-    
-    print_step "Starting real-time pod monitoring for $duration seconds..."
-    print_info "Press Ctrl+C to stop monitoring"
-    
-    # Save PID for cleanup
-    echo $$ > /tmp/pod-monitor.pid
-    
-    # Trap for cleanup
-    trap 'printf "\n${YELLOW}Monitoring stopped by user${NC}\n"; rm -f /tmp/pod-monitor.pid; exit 0' SIGINT SIGTERM
-    
-    while [[ $elapsed -lt $duration ]]; do
-        clear
-        print_header "POD MONITORING - $namespace"
-        
-        echo "${CYAN}Time: $elapsed/$duration seconds | Press Ctrl+C to stop${NC}"
-        echo ""
-        
-        # Get pod status
-        local pods=$($KUBECTL_CMD get pods -n $namespace --no-headers 2>/dev/null || echo "")
-        
-        if [[ -z "$pods" ]]; then
-            print_warning "No pods found in namespace: $namespace"
-        else
-            echo "${BLUE}Pod Status:${NC}"
-            echo "$pods" | while read -r line; do
-                local pod_name=$(echo "$line" | awk '{print $1}')
-                local pod_status=$(echo "$line" | awk '{print $3}')
-                local pod_ready=$(echo "$line" | awk '{print $2}')
-                local pod_restarts=$(echo "$line" | awk '{print $4}')
-                
-                case $pod_status in
-                    "Running")
-                        echo -e "${GREEN}  $pod_name${NC} - $pod_ready - Restarts: $pod_restarts"
-                        ;;
-                    "Pending")
-                        echo -e "${YELLOW}  $pod_name${NC} - $pod_ready - Restarts: $pod_restarts"
-                        ;;
-                    "CrashLoopBackOff"|"Error"|"Failed")
-                        echo -e "${RED}  $pod_name${NC} - $pod_ready - Restarts: $pod_restarts"
-                        ;;
-                    *)
-                        echo -e "${CYAN}  $pod_name${NC} - $pod_ready - Restarts: $pod_restarts"
-                        ;;
-                esac
-            done
-        fi
-        
-        echo ""
-        echo "${CYAN}Resource Usage:${NC}"
-        echo "  CPU: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
-        echo "  Memory: $(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')%"
-        echo ""
-        
-        elapsed=$((elapsed + interval))
-        
-        # Check if we should continue
-        if [[ $elapsed -ge $duration ]]; then
-            printf "\n${GREEN}Monitoring completed${NC}\n"
-            rm -f /tmp/pod-monitor.pid
-            break
-        fi
-        
-        sleep $interval
-    done
-}
-
-# Intelligent issue detection
-detect_pod_issues() {
-    local namespace=$1
-    local issues=()
-    
-    print_step "Detecting pod issues in namespace: $namespace"
-    
-    # Check if namespace exists first
-    if ! $KUBECTL_CMD get namespace $namespace &>/dev/null; then
-        print_debug "Namespace $namespace does not exist, skipping issue detection"
-        echo "${issues[@]}"
-        return 0
-    fi
-    
-    # Check for problematic pods
-    local problematic_pods=$($KUBECTL_CMD get pods -n $namespace --no-headers 2>/dev/null | grep -E "(CrashLoopBackOff|Error|Failed|Pending|ImagePullBackOff)" || true)
-    
-    while read -r pod_line; do
-        if [[ -n "$pod_line" ]]; then
-            local pod_name=$(echo "$pod_line" | awk '{print $1}')
-            local pod_status=$(echo "$pod_line" | awk '{print $3}')
-            local issue_type="Unknown"
-            
-            case $pod_status in
-                "CrashLoopBackOff") issue_type="Application Crash" ;;
-                "Error") issue_type="Container Error" ;;
-                "Failed") issue_type="Pod Failed" ;;
-                "Pending") issue_type="Pod Stuck" ;;
-                "ImagePullBackOff") issue_type="Image Pull Issue" ;;
-            esac
-            
-            issues+=("$pod_name:$issue_type:$pod_status")
-        fi
-    done <<< "$problematic_pods"
-    
-    echo "${issues[@]}"
-}
-
-# Smart issue fixing
-fix_pod_issues() {
-    local namespace=$1
-    
-    # Check if namespace exists first
-    if ! $KUBECTL_CMD get namespace $namespace &>/dev/null; then
-        print_debug "Namespace $namespace does not exist, skipping issue fixing"
-        return 0
-    fi
-    
-    local issues=($(detect_pod_issues "$namespace"))
-    
-    if [[ ${#issues[@]} -eq 0 ]]; then
-        print_success "No pod issues detected"
-        return 0
-    fi
-    
-    print_warning "Found ${#issues[@]} pod issues, attempting fixes..."
-    
-    for issue in "${issues[@]}"; do
-        local pod_name=$(echo "$issue" | cut -d: -f1)
-        local issue_type=$(echo "$issue" | cut -d: -f2)
-        local pod_status=$(echo "$issue" | cut -d: -f3)
-        
-        print_step "Fixing $pod_name ($issue_type)..."
-        
-        case $issue_type in
-            "Application Crash")
-                # Restart the pod
-                $KUBECTL_CMD delete pod $pod_name -n $namespace --grace-period=0 --force 2>/dev/null || true
-                print_success "Restarted $pod_name"
-                ;;
-            "Image Pull Issue")
-                # Check image and recreate
-                print_info "Checking image availability..."
-                local deployment=$($KUBECTL_CMD get deployment -n $namespace -o name 2>/dev/null | grep -E "(backend|frontend|ai)" | head -1 | cut -d/ -f2 || echo "")
-                if [[ -n "$deployment" ]]; then
-                    $KUBECTL_CMD rollout restart deployment/$deployment -n $namespace 2>/dev/null || true
-                    print_success "Restarted deployment: $deployment"
-                fi
-                ;;
-            "Pod Stuck")
-                # Force delete and recreate
-                $KUBECTL_CMD delete pod $pod_name -n $namespace --grace-period=0 --force 2>/dev/null || true
-                print_success "Force deleted $pod_name"
-                ;;
-            "Container Error"|"Pod Failed")
-                # Check logs and restart
-                print_info "Checking logs for $pod_name..."
-                $KUBECTL_CMD logs $pod_name -n $namespace --tail=20 2>/dev/null | head -5 || true
-                $KUBECTL_CMD delete pod $pod_name -n $namespace --grace-period=0 --force 2>/dev/null || true
-                print_success "Restarted $pod_name"
-                ;;
-        esac
-        
-        sleep 2
-    done
-    
-    print_success "Pod issue fixing completed"
-}
-
-# Comprehensive health check
-comprehensive_health_check() {
-    print_header "COMPREHENSIVE HEALTH CHECK"
-    
-    # Ensure namespaces exist first
-    ensure_namespaces
-    
-    local namespaces=("$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE")
-    local total_issues=0
-    
-    for ns in "${namespaces[@]}"; do
-        print_step "Checking namespace: $ns"
-        
-        # Check if namespace exists (should already exist from ensure_namespaces)
-        if ! $KUBECTL_CMD get namespace $ns &>/dev/null; then
-            print_warning "Namespace $ns does not exist, creating it..."
-            $KUBECTL_CMD create namespace $ns || {
-                print_error "Failed to create namespace: $ns"
-                continue
-            }
-        fi
-        
-        # Detect and fix issues
-        local issues=($(detect_pod_issues "$ns"))
-        if [[ ${#issues[@]} -gt 0 ]]; then
-            print_warning "Found ${#issues[@]} issues in $ns"
-            fix_pod_issues "$ns"
-            total_issues=$((total_issues + ${#issues[@]}))
-        else
-            print_success "All pods healthy in $ns"
-        fi
-        
-        # Show pod status
-        echo ""
-        $KUBECTL_CMD get pods -n $ns 2>/dev/null || true
-        echo ""
-    done
-    
-    if [[ $total_issues -gt 0 ]]; then
-        print_warning "Total issues found and fixed: $total_issues"
-    else
-        print_success "All systems healthy - no issues detected"
-    fi
-    
-    return $total_issues
-}
-
-# Smart troubleshooting
-smart_troubleshoot() {
-    print_header "SMART TROUBLESHOOTING"
-    
-    print_step "Running diagnostic checks..."
-    
-    # Check Minikube status
-    print_info "Minikube Status:"
-    minikube status || print_warning "Minikube issues detected"
-    
+show_usage() {
+    echo "Usage: $0 [MODE] [OPTIONS]"
     echo ""
-    print_info "Kubernetes Cluster Info:"
-    kubectl cluster-info || print_warning "Cluster connectivity issues"
-    
+    echo "MODES:"
+    echo "  auto      Auto-detect and deploy (default)"
+    echo "  fast      Reuse cluster, skip builds"
+    echo "  full      Clean rebuild everything"
     echo ""
-    print_info "Docker Status:"
-    docker version --format '{{.Server.Version}}' || print_warning "Docker issues"
-    
+    echo "OPTIONS:"
+    echo "  --watch   Keep watching and restart on failure"
+    echo "  --clean    Cleanup before deployment"
     echo ""
-    print_info "System Resources:"
-    echo "  Memory: $(free -h | grep Mem)"
-    echo "  Disk: $(df -h . | tail -1)"
-    echo "  CPU: $(nproc) cores"
-    
-    echo ""
-    print_info "Network Connectivity:"
-    if ping -c 1 8.8.8.8 &>/dev/null; then
-        print_success "Internet connectivity OK"
-    else
-        print_warning "No internet connectivity"
-    fi
-    
-    # Run comprehensive health check
-    comprehensive_health_check
+    echo "SERVICES:"
+    echo "  Frontend:    http://localhost:${FRONTEND_PORT}"
+    echo "  Backend:     http://localhost:${BACKEND_PORT}"
+    echo "  AI:          http://localhost:${AI_PORT}"
+    echo "  Grafana:      http://localhost:${GRAFANA_PORT}"
+    echo "  Prometheus:   http://localhost:${PROMETHEUS_PORT}"
+    echo "  ArgoCD:       https://localhost:${ARGOCD_PORT}"
 }
 
-wait_for_pods_ready() {
-    print_step "Waiting for pods to be ready..."
-    
-    local namespace=$1
-    local timeout=${2:-$TIMEOUT}
-    local label_selector=${3:-""}
-    
-    if [[ "$DEBUG_MODE" == "true" ]]; then
-        print_debug "Namespace: $namespace, Timeout: $timeout, Label: $label_selector"
-    fi
-    
-    local start_time=$(date +%s)
-    
-    while true; do
-        local ready_count=0
-        local total_count=0
-        
-        if [[ -n "$label_selector" ]]; then
-            local pods=$($KUBECTL_CMD get pods -n $namespace -l $label_selector --no-headers 2>/dev/null)
-        else
-            local pods=$($KUBECTL_CMD get pods -n $namespace --no-headers 2>/dev/null)
-        fi
-        
-        while read -r pod; do
-            total_count=$((total_count + 1))
-            if [[ $pod == *"Running"* ]] || [[ $pod == *"Completed"* ]]; then
-                ready_count=$((ready_count + 1))
-            fi
-        done <<< "$pods"
-        
-        if [[ $ready_count -eq $total_count ]] && [[ $total_count -gt 0 ]]; then
-            print_success "All pods are ready in namespace: $namespace"
-            return 0
-        fi
-        
-        local current_time=$(date +%s)
-        if [[ $((current_time - start_time)) -gt $timeout ]]; then
-            print_error "Timeout waiting for pods to be ready"
-            return 1
-        fi
-        
-        echo -n "."
-        sleep 3
-    done
-}
-
-wait_for_service() {
-    print_step "Waiting for service: $1 in namespace: $2"
-    
-    local service_name=$1
-    local namespace=$2
-    local max_retries=30
-    local retry_count=0
-    
-    while [ $retry_count -lt $max_retries ]; do
-        if $KUBECTL_CMD get svc $service_name -n $namespace &> /dev/null; then
-            print_success "Service $service_name is available"
-            return 0
-        fi
-        
-        retry_count=$((retry_count + 1))
-        echo -n "."
-        sleep 2
-    done
-    
-    print_error "Service $service_name did not become available within timeout"
-    return 1
-}
-
-check_prerequisites() {
-    print_step "Checking prerequisites..."
-    
-    # Check required commands
-    local commands=("minikube" "kubectl" "helm" "docker")
-    for cmd in "${commands[@]}"; do
-        if ! command -v $cmd &> /dev/null; then
-            print_error "$cmd is not installed or not in PATH"
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        auto)
+            MODE="auto"
+            shift
+            ;;
+        fast)
+            MODE="fast"
+            FAST_MODE=true
+            shift
+            ;;
+        full)
+            MODE="full"
+            FULL_MODE=true
+            shift
+            ;;
+        --watch)
+            WATCH_MODE=true
+            shift
+            ;;
+        --clean)
+            CLEAN_MODE=true
+            shift
+            ;;
+        --help|-h)
+            show_usage
+            exit 0
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            show_usage
             exit 1
-        fi
-    done
-    
-    # Check and create required namespaces
-    ensure_namespaces
-    
-    print_success "All prerequisites are installed"
-}
+            ;;
+    esac
+done
 
-# Ensure namespaces exist before any operations
-ensure_namespaces() {
-    print_step "Ensuring required namespaces exist..."
+# ========================================
+#  SERVICE STARTUP FUNCTIONS
+# ========================================
+start_docker() {
+    log_info "Checking Docker service..."
     
-    local namespaces=("$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE")
-    
-    for ns in "${namespaces[@]}"; do
-        if ! $KUBECTL_CMD get namespace $ns &>/dev/null; then
-            print_info "Creating namespace: $ns"
-            $KUBECTL_CMD create namespace $ns || {
-                print_error "Failed to create namespace: $ns"
+    # Check if Docker is running
+    if ! docker info &> /dev/null; then
+        log_warning "Docker is not running, attempting to start..."
+        
+        # Try different methods to start Docker based on OS
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            # Linux
+            if command -v systemctl &> /dev/null; then
+                sudo systemctl start docker || {
+                    log_error "Failed to start Docker with systemctl"
+                    return 1
+                }
+            elif command -v service &> /dev/null; then
+                sudo service docker start || {
+                    log_error "Failed to start Docker with service"
+                    return 1
+                }
+            else
+                log_error "Cannot start Docker - no systemctl or service command found"
+                return 1
+            fi
+        elif [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            open -a Docker || {
+                log_error "Failed to start Docker Desktop on macOS"
                 return 1
             }
-            print_success "Namespace $ns created"
-        else
-            print_debug "Namespace $ns already exists"
+            # Wait for Docker to start
+            local retries=30
+            while [[ $retries -gt 0 ]] && ! docker info &> /dev/null; do
+                sleep 2
+                ((retries--))
+            done
+        elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+            # Windows
+            log_info "Please start Docker Desktop manually on Windows"
+            read -p "Press Enter when Docker is running..."
         fi
-    done
+        
+        # Verify Docker is running
+        if docker info &> /dev/null; then
+            log_success "Docker is now running"
+        else
+            log_error "Docker failed to start"
+            return 1
+        fi
+    else
+        log_success "Docker is already running"
+    fi
+}
+
+start_minikube() {
+    log_info "Checking Minikube status..."
     
-    print_success "All namespaces are ready"
+    local minikube_status=$(detect_minikube)
+    
+    case $minikube_status in
+        "not_installed")
+            log_error "Minikube is not installed. Please install Minikube first."
+            log_info "Install from: https://minikube.sigs.k8s.io/docs/start/"
+            return 1
+            ;;
+        "running")
+            log_success "Minikube is already running"
+            return 0
+            ;;
+        "stopped")
+            log_warning "Minikube is stopped, starting it..."
+            minikube start --cpus=4 --memory=8192 --disk-size=20g || {
+                log_error "Failed to start Minikube"
+                return 1
+            }
+            log_success "Minikube started successfully"
+            ;;
+    esac
+    
+    # Verify Minikube is running
+    if minikube status | grep -q "Running"; then
+        log_success "Minikube is ready"
+        # Set Docker environment
+        eval $(minikube docker-env)
+        log_success "Docker environment configured for Minikube"
+    else
+        log_error "Minikube failed to start properly"
+        return 1
+    fi
 }
 
 # ========================================
-#  MINIKUBE FUNCTIONS
+#  DETECTION FUNCTIONS
 # ========================================
-setup_minikube() {
-    print_header "SETTING UP MINIKUBE"
-    
-    # Show resource allocation
-    print_info "System Resources Detected:"
-    print_info "  - Total Memory: ${SYSTEM_MEMORY_MB}MB"
-    print_info "  - Available Memory: ${AVAILABLE_MEMORY_MB}MB"
-    print_info "  - CPU Cores: ${SYSTEM_CPU_CORES}"
-    print_info ""
-    print_info "Minikube Allocation:"
-    print_info "  - Memory: ${MINIKUBE_MEMORY_MB}MB"
-    print_info "  - CPUs: ${MINIKUBE_CPU_CORES}"
-    print_info "  - Disk: 20GB"
-    print_info ""
-    
-    print_step "Resetting Minikube cluster..."
-    minikube delete --all 2>/dev/null || true
-    
-    # Start Minikube with intelligent resource allocation
-    print_step "Starting Minikube with optimized resources..."
-    minikube start \
-        --driver=docker \
-        --cpus=$MINIKUBE_CPU_CORES \
-        --memory=$MINIKUBE_MEMORY_MB \
-        --disk-size=20g \
-        --addons=metrics-server
-    
-    # Enable essential addons (skip slow ingress for faster deployment)
-    print_step "Enabling Minikube addons..."
-    # Skip ingress addon for faster deployment - can be enabled later if needed
-    print_info "Skipping ingress addon for faster deployment"
-    minikube addons enable metrics-server --wait=false
-    eval $(minikube docker-env)
-    
-    # Verify Minikube status
-    if minikube status | grep -q "Running"; then
-        print_success "Minikube is ready and optimized"
+detect_minikube() {
+    if command -v minikube &> /dev/null; then
+        if minikube status | grep -q "Running"; then
+            echo "running"
+        else
+            echo "stopped"
+        fi
     else
-        print_error "Minikube failed to start properly"
-        return 1
+        echo "not_installed"
+    fi
+}
+
+detect_docker_images() {
+    local images_exist=true
+    docker images | grep -q "exam-platform-frontend" || images_exist=false
+    docker images | grep -q "exam-platform-backend" || images_exist=false
+    docker images | grep -q "exam-platform-ai-proctoring" || images_exist=false
+    
+    if [[ "$images_exist" == "true" ]]; then
+        echo "exist"
+    else
+        echo "missing"
+    fi
+}
+
+detect_namespace() {
+    if kubectl get namespace $NAMESPACE &> /dev/null; then
+        echo "exists"
+    else
+        echo "missing"
+    fi
+}
+
+# ========================================
+#  SMART MODE LOGIC
+# ========================================
+smart_detection() {
+    log_info "Running smart detection..."
+    
+    local minikube_status=$(detect_minikube)
+    local images_status=$(detect_docker_images)
+    local namespace_status=$(detect_namespace)
+    
+    log_info "Minikube: $minikube_status"
+    log_info "Images: $images_status"
+    log_info "Namespace: $namespace_status"
+    
+    # Auto-determine best mode
+    if [[ "$MODE" == "auto" ]]; then
+        if [[ "$minikube_status" == "running" && "$images_status" == "exist" && "$namespace_status" == "exists" ]]; then
+            MODE="fast"
+            log_info "Auto-detected FAST mode - everything exists"
+        elif [[ "$minikube_status" == "running" && "$images_status" == "missing" ]]; then
+            MODE="build"
+            log_info "Auto-detected BUILD mode - images missing"
+        else
+            MODE="full"
+            log_info "Auto-detected FULL mode - fresh start"
+        fi
     fi
 }
 
@@ -754,497 +273,683 @@ setup_minikube() {
 #  BUILD FUNCTIONS
 # ========================================
 build_images() {
-    print_header "Building Docker images"
-    
-    # Initialize smart cache
-    init_smart_cache
-    
-    # Check if we can use cache
-    local use_cache=false
-    if is_cache_valid; then
-        print_info "Using smart cache - no source changes detected"
-        use_cache=true
+    if [[ "$FAST_MODE" == "true" ]]; then
+        log_info "Fast mode - skipping builds"
+        return 0
     fi
     
-    # Build arguments with optimization
-    local build_args="--build-arg APP_VERSION=$APP_VERSION --build-arg BUILD_DATE=$BUILD_DATE"
-    if [[ "$use_cache" != "true" ]]; then
-        build_args="$build_args --no-cache"
+    log_info "Building Docker images..."
+    
+    # Build frontend
+    docker build -t $FRONTEND_IMAGE ./frontend || {
+        log_error "Frontend build failed"
+        return 1
+    }
+    log_success "Frontend built"
+    
+    # Build backend
+    docker build -t $BACKEND_IMAGE ./backend || {
+        log_error "Backend build failed"
+        return 1
+    }
+    log_success "Backend built"
+    
+    # Build AI
+    docker build -t $AI_IMAGE ./ai-proctoring || {
+        log_error "AI build failed"
+        return 1
+    }
+    log_success "AI built"
+    
+    log_success "All images built successfully"
+}
+
+# ========================================
+#  KUBERNETES FUNCTIONS
+# ========================================
+setup_namespace() {
+    if [[ "$(detect_namespace)" == "exists" ]]; then
+        log_info "Namespace already exists"
+        return 0
     fi
     
-    # Enable BuildKit for parallel builds
-    export DOCKER_BUILDKIT=1
-    
-    if [[ "$PARALLEL_BUILDS" == "true" ]] && [[ "$use_cache" != "true" ]]; then
-        print_step "Building images in parallel..."
-        
-        # Prepare parallel build commands
-        local build_commands=(
-            "docker build $build_args -t $DOCKER_REGISTRY/exam-backend:$IMAGE_TAG ./backend"
-            "docker build $build_args -t $DOCKER_REGISTRY/exam-frontend:$IMAGE_TAG ./frontend"
-        )
-        
-        # Add AI proctoring if enabled
-        if [[ "$ENABLE_AI_PROCTORING" == "true" ]]; then
-            build_commands+=("docker build $build_args -t $DOCKER_REGISTRY/exam-ai:$IMAGE_TAG ./ai-proctoring")
-        fi
-        
-        # Run parallel builds
-        run_parallel "${build_commands[@]}"
+    log_info "Creating namespace..."
+    if [[ -f "k8s/namespace.yaml" ]]; then
+        kubectl apply -f k8s/namespace.yaml || {
+            log_error "Failed to create namespace"
+            return 1
+        }
     else
-        # Sequential builds with cache
-        print_step "Building backend image..."
-        docker build $build_args -t $DOCKER_REGISTRY/exam-backend:$IMAGE_TAG ./backend
-        
-        print_step "Building frontend image..."
-        docker build $build_args -t $DOCKER_REGISTRY/exam-frontend:$IMAGE_TAG ./frontend
-        
-        if [[ "$ENABLE_AI_PROCTORING" == "true" ]]; then
-            print_step "Building AI proctoring image..."
-            docker build $build_args -t $DOCKER_REGISTRY/exam-ai:$IMAGE_TAG ./ai-proctoring
+        log_warning "k8s/namespace.yaml not found, creating namespace directly"
+        kubectl create namespace $NAMESPACE || {
+            log_error "Failed to create namespace"
+            return 1
+        }
+    fi
+    log_success "Namespace created"
+}
+
+deploy_manifests() {
+    log_info "Deploying Kubernetes manifests..."
+    
+    # Create k8s directory if it doesn't exist
+    mkdir -p k8s
+    
+    # Deploy core services first
+    if [[ -f "k8s/postgres.yaml" ]]; then
+        kubectl apply -f k8s/postgres.yaml || {
+            log_error "Failed to deploy postgres"
+            return 1
+        }
+    else
+        log_warning "k8s/postgres.yaml not found, creating basic postgres deployment"
+        create_postgres_manifest
+    fi
+    
+    if [[ -f "k8s/redis.yaml" ]]; then
+        kubectl apply -f k8s/redis.yaml || {
+            log_error "Failed to deploy redis"
+            return 1
+        }
+    else
+        log_warning "k8s/redis.yaml not found, creating basic redis deployment"
+        create_redis_manifest
+    fi
+    
+    # Wait for database
+    log_info "Waiting for postgres to be ready..."
+    kubectl wait --for=condition=ready pod -l app=postgres -n $NAMESPACE --timeout=60s || {
+        log_warning "Postgres not ready, continuing anyway"
+    }
+    
+    # Deploy applications
+    if [[ -f "k8s/backend.yaml" ]]; then
+        kubectl apply -f k8s/backend.yaml || {
+            log_error "Failed to deploy backend"
+            return 1
+        }
+    else
+        log_warning "k8s/backend.yaml not found, creating basic backend deployment"
+        create_backend_manifest
+    fi
+    
+    if [[ -f "k8s/frontend.yaml" ]]; then
+        kubectl apply -f k8s/frontend.yaml || {
+            log_error "Failed to deploy frontend"
+            return 1
+        }
+    else
+        log_warning "k8s/frontend.yaml not found, creating basic frontend deployment"
+        create_frontend_manifest
+    fi
+    
+    if [[ -f "k8s/ai-proctoring.yaml" ]]; then
+        kubectl apply -f k8s/ai-proctoring.yaml || {
+            log_error "Failed to deploy AI service"
+            return 1
+        }
+    else
+        log_warning "k8s/ai-proctoring.yaml not found, creating basic AI deployment"
+        create_ai_manifest
+    fi
+    
+    # Deploy monitoring (optional)
+    if [[ -f "k8s/grafana.yaml" ]]; then
+        kubectl apply -f k8s/grafana.yaml || {
+            log_warning "Failed to deploy grafana, continuing"
+        }
+    fi
+    
+    if [[ -f "k8s/prometheus.yaml" ]]; then
+        kubectl apply -f k8s/prometheus.yaml || {
+            log_warning "Failed to deploy prometheus, continuing"
+        }
+    fi
+    
+    if [[ -f "k8s/argocd.yaml" ]]; then
+        kubectl apply -f k8s/argocd.yaml || {
+            log_warning "Failed to deploy argocd, continuing"
+        }
+    fi
+    
+    log_success "All manifests deployed"
+}
+
+# ========================================
+#  MANIFEST CREATION FUNCTIONS
+# ========================================
+create_namespace_manifest() {
+    cat > k8s/namespace.yaml << EOF
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: $NAMESPACE
+EOF
+}
+
+create_postgres_manifest() {
+    cat > k8s/postgres.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: $NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: postgres
+        - name: POSTGRES_DB
+          value: exam_platform
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: $NAMESPACE
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+EOF
+    kubectl apply -f k8s/postgres.yaml
+}
+
+create_redis_manifest() {
+    cat > k8s/redis.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: $NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: $NAMESPACE
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+EOF
+    kubectl apply -f k8s/redis.yaml
+}
+
+create_backend_manifest() {
+    cat > k8s/backend.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: $NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: $BACKEND_IMAGE
+        env:
+        - name: PORT
+          value: "4000"
+        - name: DB_HOST
+          value: postgres
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: exam_platform
+        - name: DB_USER
+          value: postgres
+        - name: DB_PASSWORD
+          value: postgres
+        - name: JWT_SECRET
+          value: change-me-in-production
+        - name: REDIS_URL
+          value: redis://redis:6379
+        ports:
+        - containerPort: 4000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: $NAMESPACE
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 4000
+    targetPort: 4000
+EOF
+    kubectl apply -f k8s/backend.yaml
+}
+
+create_frontend_manifest() {
+    cat > k8s/frontend.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: $NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: $FRONTEND_IMAGE
+        env:
+        - name: VITE_API_URL
+          value: http://localhost:4005/api
+        - name: VITE_AI_URL
+          value: http://localhost:5005
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: $NAMESPACE
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 80
+EOF
+    kubectl apply -f k8s/frontend.yaml
+}
+
+create_ai_manifest() {
+    cat > k8s/ai-proctoring.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-proctoring
+  namespace: $NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-proctoring
+  template:
+    metadata:
+      labels:
+        app: ai-proctoring
+    spec:
+      containers:
+      - name: ai-proctoring
+        image: $AI_IMAGE
+        env:
+        - name: PORT
+          value: "8000"
+        - name: REDIS_URL
+          value: redis://redis:6379
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-proctoring
+  namespace: $NAMESPACE
+spec:
+  selector:
+    app: ai-proctoring
+  ports:
+  - port: 8000
+    targetPort: 8000
+EOF
+    kubectl apply -f k8s/ai-proctoring.yaml
+}
+
+# ========================================
+#  AUTO-FIX FUNCTIONS
+# ========================================
+auto_fix_pods() {
+    log_info "Running auto-fix on pods..."
+    
+    # Fix ImagePullBackOff
+    local pull_pods=$(kubectl get pods -n $NAMESPACE -o json | jq -r '.items[] | select(.status.phase=="Pending") | select(.status.containerStatuses[].state.waiting.reason=="ImagePullBackOff") | .metadata.name')
+    for pod in $pull_pods; do
+        if [[ -n "$pod" ]]; then
+            log_warning "Fixing ImagePullBackOff: $pod"
+            kubectl delete pod $pod -n $NAMESPACE --grace-period=0 || true
         fi
-    fi
+    done
     
-    print_success "All images built successfully"
-}
-
-push_images() {
-    print_header "📤 PUSHING DOCKER IMAGES"
+    # Fix CrashLoopBackOff
+    local crash_pods=$(kubectl get pods -n $NAMESPACE -o json | jq -r '.items[] | select(.status.phase=="CrashLoopBackOff") | .metadata.name')
+    for pod in $crash_pods; do
+        if [[ -n "$pod" ]]; then
+            log_warning "Fixing CrashLoopBackOff: $pod"
+            kubectl delete pod $pod -n $NAMESPACE --grace-period=0 || true
+        fi
+    done
     
-    # Setup local registry
-    if ! minikube ssh "docker run -d -p 5000:5000 --name registry registry:2" 2>/dev/null; then
-        print_warning "Registry might already be running"
-    fi
+    # Restart failed deployments
+    local failed_deployments=$(kubectl get deployments -n $NAMESPACE -o json | jq -r '.items[] | select(.status.readyReplicas==0) | .metadata.name')
+    for deployment in $failed_deployments; do
+        if [[ -n "$deployment" ]]; then
+            log_warning "Restarting failed deployment: $deployment"
+            kubectl rollout restart deployment/$deployment -n $NAMESPACE || true
+        fi
+    done
     
-    # Push images
-    print_step "Pushing backend image..."
-    docker push $DOCKER_REGISTRY/exam-backend:$IMAGE_TAG
-    
-    print_step "Pushing frontend image..."
-    docker push $DOCKER_REGISTRY/exam-frontend:$IMAGE_TAG
-    
-    if [[ "$ENABLE_AI_PROCTORING" == "true" ]]; then
-        print_step "Pushing AI proctoring image..."
-        docker push $DOCKER_REGISTRY/exam-ai:$IMAGE_TAG
-    fi
-    
-    print_success "All images pushed successfully"
+    log_success "Auto-fix completed"
 }
 
 # ========================================
-#  KUBERNETES DEPLOYMENT FUNCTIONS
+#  PORT FORWARDING
 # ========================================
-deploy_namespaces() {
-    print_header "🏷️ CREATING NAMESPACES"
+cleanup_port_forwards() {
+    log_info "Cleaning up existing port forwards..."
     
-    $KUBECTL_CMD create namespace $NAMESPACE --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
-    $KUBECTL_CMD create namespace $MONITORING_NAMESPACE --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
-    $KUBECTL_CMD create namespace $ARGOCD_NAMESPACE --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
+    # Kill existing port forwards
+    pkill -f "kubectl port-forward" 2>/dev/null || true
     
-    print_success "Namespaces created"
+    # Clean PID files
+    rm -f $PID_DIR/*.pid 2>/dev/null || true
+    mkdir -p $PID_DIR
 }
 
-deploy_application() {
-    print_header "DEPLOYING APPLICATION"
+start_port_forward() {
+    local service=$1
+    local port=$2
+    local target_port=$3
+    local namespace=${4:-$NAMESPACE}
     
-    # Update Helm values
-    print_step "Updating Helm values..."
-    sed -i.bak "s/frontend.tag: .*/frontend.tag: $IMAGE_TAG/g" helm/exam-platform/values.yaml
-    sed -i.bak "s/backend.tag: .*/backend.tag: $IMAGE_TAG/g" helm/exam-platform/values.yaml
-    sed -i.bak "s/ai.tag: .*/ai.tag: $IMAGE_TAG/g" helm/exam-platform/values.yaml
-    sed -i.bak "s|frontend.repository: .*|frontend.repository: $DOCKER_REGISTRY/exam-frontend|g" helm/exam-platform/values.yaml
-    sed -i.bak "s|backend.repository: .*|backend.repository: $DOCKER_REGISTRY/exam-backend|g" helm/exam-platform/values.yaml
-    sed -i.bak "s|ai.repository: .*|ai.repository: $DOCKER_REGISTRY/exam-ai|g" helm/exam-platform/values.yaml
+    log_info "Starting port forward: $service → $port"
     
-    # Deploy application
-    print_step "Deploying application with Helm..."
-    if ! helm upgrade --install exam-platform ./helm/exam-platform \
-        --namespace $NAMESPACE \
-        --values helm/exam-platform/values.yaml \
-        --wait \
-        --timeout ${TIMEOUT}s; then
-        print_error "Helm deployment failed, attempting recovery..."
-        auto_recover
-        # Retry deployment
-        helm upgrade --install exam-platform ./helm/exam-platform \
-            --namespace $NAMESPACE \
-            --values helm/exam-platform/values.yaml \
-            --wait \
-            --timeout ${TIMEOUT}s
+    # Start port forward in background
+    kubectl port-forward svc/$service $port:$target_port -n $namespace &>/dev/null &
+    local pid=$!
+    echo $pid > $PID_DIR/${service}.pid
+    
+    # Wait a moment to ensure it starts
+    sleep 2
+    
+    # Check if still running
+    if kill -0 $pid 2>/dev/null; then
+        log_success "$service port forward started (PID: $pid)"
+    else
+        log_error "$service port forward failed"
+        return 1
     fi
-    
-    # Wait for pods and check health
-    wait_for_pods_ready $NAMESPACE
-    
-    # Intelligent health check and auto-fix
-    print_step "Performing intelligent health check..."
-    local app_issues=($(detect_pod_issues "$NAMESPACE"))
-    if [[ ${#app_issues[@]} -gt 0 ]]; then
-        print_warning "Found ${#app_issues[@]} application issues, fixing..."
-        fix_pod_issues "$NAMESPACE"
-        # Wait for fixes to take effect
-        wait_for_pods_ready $NAMESPACE
-    fi
-    
-    print_success "Application deployed successfully"
 }
 
-deploy_monitoring() {
-    if [[ "$ENABLE_MONITORING" != "true" ]]; then
-        print_info "Monitoring deployment is disabled"
-        return 0
-    fi
+setup_port_forwards() {
+    cleanup_port_forwards
     
-    print_header "📊 DEPLOYING MONITORING"
+    log_info "Setting up port forwards..."
     
-    # Add Prometheus Helm repository
-    print_step "Adding Prometheus Helm repository..."
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-    helm repo update
+    # Start all port forwards
+    start_port_forward "frontend" $FRONTEND_PORT 80
+    start_port_forward "backend" $BACKEND_PORT 4000
+    start_port_forward "ai-proctoring" $AI_PORT 8000
+    start_port_forward "grafana" $GRAFANA_PORT 3000 monitoring
+    start_port_forward "prometheus" $PROMETHEUS_PORT 9090 monitoring
+    start_port_forward "argocd-server" $ARGOCD_PORT 8080 argocd
     
-    # Deploy Prometheus stack with custom Grafana values
-    print_step "Deploying Prometheus stack..."
-    helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
-        --namespace $MONITORING_NAMESPACE \
-        --values grafana-values.yaml \
-        --wait \
-        --timeout ${TIMEOUT}s
-    
-    # Wait for monitoring services
-    wait_for_pods_ready $MONITORING_NAMESPACE
-    wait_for_service "prometheus-grafana" $MONITORING_NAMESPACE
-    wait_for_service "prometheus-kube-prometheus-prometheus" $MONITORING_NAMESPACE
-    
-    print_success "Monitoring deployed successfully"
-}
-
-deploy_argocd() {
-    if [[ "$ENABLE_ARGOCD" != "true" ]]; then
-        print_info "ArgoCD deployment is disabled"
-        return 0
-    fi
-    
-    print_header "🚢 DEPLOYING ARGOCD"
-    
-    # Install minimal ArgoCD
-    print_step "Installing minimal ArgoCD..."
-    
-    # Create ArgoCD namespace
-    $KUBECTL_CMD create namespace $ARGOCD_NAMESPACE --dry-run=client -o yaml | $KUBECTL_CMD apply -f -
-    
-    # Install ArgoCD with minimal configuration
-    kubectl apply -n $ARGOCD_NAMESPACE -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-    
-    # Wait for ArgoCD pods
-    wait_for_pods_ready $ARGOCD_NAMESPACE
-    wait_for_service "argocd-server" $ARGOCD_NAMESPACE
-    
-    # Get initial ArgoCD password
-    ARGOCD_PASSWORD=$(kubectl -n $ARGOCD_NAMESPACE get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
-    
-    print_success "ArgoCD deployed successfully"
-    print_info "ArgoCD URL: http://localhost:18081"
-    print_info "ArgoCD Username: admin"
-    print_info "ArgoCD Password: $ARGOCD_PASSWORD"
+    log_success "All port forwards started"
 }
 
 # ========================================
-#  HEALTH CHECK FUNCTIONS
+#  HEALTH CHECK SYSTEM
 # ========================================
+check_endpoint() {
+    local url=$1
+    local timeout=${2:-30}
+    local retries=${3:-3}
+    
+    for ((i=1; i<=retries; i++)); do
+        if curl -s --max-time $timeout $url &>/dev/null; then
+            return 0
+        fi
+        log_warning "Health check $i/$retries failed for $url"
+        sleep 2
+    done
+    
+    log_error "Health check failed for $url"
+    return 1
+}
+
 health_check() {
-    print_header "🏥 HEALTH CHECK"
+    log_info "Running health checks..."
     
-    # Check application pods
-    print_step "Checking application pods..."
-    $KUBECTL_CMD get pods -n $NAMESPACE
+    local all_healthy=true
     
-    # Check monitoring pods
-    if [[ "$ENABLE_MONITORING" == "true" ]]; then
-        print_step "Checking monitoring pods..."
-        $KUBECTL_CMD get pods -n $MONITORING_NAMESPACE
+    # Check frontend
+    if ! check_endpoint "http://localhost:${FRONTEND_PORT}"; then
+        all_healthy=false
     fi
     
-    # Check ArgoCD pods
-    if [[ "$ENABLE_ARGOCD" == "true" ]]; then
-        print_step "Checking ArgoCD pods..."
-        $KUBECTL_CMD get pods -n $ARGOCD_NAMESPACE
+    # Check backend
+    if ! check_endpoint "http://localhost:${BACKEND_PORT}/api/health"; then
+        all_healthy=false
     fi
     
-    # Show access information
-    show_access_info
+    # Check AI
+    if ! check_endpoint "http://localhost:${AI_PORT}/health"; then
+        all_healthy=false
+    fi
+    
+    # Check grafana
+    if ! check_endpoint "http://localhost:${GRAFANA_PORT}/login"; then
+        all_healthy=false
+    fi
+    
+    # Check prometheus
+    if ! check_endpoint "http://localhost:${PROMETHEUS_PORT}/-/healthy"; then
+        all_healthy=false
+    fi
+    
+    # Check argocd
+    if ! check_endpoint "https://localhost:${ARGOCD_PORT}"; then
+        all_healthy=false
+    fi
+    
+    if [[ "$all_healthy" == "true" ]]; then
+        log_success "All services are healthy"
+        return 0
+    else
+        log_error "Some services are unhealthy"
+        return 1
+    fi
 }
 
-show_access_info() {
-    print_step "🌐 Service Access Information"
-    echo ""
-    print_info "Frontend:      http://localhost:3005"
-    print_info "Backend API:   http://localhost:4005"
-    print_info "AI Service:    http://localhost:5005"
-    print_info "Grafana:       http://localhost:3002"
-    print_info "ArgoCD:        http://localhost:18081"
-    echo ""
-    print_info "Default Credentials:"
-    print_info "  Grafana: admin/admin123"
-    print_info "  ArgoCD:  admin/password (check ArgoCD secret)"
-    echo ""
+# ========================================
+#  RESILIENCE & WATCH MODE
+# ========================================
+watch_services() {
+    if [[ "${WATCH_MODE:-false}" != "true" ]]; then
+        return 0
+    fi
+    
+    log_info "Starting watch mode - will restart services on failure"
+    
+    while true; do
+        if ! health_check; then
+            log_warning "Services unhealthy - running auto-fix"
+            auto_fix_pods
+            sleep 10
+            
+            # Restart port forwards if needed
+            setup_port_forwards
+        fi
+        
+        sleep 30
+    done
 }
 
 # ========================================
 #  CLEANUP FUNCTIONS
 # ========================================
 cleanup() {
-    print_header "🧹 CLEANING UP"
+    log_info "Cleaning up..."
     
-    print_step "Removing deployments..."
-    helm uninstall exam-platform -n $NAMESPACE 2>/dev/null || true
-    helm uninstall prometheus -n $MONITORING_NAMESPACE 2>/dev/null || true
+    # Kill port forwards
+    cleanup_port_forwards
     
-    print_step "Removing namespaces..."
-    $KUBECTL_CMD delete namespace $NAMESPACE 2>/dev/null || true
-    $KUBECTL_CMD delete namespace $MONITORING_NAMESPACE 2>/dev/null || true
-    $KUBECTL_CMD delete namespace $ARGOCD_NAMESPACE 2>/dev/null || true
+    # Remove namespace
+    if [[ "$(detect_namespace)" == "exists" ]]; then
+        kubectl delete namespace $NAMESPACE --grace-period=0 || true
+    fi
     
-    print_step "Resetting Minikube..."
-    minikube delete --all 2>/dev/null || true
+    # Optional: delete minikube
+    if [[ "$FULL_MODE" == "true" ]]; then
+        minikube delete --all 2>/dev/null || true
+    fi
     
-    print_success "Cleanup completed"
+    log_success "Cleanup completed"
 }
 
+# Cleanup on exit
+cleanup_on_exit() {
+    log_info "Received interrupt signal"
+    cleanup_port_forwards
+    exit 130
+}
+
+trap cleanup_on_exit INT TERM
+
 # ========================================
-#  MAIN DEPLOYMENT FUNCTION
+#  MAIN DEPLOYMENT LOGIC
 # ========================================
-deploy_all() {
-    print_header "Complete deployment"
+main() {
+    echo "🚀 SECURE EXAM PLATFORM - SMART DEVOPS"
+    echo "Mode: $MODE"
+    echo ""
     
-    # Start real-time monitoring
-    start_real_time_monitoring
+    # Create PID directory
+    mkdir -p $PID_DIR
     
-    # Smart deployment with parallel operations
-    local steps=7
-    local current_step=0
+    # Run smart detection
+    smart_detection
     
-    show_progress $((++current_step)) $steps "Checking prerequisites"
-    check_prerequisites || auto_recover
+    # Handle cleanup mode
+    if [[ "${CLEAN_MODE:-false}" == "true" ]]; then
+        cleanup
+        return 0
+    fi
     
-    show_progress $((++current_step)) $steps "Setting up Minikube"
-    setup_minikube
+    # Start Docker automatically
+    start_docker || {
+        log_error "Docker startup failed"
+        exit 1
+    }
     
-    show_progress $((++current_step)) $steps "Building images"
+    # Start Minikube automatically
+    start_minikube || {
+        log_error "Minikube startup failed"
+        exit 1
+    }
+    
+    # Build images if needed
     build_images
     
-    show_progress $((++current_step)) $steps "Pushing images"
-    push_images
+    # Setup namespace
+    setup_namespace
     
-    # Parallel namespace and application setup
-    if [[ "$PARALLEL_BUILDS" == "true" ]]; then
-        show_progress $((++current_step)) $steps "Deploying infrastructure in parallel"
-        run_parallel "deploy_namespaces" "deploy_application"
-    else
-        show_progress $((++current_step)) $steps "Creating namespaces"
-        deploy_namespaces
+    # Deploy manifests
+    deploy_manifests
+    
+    # Run auto-fix
+    auto_fix_pods
+    
+    # Setup port forwards
+    setup_port_forwards
+    
+    # Wait for services to be ready
+    log_info "Waiting for services to be ready..."
+    sleep 30
+    
+    # Health check
+    if health_check; then
+        # Get ArgoCD password
+        local argocd_password=$(kubectl get secret argocd-initial-admin-secret -n argocd -o json | jq -r '.data.password' | base64 -d 2>/dev/null || echo "admin")
         
-        show_progress $((++current_step)) $steps "Deploying application"
-        deploy_application
-    fi
-    
-    # Skip monitoring and ArgoCD for faster deployment
-    if [[ "$ENABLE_MONITORING" == "true" ]]; then
-        show_progress $((++current_step)) $steps "Deploying monitoring"
-        deploy_monitoring
-    fi
-    
-    if [[ "$ENABLE_ARGOCD" == "true" ]]; then
-        show_progress $((++current_step)) $steps "Deploying ArgoCD"
-        deploy_argocd
-    fi
-    
-    if [[ "$ENABLE_MONITORING" == "false" ]] && [[ "$ENABLE_ARGOCD" == "false" ]]; then
-        print_info "Skipping monitoring and ArgoCD for faster deployment"
-    fi
-    
-    # Stop monitoring and perform comprehensive health check
-    stop_real_time_monitoring
-    
-    print_step "Running comprehensive health check..."
-    comprehensive_health_check
-    
-    # Final validation
-    print_step "Performing final deployment validation..."
-    local final_issues=0
-    for ns in "$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE"; do
-        local ns_issues=($(detect_pod_issues "$ns"))
-        final_issues=$((final_issues + ${#ns_issues[@]}))
-    done
-    
-    if [[ $final_issues -gt 0 ]]; then
-        print_warning "Final validation found $final_issues remaining issues"
-        print_step "Running final auto-fix..."
-        for ns in "$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE"; do
-            fix_pod_issues "$ns"
-        done
+        # Final output
+        echo ""
+        echo "----------------------------------------"
+        echo "🚀 Secure Exam Platform is running!"
+        echo "----------------------------------------"
+        echo ""
+        echo "Frontend: http://localhost:${FRONTEND_PORT}"
+        echo "Backend:  http://localhost:${BACKEND_PORT}"
+        echo "AI:       http://localhost:${AI_PORT}"
+        echo ""
+        echo "Grafana:  http://localhost:${GRAFANA_PORT}"
+        echo "Prometheus: http://localhost:${PROMETHEUS_PORT}"
+        echo ""
+        echo "ArgoCD:   https://localhost:${ARGOCD_PORT}"
+        echo "Username: admin"
+        echo "Password: $argocd_password"
+        echo "----------------------------------------"
+        echo ""
+        
+        # Start watch mode if enabled
+        watch_services
+        
     else
-        print_success "Final validation passed - all systems healthy"
-    fi
-    
-    print_success "Complete deployment finished successfully!"
-    print_info "Run './port-forward.sh' to access services"
-    
-    # Show deployment summary
-    show_deployment_summary
-    
-    # Start real-time monitoring for 30 seconds to show final status
-    if [[ "$REAL_TIME_MONITORING" == "true" ]]; then
-        print_info "Starting 30-second real-time monitoring..."
-        monitor_pods_realtime "$NAMESPACE" 30
-    fi
-}
-
-# Deployment summary
-show_deployment_summary() {
-    print_header "Deployment Summary"
-    
-    echo ""
-    print_info "Deployment Configuration:"
-    echo "  - Parallel Builds: $PARALLEL_BUILDS"
-    echo "  - Smart Cache: $SMART_CACHE"
-    echo "  - Fast Mode: $FAST_MODE"
-    echo "  - Auto Recovery: $AUTO_RECOVERY"
-    echo "  - Real-time Monitoring: $REAL_TIME_MONITORING"
-    echo ""
-    
-    print_info "Resource Usage:"
-    echo "  - System Memory: ${SYSTEM_MEMORY_MB}MB (${AVAILABLE_MEMORY_MB}MB available)"
-    echo "  - System CPUs: $SYSTEM_CPU_CORES cores"
-    echo "  - Minikube Memory: ${MINIKUBE_MEMORY_MB}MB"
-    echo "  - Minikube CPUs: $MINIKUBE_CPU_CORES cores"
-    echo "  - Current Memory: $(free -h | grep Mem | awk '{print $3 "/" $2}')"
-    echo "  - Disk Space: $(df -h . | tail -1 | awk '{print $3 "/" $2 " (" $5 ")"}')"
-    echo ""
-    
-    print_info "Deployment Time: $(date '+%Y-%m-%d %H:%M:%S')"
-    print_info "Version: $APP_VERSION ($IMAGE_TAG)"
-    echo ""
-    
-    # Show service URLs
-    show_access_info
-}
-
-# ========================================
-#  COMMAND LINE INTERFACE
-# ========================================
-show_help() {
-    echo "Secure Exam Platform - Smart DevOps ULTRA"
-    echo ""
-    echo "Usage: $0 [COMMAND] [OPTIONS]"
-    echo ""
-    echo "Commands:"
-    echo "  deploy      - Complete deployment (default)"
-    echo "  minikube    - Setup Minikube only"
-    echo "  build       - Build Docker images only"
-    echo "  push        - Push Docker images only"
-    echo "  app         - Deploy application only"
-    echo "  monitoring  - Deploy monitoring only"
-    echo "  argocd      - Deploy ArgoCD only"
-    echo "  health      - Comprehensive health check"
-    echo "  monitor     - Real-time pod monitoring (Ctrl+C to stop)"
-    echo "  troubleshoot - Smart troubleshooting diagnostics"
-    echo "  fix         - Auto-fix pod issues"
-    echo "  stop        - Stop all monitoring and cleanup processes"
-    echo "  cleanup     - Clean up everything"
-    echo "  help        - Show this help"
-    echo ""
-    echo "Smart Features:"
-    echo "  - Parallel builds and deployments"
-    echo "  - Intelligent caching system"
-    echo "  - Real-time performance monitoring"
-    echo "  - Auto-recovery mechanisms"
-    echo "  - Progress indicators"
-    echo "  - Resource optimization"
-    echo ""
-    echo "Environment Variables:"
-    echo "  APP_VERSION     - Application version (default: latest)"
-    echo "  IMAGE_TAG       - Docker image tag (default: latest)"
-    echo "  DOCKER_REGISTRY  - Docker registry (default: localhost:5000)"
-    echo "  DEBUG_MODE      - Enable debug mode (default: false)"
-    echo "  ENABLE_AI_PROCTORING - Enable AI proctoring (default: true)"
-    echo "  ENABLE_MONITORING    - Enable monitoring (default: true)"
-    echo "  ENABLE_ARGOCD       - Enable ArgoCD (default: true)"
-    echo ""
-    echo "Performance Options:"
-    echo "  PARALLEL_BUILDS    - Enable parallel builds (default: true)"
-    echo "  SMART_CACHE        - Enable intelligent caching (default: true)"
-    echo "  FAST_MODE          - Fast mode (skip optimizations) (default: false)"
-    echo "  AUTO_RECOVERY      - Auto-recovery on failures (default: true)"
-    echo "  REAL_TIME_MONITORING - Real-time monitoring (default: true)"
-    echo ""
-    echo "Examples:"
-    echo "  $0 deploy                    # Full deployment with all optimizations"
-    echo "  $0 deploy FAST_MODE=true     # Fast deployment mode"
-    echo "  $0 build PARALLEL_BUILDS=false # Sequential builds"
-    echo "  $0 deploy DEBUG_MODE=true    # Debug mode with detailed logs"
-}
-
-# ========================================
-#  MAIN
-# ========================================
-case "${1:-deploy}" in
-    "deploy"|"")
-        deploy_all
-        ;;
-    "minikube")
-        check_prerequisites
-        setup_minikube
-        ;;
-    "build")
-        check_prerequisites
-        build_images
-        ;;
-    "push")
-        check_prerequisites
-        push_images
-        ;;
-    "app")
-        check_prerequisites
-        deploy_namespaces
-        deploy_application
-        ;;
-    "monitoring")
-        check_prerequisites
-        deploy_namespaces
-        deploy_monitoring
-        ;;
-    "argocd")
-        check_prerequisites
-        deploy_argocd
-        ;;
-    "health")
-        comprehensive_health_check
-        ;;
-    "monitor")
-        print_step "Starting real-time monitoring..."
-        monitor_pods_realtime "$NAMESPACE" 120
-        ;;
-    "troubleshoot")
-        smart_troubleshoot
-        ;;
-    "fix")
-        print_step "Auto-fixing pod issues..."
-        for ns in "$NAMESPACE" "$MONITORING_NAMESPACE" "$ARGOCD_NAMESPACE"; do
-            fix_pod_issues "$ns"
-        done
-        ;;
-    "stop")
-        cleanup_all_processes
-        ;;
-    "cleanup")
-        cleanup
-        ;;
-    "help"|"-h"|"--help")
-        show_help
-        ;;
-    *)
-        print_error "Unknown command: $1"
-        show_help
+        log_error "Deployment failed - some services are unhealthy"
         exit 1
-        ;;
-esac
+    fi
+}
+
+# Run main function
+main
