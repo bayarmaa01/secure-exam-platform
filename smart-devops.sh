@@ -388,6 +388,20 @@ setup_namespace() {
     log_success "Namespace created"
 }
 
+setup_monitoring_namespace() {
+    if kubectl get namespace monitoring &>/dev/null; then
+        log_info "Monitoring namespace already exists"
+        return 0
+    fi
+    
+    log_info "Creating monitoring namespace..."
+    kubectl create namespace monitoring || {
+        log_error "Failed to create monitoring namespace"
+        return 1
+    }
+    log_success "Monitoring namespace created"
+}
+
 deploy_manifests() {
     log_info "Deploying Kubernetes manifests..."
     
@@ -452,17 +466,25 @@ deploy_manifests() {
         create_ai_manifest
     fi
     
-    # Deploy monitoring (optional)
+    # Deploy monitoring (optional but recommended)
     if [[ -f "k8s/grafana.yaml" ]]; then
         kubectl apply -f k8s/grafana.yaml || {
-            log_warning "Failed to deploy grafana, continuing"
+            log_warning "Failed to deploy grafana, creating basic grafana deployment"
+            create_grafana_manifest
         }
+    else
+        log_warning "k8s/grafana.yaml not found, creating basic grafana deployment"
+        create_grafana_manifest
     fi
     
     if [[ -f "k8s/prometheus.yaml" ]]; then
         kubectl apply -f k8s/prometheus.yaml || {
-            log_warning "Failed to deploy prometheus, continuing"
+            log_warning "Failed to deploy prometheus, creating basic prometheus deployment"
+            create_prometheus_manifest
         }
+    else
+        log_warning "k8s/prometheus.yaml not found, creating basic prometheus deployment"
+        create_prometheus_manifest
     fi
     
     if [[ -f "k8s/argocd.yaml" ]]; then
@@ -714,6 +736,138 @@ spec:
     targetPort: 8000
 EOF
     kubectl apply -f k8s/ai-proctoring.yaml
+}
+
+create_grafana_manifest() {
+    cat > k8s/grafana.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: admin123
+        - name: GF_INSTALL_PLUGINS
+          value: grafana-clock-panel,grafana-simple-json-datasource
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+      volumes:
+      - name: grafana-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+EOF
+    kubectl apply -f k8s/grafana.yaml
+}
+
+create_prometheus_manifest() {
+    cat > k8s/prometheus.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:latest
+        command:
+        - '--config.file=/etc/prometheus/prometheus.yml'
+        - '--storage.tsdb.path=/prometheus'
+        - '--web.console.libraries=/etc/prometheus/console_libraries'
+        - '--web.console.templates=/etc/prometheus/consoles'
+        - '--storage.tsdb.retention.time=200h'
+        - '--web.enable-lifecycle'
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - name: prometheus-config
+          mountPath: /etc/prometheus
+        - name: prometheus-storage
+          mountPath: /prometheus
+      volumes:
+      - name: prometheus-config
+        configMap:
+          name: prometheus-config
+      - name: prometheus-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+      - job_name: 'backend'
+        static_configs:
+          - targets: ['backend.exam-platform.svc.cluster.local:4000']
+      - job_name: 'postgres'
+        static_configs:
+          - targets: ['postgres.exam-platform.svc.cluster.local:5432']
+      - job_name: 'redis'
+        static_configs:
+          - targets: ['redis.exam-platform.svc.cluster.local:6379']
+      - job_name: 'ai-proctoring'
+        static_configs:
+          - targets: ['ai-proctoring.exam-platform.svc.cluster.local:8000']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - port: 9090
+    targetPort: 9090
+EOF
+    kubectl apply -f k8s/prometheus.yaml
 }
 
 # ========================================
@@ -1046,6 +1200,9 @@ main() {
     
     # Setup namespace
     setup_namespace
+    
+    # Setup monitoring namespace
+    setup_monitoring_namespace
     
     # Deploy manifests
     deploy_manifests
