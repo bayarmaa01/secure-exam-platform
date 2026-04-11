@@ -764,7 +764,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana
-  namespace: monitoring
+  namespace: exam-monitoring
 spec:
   replicas: 1
   selector:
@@ -812,7 +812,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: grafana
-  namespace: monitoring
+  namespace: exam-monitoring
 spec:
   selector:
     app: grafana
@@ -830,7 +830,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: monitoring
+  namespace: exam-monitoring
 spec:
   replicas: 1
   selector:
@@ -869,7 +869,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: monitoring
+  namespace: exam-monitoring
 data:
   prometheus.yml: |
     global:
@@ -896,7 +896,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
-  namespace: monitoring
+  namespace: exam-monitoring
 spec:
   selector:
     app: prometheus
