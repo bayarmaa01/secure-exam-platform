@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireTeacher, requireStudent, requireAdmin } from '../middleware/auth'
+import { notifyNewExam, notifyExamStarted } from '../services/notifications'
 
 const router = Router()
 
@@ -190,6 +191,10 @@ router.post('/exams',
       const r = await pool.query(query, values)
 
       console.log('POST /api/exams - Success:', JSON.stringify(r.rows[0], null, 2))
+      
+      // Send notification to students
+      await notifyNewExam(r.rows[0].id, req.user!.id)
+      
       res.status(201).json(r.rows[0])
     } catch (error) {
       console.error('POST /api/exams - Database error:', {
@@ -434,25 +439,31 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
       [examId, userId]
     )
 
+    // Send notification to teachers
+    await notifyExamStarted(examId, userId)
+
     res.json({ attemptId: r.rows[0].id })
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' })
   }
 })
 
-// Save answer
+// Save answer with automatic grading
 router.post('/exams/attempts/:attemptId/answers', auth, requireStudent, async (req: AuthRequest, res) => {
   try {
     const { questionId, answer } = req.body
     const attemptId = req.params.attemptId
 
-    // Verify attempt ownership
-    const attemptCheck = await pool.query(
-      'SELECT user_id, submitted_at FROM exam_attempts WHERE id = $1',
-      [attemptId]
-    )
+    // Verify attempt ownership and get question details
+    const attemptCheck = await pool.query(`
+      SELECT ea.user_id, ea.submitted_at, q.correct_answer, q.type, q.points
+      FROM exam_attempts ea
+      JOIN questions q ON q.id = $2
+      WHERE ea.id = $1
+    `, [attemptId, questionId])
+    
     if (attemptCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'Attempt not found' })
+      return res.status(404).json({ message: 'Attempt or question not found' })
     }
 
     const attempt = attemptCheck.rows[0]
@@ -463,52 +474,166 @@ router.post('/exams/attempts/:attemptId/answers', auth, requireStudent, async (r
       return res.status(400).json({ message: 'Exam already submitted' })
     }
 
+    // Evaluate answer
+    let isCorrect = false
+    let pointsEarned = 0
+    
     const answerText = Array.isArray(answer) ? JSON.stringify(answer) : String(answer)
+    const correctAnswer = attempt.correct_answer
+    
+    if (attempt.type === 'mcq') {
+      // For MCQ, compare directly
+      isCorrect = answerText === correctAnswer || answer === correctAnswer
+    } else if (attempt.type === 'text') {
+      // For text answers, case-insensitive comparison
+      isCorrect = answerText.toLowerCase().trim() === correctAnswer.toLowerCase().trim()
+    }
+    
+    if (isCorrect) {
+      pointsEarned = attempt.points || 1
+    }
 
-    await pool.query(
-      `INSERT INTO answers (attempt_id, question_id, answer) 
-       VALUES ($1, $2, $3) 
-       ON CONFLICT (attempt_id, question_id) 
-       DO UPDATE SET answer = $3`,
-      [attemptId, questionId, answerText]
-    )
+    // Save answer with grading
+    await pool.query(`
+      INSERT INTO answers (attempt_id, question_id, answer, is_correct, points_earned)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (attempt_id, question_id)
+       DO UPDATE SET 
+         answer = $3,
+         is_correct = $4,
+         points_earned = $5
+    `, [attemptId, questionId, answerText, isCorrect, pointsEarned])
 
-    res.json({ ok: true })
+    res.json({ 
+      ok: true, 
+      isCorrect,
+      pointsEarned
+    })
   } catch (error) {
+    console.error('Save answer error:', error)
     res.status(500).json({ message: 'Internal server error' })
   }
 })
 
-// Submit exam
+// Submit exam with grading
 router.post('/exams/attempts/:attemptId/submit', auth, requireStudent, async (req: AuthRequest, res) => {
+  const client = await pool.connect()
   try {
+    await client.query('BEGIN')
     const attemptId = req.params.attemptId
 
-    // Verify attempt ownership
-    const attemptCheck = await pool.query(
-      'SELECT user_id, submitted_at FROM exam_attempts WHERE id = $1',
-      [attemptId]
-    )
+    // Verify attempt ownership and get exam details
+    const attemptCheck = await client.query(`
+      SELECT ea.user_id, ea.submitted_at, ea.exam_id, e.total_marks, e.passing_marks
+      FROM exam_attempts ea
+      JOIN exams e ON ea.exam_id = e.id
+      WHERE ea.id = $1
+    `, [attemptId])
+    
     if (attemptCheck.rows.length === 0) {
+      await client.query('ROLLBACK')
       return res.status(404).json({ message: 'Attempt not found' })
     }
 
     const attempt = attemptCheck.rows[0]
     if (attempt.user_id !== req.user!.id) {
+      await client.query('ROLLBACK')
       return res.status(403).json({ message: 'Access denied' })
     }
     if (attempt.submitted_at) {
+      await client.query('ROLLBACK')
       return res.status(400).json({ message: 'Exam already submitted' })
     }
 
-    await pool.query(
-      'UPDATE exam_attempts SET submitted_at = NOW() WHERE id = $1',
-      [attemptId]
-    )
+    // Grade the exam
+    const gradingResult = await client.query(`
+      SELECT 
+        COUNT(a.id) as total_answered,
+        COUNT(CASE WHEN a.is_correct = true THEN 1 END) as correct_answers,
+        COALESCE(SUM(q.points), 0) as total_points,
+        COALESCE(SUM(CASE WHEN a.is_correct = true THEN q.points ELSE 0 END), 0) as earned_points
+      FROM answers a
+      JOIN questions q ON a.question_id = q.id
+      WHERE a.attempt_id = $1
+    `, [attemptId])
 
-    res.json({ ok: true })
+    const grading = gradingResult.rows[0]
+    const totalPoints = parseFloat(grading.total_points) || attempt.total_marks
+    const earnedPoints = parseFloat(grading.earned_points) || 0
+    const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0
+    const status = percentage >= attempt.passing_marks ? 'passed' : 'failed'
+
+    // Update attempt with results
+    await client.query(`
+      UPDATE exam_attempts 
+      SET submitted_at = NOW(), score = $1, total_points = $2, percentage = $3, status = 'submitted'
+      WHERE id = $4
+    `, [earnedPoints, totalPoints, percentage, attemptId])
+
+    // Create result record
+    const resultRecord = await client.query(`
+      INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [req.user!.id, attempt.exam_id, attemptId, earnedPoints, totalPoints, percentage, status])
+
+    // Update analytics
+    await client.query(`
+      INSERT INTO analytics (student_id, exam_id, topic, total_questions, correct_answers, accuracy)
+      SELECT 
+        $1,
+        $2,
+        q.topic,
+        COUNT(a.id),
+        COUNT(CASE WHEN a.is_correct = true THEN 1 END),
+        ROUND((COUNT(CASE WHEN a.is_correct = true THEN 1 END) * 100.0 / COUNT(a.id)), 2)
+      FROM answers a
+      JOIN questions q ON a.question_id = q.id
+      WHERE a.attempt_id = $3 AND a.is_correct IS NOT NULL
+      GROUP BY q.topic
+      ON CONFLICT (student_id, exam_id, topic) 
+      DO UPDATE SET 
+        total_questions = EXCLUDED.total_questions,
+        correct_answers = EXCLUDED.correct_answers,
+        accuracy = EXCLUDED.accuracy,
+        last_updated = NOW()
+    `, [req.user!.id, attempt.exam_id, attemptId])
+
+    // Update leaderboard
+    await client.query(`
+      INSERT INTO leaderboard (student_id, total_score, exams_attempted, average_score)
+      SELECT 
+        r.student_id,
+        COALESCE(SUM(r.score), 0),
+        COUNT(r.id),
+        COALESCE(AVG(r.percentage), 0)
+      FROM results r
+      WHERE r.student_id = $1
+      GROUP BY r.student_id
+      ON CONFLICT (student_id) 
+      DO UPDATE SET 
+        total_score = EXCLUDED.total_score,
+        exams_attempted = EXCLUDED.exams_attempted,
+        average_score = EXCLUDED.average_score,
+        last_updated = NOW()
+    `, [req.user!.id])
+
+    await client.query('COMMIT')
+
+    res.json({
+      success: true,
+      score: earnedPoints,
+      totalPoints,
+      percentage,
+      status,
+      result: resultRecord.rows[0]
+    })
   } catch (error) {
+    await client.query('ROLLBACK')
+    console.error('Exam submission error:', error)
     res.status(500).json({ message: 'Internal server error' })
+  } finally {
+    client.release()
   }
 })
 

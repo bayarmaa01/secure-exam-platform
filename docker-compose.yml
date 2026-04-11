@@ -8,8 +8,8 @@ services:
     depends_on:
       - backend
     environment:
-      - VITE_API_URL=http://localhost:4005/api
-      - VITE_AI_URL=http://localhost:5005
+      - REACT_APP_API_URL=http://localhost:4005/api
+      - REACT_APP_AI_URL=http://localhost:5005
     restart: unless-stopped
     networks:
       - exam-network
@@ -29,7 +29,7 @@ services:
       - JWT_REFRESH_SECRET=change-refresh-in-production
       - REDIS_URL=redis://redis:6379
       - CORS_ORIGIN=http://localhost:3005
-      - AI_SERVICE_URL=http://ai-proctoring:5000
+      - AI_SERVICE_URL=http://ai-proctoring:8000
     depends_on:
       postgres:
         condition: service_healthy

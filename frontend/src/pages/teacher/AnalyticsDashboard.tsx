@@ -1,6 +1,19 @@
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { Users, TrendingUp, AlertTriangle, BookOpen, Target, Eye } from 'lucide-react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts'
 import api from '../../api'
 import toast from 'react-hot-toast'
 
@@ -33,12 +46,30 @@ interface WeakTopic {
   status: string
 }
 
+interface ProgressData {
+  examName: string
+  date: string
+  score: number
+}
+
+interface LeaderboardEntry {
+  id: string
+  name: string
+  studentId: string
+  totalScore: number
+  examsAttempted: number
+  averageScore: number
+  rank: number
+}
+
 export default function AnalyticsDashboard() {
   const [topicAnalysis, setTopicAnalysis] = useState<TopicAnalysis[]>([])
   const [classMetrics, setClassMetrics] = useState<ClassMetrics | null>(null)
   const [weakTopicsWithStudents, setWeakTopicsWithStudents] = useState<WeakTopic[]>([])
+  const [progressData, setProgressData] = useState<ProgressData[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
-
+  
   useEffect(() => {
     fetchAnalyticsData()
   }, [])
@@ -47,15 +78,23 @@ export default function AnalyticsDashboard() {
     try {
       setLoading(true)
       
-      const response = await api.get('/analytics/teacher-overview')
-      const data = response.data
+      const [overviewResponse, progressResponse, leaderboardResponse] = await Promise.all([
+        api.get('/analytics/teacher-overview'),
+        api.get('/analytics/progress-over-time'),
+        api.get('/analytics/leaderboard?limit=10')
+      ])
+      
+      const data = overviewResponse.data
       
       setTopicAnalysis(data.topicAnalysis || [])
       setClassMetrics(data.classMetrics || {})
       setWeakTopicsWithStudents(data.weakTopicsWithStudents || [])
+      setProgressData(progressResponse.data || [])
+      setLeaderboard(leaderboardResponse.data || [])
     } catch (error) {
       toast.error('Failed to load analytics data')
       console.error('Analytics error:', error)
+      setLoading(false)
     } finally {
       setLoading(false)
     }
@@ -72,10 +111,10 @@ export default function AnalyticsDashboard() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Critical': return <AlertTriangle className="w-4 h-4" />
-      case 'Needs Improvement': return <Eye className="w-4 h-4" />
-      case 'Good': return <TrendingUp className="w-4 h-4" />
-      default: return <BookOpen className="w-4 h-4" />
+      case 'Critical': return <div className="w-4 h-4 text-red-500">!</div>
+      case 'Needs Improvement': return <div className="w-4 h-4 text-yellow-500">!</div>
+      case 'Good': return <div className="w-4 h-4 text-green-500">!</div>
+      default: return <div className="w-4 h-4 text-gray-500">!</div>
     }
   }
 
@@ -103,7 +142,7 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
-                <Users className="h-6 w-6 text-blue-600" />
+                <div className="h-6 w-6 text-blue-600">!</div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Students</p>
@@ -115,7 +154,7 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
-                <Target className="h-6 w-6 text-green-600" />
+                <div className="h-6 w-6 text-green-600">!</div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Class Average</p>
@@ -127,7 +166,7 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-purple-100 rounded-lg p-3">
-                <BookOpen className="h-6 w-6 text-purple-600" />
+                <div className="h-6 w-6 text-purple-600">!</div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Exams</p>
@@ -139,7 +178,8 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
-                <AlertTriangle className="h-6 w-6 text-yellow-600" />
+                <div className="w-4 h-4 text-red-500">!</div>
+                <div className="w-4 h-4 text-yellow-500">!</div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Pass Rate</p>
@@ -165,46 +205,79 @@ export default function AnalyticsDashboard() {
             </ResponsiveContainer>
           </div>
 
-          {/* Student Distribution */}
+          {/* Performance Distribution Pie Chart */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Student Performance Distribution</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Excellent (90-100%)</span>
-                <div className="flex items-center">
-                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                    <div className="bg-green-500 h-2 rounded-full" style={{width: '25%'}}></div>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Excellent (90-100%)', value: 25, color: '#10b981' },
+                    { name: 'Good (70-89%)', value: 45, color: '#3b82f6' },
+                    { name: 'Needs Improvement (50-69%)', value: 20, color: '#f59e0b' },
+                    { name: 'Below 50%', value: 10, color: '#ef4444' }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={(entry) => `${entry.name}: ${entry.value}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {[{ name: 'Excellent (90-100%)', value: 25, color: '#10b981' },
+                    { name: 'Good (70-89%)', value: 45, color: '#3b82f6' },
+                    { name: 'Needs Improvement (50-69%)', value: 20, color: '#f59e0b' },
+                    { name: 'Below 50%', value: 10, color: '#ef4444' }].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Progress Over Time and Leaderboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Class Progress Over Time */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Class Progress Over Time</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={progressData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} name="Average Score" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top Performers Leaderboard */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Performers</h2>
+            <div className="space-y-3">
+              {leaderboard.slice(0, 5).map((student, index) => (
+                <div key={student.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold ${
+                      index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-blue-500'
+                    }`}>
+                      {student.rank}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{student.name}</p>
+                      <p className="text-sm text-gray-500">{student.studentId}</p>
+                    </div>
                   </div>
-                  <span className="text-sm text-gray-900">25%</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Good (70-89%)</span>
-                <div className="flex items-center">
-                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                    <div className="bg-blue-500 h-2 rounded-full" style={{width: '45%'}}></div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900">{student.averageScore}%</p>
+                    <p className="text-sm text-gray-500">{student.examsAttempted} exams</p>
                   </div>
-                  <span className="text-sm text-gray-900">45%</span>
                 </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Needs Improvement (50-69%)</span>
-                <div className="flex items-center">
-                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                    <div className="bg-yellow-500 h-2 rounded-full" style={{width: '20%'}}></div>
-                  </div>
-                  <span className="text-sm text-gray-900">20%</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Below 50%</span>
-                <div className="flex items-center">
-                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                    <div className="bg-red-500 h-2 rounded-full" style={{width: '10%'}}></div>
-                  </div>
-                  <span className="text-sm text-gray-900">10%</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -252,7 +325,7 @@ export default function AnalyticsDashboard() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <TrendingUp className="h-12 w-12 text-green-500 mx-auto mb-4" />
+              <div className="text-green-500 text-4xl mb-4">✓</div>
               <p className="text-gray-600">Excellent! All topics are performing well.</p>
             </div>
           )}
