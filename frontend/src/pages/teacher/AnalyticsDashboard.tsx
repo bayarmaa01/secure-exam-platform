@@ -1,6 +1,21 @@
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts'
-import { Users, TrendingUp, AlertTriangle, BookOpen, Target, Eye, Activity, Calendar, Award } from 'lucide-react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  Users,
+  TrendingUp
+} from 'recharts'
 import api from '../../api'
 import toast from 'react-hot-toast'
 
@@ -56,7 +71,7 @@ export default function AnalyticsDashboard() {
   const [progressData, setProgressData] = useState<ProgressData[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedTimeRange, setSelectedTimeRange] = useState('all')
+  const [analyticsData] = useState<any>(null)
 
   useEffect(() => {
     fetchAnalyticsData()
@@ -82,6 +97,7 @@ export default function AnalyticsDashboard() {
     } catch (error) {
       toast.error('Failed to load analytics data')
       console.error('Analytics error:', error)
+      setLoading(false)
     } finally {
       setLoading(false)
     }
@@ -98,10 +114,10 @@ export default function AnalyticsDashboard() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Critical': return <AlertTriangle className="w-4 h-4" />
-      case 'Needs Improvement': return <Eye className="w-4 h-4" />
-      case 'Good': return <TrendingUp className="w-4 h-4" />
-      default: return <BookOpen className="w-4 h-4" />
+      case 'Critical': return <div className="w-4 h-4 text-red-500">!</div>
+      case 'Needs Improvement': return <div className="w-4 h-4 text-yellow-500">!</div>
+      case 'Good': return <div className="w-4 h-4 text-green-500">!</div>
+      default: return <div className="w-4 h-4 text-gray-500">!</div>
     }
   }
 
@@ -129,7 +145,7 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
-                <Users className="h-6 w-6 text-blue-600" />
+                <div className="h-6 w-6 text-blue-600">!</div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Students</p>
@@ -141,7 +157,7 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
-                <Target className="h-6 w-6 text-green-600" />
+                <div className="h-6 w-6 text-green-600">!</div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Class Average</p>
@@ -153,7 +169,7 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-purple-100 rounded-lg p-3">
-                <BookOpen className="h-6 w-6 text-purple-600" />
+                <div className="h-6 w-6 text-purple-600">!</div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Exams</p>
@@ -165,7 +181,8 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
-                <AlertTriangle className="h-6 w-6 text-yellow-600" />
+                <div className="w-4 h-4 text-red-500">!</div>
+                <div className="w-4 h-4 text-yellow-500">!</div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Pass Rate</p>
