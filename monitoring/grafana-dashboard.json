@@ -1,14 +1,233 @@
 {
   "dashboard": {
     "id": null,
-    "title": "AI Proctoring Metrics",
-    "tags": ["ai-proctoring", "exam-platform"],
+    "title": "Secure Exam Platform - Complete Dashboard",
+    "tags": ["exam-platform", "ai-proctoring", "monitoring"],
     "timezone": "browser",
     "panels": [
       {
         "id": 1,
-        "title": "Suspicious Events Total",
+        "title": "System Overview",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "HTTP Requests",
         "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total[5m]))",
+            "legendFormat": "Requests/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "unit": "reqps",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 100}
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 1
+        }
+      },
+      {
+        "id": 3,
+        "title": "Average Response Time",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg(http_request_duration_seconds)",
+            "legendFormat": "Seconds"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.5},
+                {"color": "red", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 6,
+          "y": 1
+        }
+      },
+      {
+        "id": 4,
+        "title": "Active Exam Sessions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "exam_sessions_active",
+            "legendFormat": "Active Sessions"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "unit": "short",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "red", "value": 50}
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 12,
+          "y": 1
+        }
+      },
+      {
+        "id": 5,
+        "title": "Error Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status_code=~'5..'}[5m])) / sum(rate(http_requests_total[5m]))",
+            "legendFormat": "Error Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "unit": "percentunit",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.01},
+                {"color": "red", "value": 0.05}
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 18,
+          "y": 1
+        }
+      },
+      {
+        "id": 6,
+        "title": "API Performance",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 9
+        }
+      },
+      {
+        "id": 7,
+        "title": "Request Rate by Endpoint",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total[5m])) by (route)",
+            "legendFormat": "{{route}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 10
+        }
+      },
+      {
+        "id": 8,
+        "title": "Response Time Distribution",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "99th percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 10
+        }
+      },
+      {
+        "id": 9,
+        "title": "AI Proctoring Metrics",
+        "type": "row",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 18
+        }
+      },
+      {
+        "id": 10,
+        "title": "Suspicious Events",
+        "type": "graph",
         "targets": [
           {
             "expr": "sum(rate(suspicious_events_total[5m])) by (event_type)",
@@ -27,21 +246,21 @@
           "h": 8,
           "w": 12,
           "x": 0,
-          "y": 0
+          "y": 19
         }
       },
       {
-        "id": 2,
-        "title": "Face Detection Issues",
-        "type": "stat",
+        "id": 11,
+        "title": "Proctoring Risk Scores",
+        "type": "graph",
         "targets": [
           {
-            "expr": "sum(rate(face_not_detected_total[5m]))",
-            "legendFormat": "Face Not Detected"
+            "expr": "avg(proctoring_risk_score)",
+            "legendFormat": "Average Risk Score"
           },
           {
-            "expr": "sum(rate(multiple_faces_detected_total[5m]))",
-            "legendFormat": "Multiple Faces"
+            "expr": "max(proctoring_risk_score)",
+            "legendFormat": "Max Risk Score"
           }
         ],
         "fieldConfig": {
@@ -49,49 +268,35 @@
             "color": {
               "mode": "palette-classic"
             },
-            "unit": "reqps"
+            "unit": "short"
           }
         },
         "gridPos": {
           "h": 8,
           "w": 12,
           "x": 12,
-          "y": 0
+          "y": 19
         }
       },
       {
-        "id": 3,
-        "title": "Tab Switch Count",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "sum(rate(tab_switch_count_total[5m])) by (student_id)",
-            "legendFormat": "Student {{student_id}}"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "unit": "reqps"
-          }
-        },
+        "id": 12,
+        "title": "Database & Infrastructure",
+        "type": "row",
         "gridPos": {
-          "h": 8,
-          "w": 12,
+          "h": 1,
+          "w": 24,
           "x": 0,
-          "y": 8
+          "y": 27
         }
       },
       {
-        "id": 4,
-        "title": "Active Exam Sessions",
+        "id": 13,
+        "title": "Database Connections",
         "type": "stat",
         "targets": [
           {
-            "expr": "exam_sessions_active",
-            "legendFormat": "Active Sessions"
+            "expr": "pg_stat_database_numbackends",
+            "legendFormat": "Active Connections"
           }
         ],
         "fieldConfig": {
@@ -104,9 +309,34 @@
         },
         "gridPos": {
           "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 8
+          "w": 6,
+          "x": 0,
+          "y": 28
+        }
+      },
+      {
+        "id": 14,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes / 1024 / 1024",
+            "legendFormat": "Memory (MB)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 18,
+          "x": 6,
+          "y": 28
         }
       }
     ],
@@ -114,6 +344,9 @@
       "from": "now-1h",
       "to": "now"
     },
-    "refresh": "5s"
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 1,
+    "editable": true
   }
 }

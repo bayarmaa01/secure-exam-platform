@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { Users, TrendingUp, AlertTriangle, BookOpen, Target, Eye } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts'
+import { Users, TrendingUp, AlertTriangle, BookOpen, Target, Eye, Activity, Calendar, Award } from 'lucide-react'
 import api from '../../api'
 import toast from 'react-hot-toast'
 
@@ -33,11 +33,30 @@ interface WeakTopic {
   status: string
 }
 
+interface ProgressData {
+  examName: string
+  date: string
+  score: number
+}
+
+interface LeaderboardEntry {
+  id: string
+  name: string
+  studentId: string
+  totalScore: number
+  examsAttempted: number
+  averageScore: number
+  rank: number
+}
+
 export default function AnalyticsDashboard() {
   const [topicAnalysis, setTopicAnalysis] = useState<TopicAnalysis[]>([])
   const [classMetrics, setClassMetrics] = useState<ClassMetrics | null>(null)
   const [weakTopicsWithStudents, setWeakTopicsWithStudents] = useState<WeakTopic[]>([])
+  const [progressData, setProgressData] = useState<ProgressData[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedTimeRange, setSelectedTimeRange] = useState('all')
 
   useEffect(() => {
     fetchAnalyticsData()
@@ -47,12 +66,19 @@ export default function AnalyticsDashboard() {
     try {
       setLoading(true)
       
-      const response = await api.get('/analytics/teacher-overview')
-      const data = response.data
+      const [overviewResponse, progressResponse, leaderboardResponse] = await Promise.all([
+        api.get('/analytics/teacher-overview'),
+        api.get('/analytics/progress-over-time'),
+        api.get('/analytics/leaderboard?limit=10')
+      ])
+      
+      const data = overviewResponse.data
       
       setTopicAnalysis(data.topicAnalysis || [])
       setClassMetrics(data.classMetrics || {})
       setWeakTopicsWithStudents(data.weakTopicsWithStudents || [])
+      setProgressData(progressResponse.data || [])
+      setLeaderboard(leaderboardResponse.data || [])
     } catch (error) {
       toast.error('Failed to load analytics data')
       console.error('Analytics error:', error)
@@ -165,46 +191,79 @@ export default function AnalyticsDashboard() {
             </ResponsiveContainer>
           </div>
 
-          {/* Student Distribution */}
+          {/* Performance Distribution Pie Chart */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Student Performance Distribution</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Excellent (90-100%)</span>
-                <div className="flex items-center">
-                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                    <div className="bg-green-500 h-2 rounded-full" style={{width: '25%'}}></div>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Excellent (90-100%)', value: 25, color: '#10b981' },
+                    { name: 'Good (70-89%)', value: 45, color: '#3b82f6' },
+                    { name: 'Needs Improvement (50-69%)', value: 20, color: '#f59e0b' },
+                    { name: 'Below 50%', value: 10, color: '#ef4444' }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={(entry) => `${entry.name}: ${entry.value}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {[{ name: 'Excellent (90-100%)', value: 25, color: '#10b981' },
+                    { name: 'Good (70-89%)', value: 45, color: '#3b82f6' },
+                    { name: 'Needs Improvement (50-69%)', value: 20, color: '#f59e0b' },
+                    { name: 'Below 50%', value: 10, color: '#ef4444' }].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Progress Over Time and Leaderboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Class Progress Over Time */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Class Progress Over Time</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={progressData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} name="Average Score" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top Performers Leaderboard */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Performers</h2>
+            <div className="space-y-3">
+              {leaderboard.slice(0, 5).map((student, index) => (
+                <div key={student.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold ${
+                      index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-blue-500'
+                    }`}>
+                      {student.rank}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{student.name}</p>
+                      <p className="text-sm text-gray-500">{student.studentId}</p>
+                    </div>
                   </div>
-                  <span className="text-sm text-gray-900">25%</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Good (70-89%)</span>
-                <div className="flex items-center">
-                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                    <div className="bg-blue-500 h-2 rounded-full" style={{width: '45%'}}></div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900">{student.averageScore}%</p>
+                    <p className="text-sm text-gray-500">{student.examsAttempted} exams</p>
                   </div>
-                  <span className="text-sm text-gray-900">45%</span>
                 </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Needs Improvement (50-69%)</span>
-                <div className="flex items-center">
-                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                    <div className="bg-yellow-500 h-2 rounded-full" style={{width: '20%'}}></div>
-                  </div>
-                  <span className="text-sm text-gray-900">20%</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Below 50%</span>
-                <div className="flex items-center">
-                  <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                    <div className="bg-red-500 h-2 rounded-full" style={{width: '10%'}}></div>
-                  </div>
-                  <span className="text-sm text-gray-900">10%</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>

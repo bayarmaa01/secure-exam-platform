@@ -2,7 +2,10 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import { createServer } from 'http'
+import { Server as SocketIOServer } from 'socket.io'
 import { initDb } from './db'
+import { collectDefaultMetrics, register, Counter, Histogram, Gauge } from 'prom-client'
 import { authRoutes } from './routes/auth'
 import { examRoutes } from './routes/exams'
 import { adminRoutes } from './routes/admin'
@@ -10,8 +13,46 @@ import { advancedExamRoutes } from './routes/advanced-exams'
 import { analyticsRoutes } from './routes/analytics'
 import { securityRoutes } from './routes/security'
 import { resultsRoutes } from './routes/results'
+import { notificationRoutes } from './routes/notifications'
+
+// Prometheus metrics
+collectDefaultMetrics({ register })
+
+const httpRequestDuration = new Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  registers: [register]
+})
+
+const httpRequestTotal = new Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code'],
+  registers: [register]
+})
+
+const activeExamSessions = new Gauge({
+  name: 'exam_sessions_active',
+  help: 'Number of active exam sessions',
+  registers: [register]
+})
+
+const suspiciousEventsTotal = new Counter({
+  name: 'suspicious_events_total',
+  help: 'Total number of suspicious proctoring events',
+  labelNames: ['event_type'],
+  registers: [register]
+})
 
 const app = express()
+const server = createServer(app)
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || "*",
+    methods: ["GET", "POST"]
+  }
+})
 
 // 🔥 IMPORTANT FIX (for proxies like Docker / Nginx)
 app.set('trust proxy', 1)
@@ -21,9 +62,24 @@ app.use(helmet())
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*', credentials: true }))
 app.use(express.json({ limit: '10mb' }))
 
-// Request logging middleware
+// Request logging and metrics middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path}`)
+  
+  const start = Date.now()
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000
+    const route = req.route?.path || req.path
+    
+    httpRequestDuration
+      .labels(req.method, route, res.statusCode.toString())
+      .observe(duration)
+    
+    httpRequestTotal
+      .labels(req.method, route, res.statusCode.toString())
+      .inc()
+  })
+  
   next()
 })
 
@@ -42,8 +98,20 @@ app.use('/api', advancedExamRoutes)
 app.use('/api', analyticsRoutes)
 app.use('/api', securityRoutes)
 app.use('/api/results', resultsRoutes)
+app.use('/api', notificationRoutes)
 
-app.get('/health', (_, res) => res.json({ status: 'ok' }))
+app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
+app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
+
+// Prometheus metrics endpoint
+app.get('/metrics', async (_, res) => {
+  try {
+    res.set('Content-Type', register.contentType)
+    res.end(await register.metrics())
+  } catch (error) {
+    res.status(500).end(error.message)
+  }
+})
 
 // Global error handler
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -63,14 +131,39 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 4000
 
+// WebSocket connection handling
+io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.id}`)
+  
+  // Join user to their personal room
+  socket.on('join_user_room', (userId) => {
+    socket.join(`user_${userId}`)
+    console.log(`User ${userId} joined their room`)
+  })
+  
+  // Join teachers to their exam rooms
+  socket.on('join_exam_room', (examId) => {
+    socket.join(`exam_${examId}`)
+    console.log(`User joined exam room: ${examId}`)
+  })
+  
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id}`)
+  })
+})
+
+// Make io available to routes
+app.set('io', io)
+
 // Start server only after DB is ready
 async function start() {
   try {
     await initDb()
     console.log('Database connected')
 
-    const server = app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Backend running on ${PORT}`)
+      console.log(`WebSocket server running on ${PORT}`)
     })
 
     // Handle server errors

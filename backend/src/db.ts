@@ -58,6 +58,107 @@ async function ensureTablesExist(client: PoolClient) {
       status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'ongoing', 'completed')),
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS questions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      exam_id UUID REFERENCES exams(id) ON DELETE CASCADE,
+      question_text TEXT NOT NULL,
+      options JSONB,
+      correct_answer TEXT,
+      type VARCHAR(20) DEFAULT 'mcq' CHECK (type IN ('mcq', 'text', 'coding')),
+      points INT DEFAULT 1,
+      topic VARCHAR(100),
+      difficulty VARCHAR(10) DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard')),
+      explanation TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS exam_attempts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      exam_id UUID REFERENCES exams(id),
+      user_id UUID REFERENCES users(id),
+      started_at TIMESTAMP DEFAULT NOW(),
+      submitted_at TIMESTAMP,
+      score DECIMAL(5,2),
+      total_points INT DEFAULT 0,
+      percentage DECIMAL(5,2),
+      status VARCHAR(20) DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'submitted', 'graded')),
+      proctoring_session_id VARCHAR(255),
+      risk_score INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS answers (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      attempt_id UUID REFERENCES exam_attempts(id) ON DELETE CASCADE,
+      question_id UUID REFERENCES questions(id),
+      answer TEXT,
+      is_correct BOOLEAN,
+      points_earned DECIMAL(5,2) DEFAULT 0,
+      time_taken INT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(attempt_id, question_id)
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS results (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      student_id UUID REFERENCES users(id),
+      exam_id UUID REFERENCES exams(id),
+      attempt_id UUID REFERENCES exam_attempts(id),
+      score DECIMAL(5,2) NOT NULL,
+      total_points INT NOT NULL,
+      percentage DECIMAL(5,2) NOT NULL,
+      status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('completed', 'failed', 'passed')),
+      graded_at TIMESTAMP DEFAULT NOW(),
+      graded_by UUID REFERENCES users(id),
+      feedback TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS proctoring_logs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      attempt_id UUID REFERENCES exam_attempts(id),
+      event_type VARCHAR(50) NOT NULL,
+      event_data JSONB,
+      risk_score INT DEFAULT 0,
+      timestamp TIMESTAMP DEFAULT NOW(),
+      session_id VARCHAR(255)
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS analytics (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      student_id UUID REFERENCES users(id),
+      exam_id UUID REFERENCES exams(id),
+      topic VARCHAR(100),
+      total_questions INT DEFAULT 0,
+      correct_answers INT DEFAULT 0,
+      accuracy DECIMAL(5,2) DEFAULT 0,
+      avg_time_per_question INT DEFAULT 0,
+      difficulty VARCHAR(10),
+      last_updated TIMESTAMP DEFAULT NOW(),
+      UNIQUE(student_id, exam_id, topic)
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS leaderboard (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      student_id UUID REFERENCES users(id) UNIQUE,
+      total_score DECIMAL(10,2) DEFAULT 0,
+      exams_attempted INT DEFAULT 0,
+      average_score DECIMAL(5,2) DEFAULT 0,
+      rank INT DEFAULT 0,
+      last_updated TIMESTAMP DEFAULT NOW()
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS notifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES users(id),
+      title VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      type VARCHAR(50) DEFAULT 'info',
+      read BOOLEAN DEFAULT false,
+      data JSONB,
+      created_at TIMESTAMP DEFAULT NOW()
     )`
   ]
   
@@ -66,6 +167,37 @@ async function ensureTablesExist(client: PoolClient) {
   }
   
   console.log('Basic tables ensured')
+  
+  // Create indexes for better performance
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_exams_teacher_id ON exams(teacher_id)',
+    'CREATE INDEX IF NOT EXISTS idx_exams_status ON exams(status)',
+    'CREATE INDEX IF NOT EXISTS idx_questions_exam_id ON questions(exam_id)',
+    'CREATE INDEX IF NOT EXISTS idx_questions_topic ON questions(topic)',
+    'CREATE INDEX IF NOT EXISTS idx_exam_attempts_exam_id ON exam_attempts(exam_id)',
+    'CREATE INDEX IF NOT EXISTS idx_exam_attempts_user_id ON exam_attempts(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_answers_attempt_id ON answers(attempt_id)',
+    'CREATE INDEX IF NOT EXISTS idx_answers_question_id ON answers(question_id)',
+    'CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_results_exam_id ON results(exam_id)',
+    'CREATE INDEX IF NOT EXISTS idx_proctoring_logs_attempt_id ON proctoring_logs(attempt_id)',
+    'CREATE INDEX IF NOT EXISTS idx_analytics_student_id ON analytics(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_analytics_exam_id ON analytics(exam_id)',
+    'CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_leaderboard_student_id ON leaderboard(student_id)'
+  ]
+  
+  for (const index of indexes) {
+    try {
+      await client.query(index)
+    } catch (error) {
+      if (!error.message.includes('already exists')) {
+        console.warn('Index creation warning:', error.message)
+      }
+    }
+  }
+  
+  console.log('Database indexes created')
 }
 
 async function runMigrations(client: PoolClient) {

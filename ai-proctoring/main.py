@@ -1,8 +1,16 @@
-from fastapi import FastAPI, File, UploadFile, APIRouter
+from fastapi import FastAPI, File, UploadFile, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import cv2
 import numpy as np
 import io
+import json
+import time
+import uuid
+from typing import Dict, List, Optional
+from datetime import datetime
+import redis
+import os
 
 app = FastAPI(title="AI Proctoring Service")
 
@@ -12,13 +20,71 @@ app.add_middleware(
     allow_methods=["*"],
 )
 
+# Redis connection for session management
+try:
+    redis_client = redis.Redis(
+        host=os.getenv('REDIS_HOST', 'localhost'),
+        port=int(os.getenv('REDIS_PORT', 6379)),
+        decode_responses=True
+    )
+    redis_client.ping()
+except:
+    redis_client = None
+    print("Warning: Redis not available, using in-memory storage")
 
-def analyze_frame(image_bytes: bytes) -> dict:
-    """Analyze webcam frame for suspicious behavior."""
+# In-memory fallback for sessions
+sessions = {}
+
+class ProctoringSession(BaseModel):
+    session_id: str
+    attempt_id: str
+    student_id: str
+    start_time: datetime
+    risk_score: int = 0
+    events: List[Dict] = []
+    face_detection_count: int = 0
+    no_face_count: int = 0
+    multiple_faces_count: int = 0
+    tab_switch_count: int = 0
+    last_frame_time: Optional[float] = None
+
+class EventData(BaseModel):
+    event_type: str
+    timestamp: float
+    data: Dict
+
+class TabSwitchEvent(BaseModel):
+    attempt_id: str
+    timestamp: float
+    url: Optional[str] = None
+    reason: str
+
+def analyze_frame(image_bytes: bytes, session: ProctoringSession) -> dict:
+    """Analyze webcam frame for suspicious behavior with enhanced detection."""
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:
-        return {"face_detected": False, "cheating_probability": 0.0}
+        return {
+            "face_detected": False, 
+            "cheating_probability": 0.0,
+            "risk_score": 10,
+            "event_type": "no_frame"
+        }
+
+    current_time = time.time()
+    
+    # Check frame rate for suspicious activity
+    if session.last_frame_time:
+        time_diff = current_time - session.last_frame_time
+        if time_diff > 5.0:  # Gap of more than 5 seconds
+            session.risk_score += 5
+            session.events.append({
+                "type": "frame_gap",
+                "timestamp": current_time,
+                "data": {"gap_duration": time_diff}
+            })
+    
+    session.last_frame_time = current_time
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     face_cascade = cv2.CascadeClassifier(
@@ -26,38 +92,264 @@ def analyze_frame(image_bytes: bytes) -> dict:
     )
     faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
+    event_data = {
+        "timestamp": current_time,
+        "face_count": len(faces),
+        "frame_size": img.shape[:2]
+    }
+
     if len(faces) == 0:
-        return {"face_detected": False, "cheating_probability": 0.4}
-    if len(faces) > 1:
-        return {"face_detected": True, "multiple_faces": True, "cheating_probability": 0.6}
+        session.no_face_count += 1
+        session.risk_score += 3
+        cheating_probability = min(0.7, 0.3 + (session.no_face_count * 0.1))
+        event_type = "no_face_detected"
+    elif len(faces) > 1:
+        session.multiple_faces_count += 1
+        session.risk_score += 15
+        cheating_probability = min(0.9, 0.6 + (session.multiple_faces_count * 0.1))
+        event_type = "multiple_faces_detected"
+        event_data["face_positions"] = [(int(x), int(y), int(w), int(h)) for x, y, w, h in faces]
+    else:
+        session.face_detection_count += 1
+        x, y, w, h = faces[0]
+        face_area = w * h
+        frame_area = img.shape[0] * img.shape[1]
+        face_ratio = face_area / frame_area
 
-    x, y, w, h = faces[0]
-    face_area = w * h
-    frame_area = img.shape[0] * img.shape[1]
-    face_ratio = face_area / frame_area
+        # Analyze face position and size
+        if face_ratio < 0.05:  # Face too small/far
+            session.risk_score += 5
+            cheating_probability = 0.4
+            event_type = "face_too_small"
+        elif face_ratio > 0.3:  # Face too large/close
+            session.risk_score += 3
+            cheating_probability = 0.2
+            event_type = "face_too_large"
+        else:
+            cheating_probability = 0.1
+            event_type = "face_detected_normally"
+        
+        event_data["face_position"] = {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
+        event_data["face_ratio"] = face_ratio
 
-    if face_ratio < 0.05:
-        return {"face_detected": True, "cheating_probability": 0.5}
-    return {"face_detected": True, "cheating_probability": 0.1}
+    # Cap risk score at 100
+    session.risk_score = min(100, session.risk_score)
+    
+    session.events.append({
+        "type": event_type,
+        "timestamp": current_time,
+        "data": event_data
+    })
 
+    return {
+        "face_detected": len(faces) > 0,
+        "face_count": len(faces),
+        "cheating_probability": cheating_probability,
+        "risk_score": session.risk_score,
+        "event_type": event_type,
+        "session_stats": {
+            "face_detection_count": session.face_detection_count,
+            "no_face_count": session.no_face_count,
+            "multiple_faces_count": session.multiple_faces_count,
+            "tab_switch_count": session.tab_switch_count
+        }
+    }
 
-async def analyze(image: UploadFile = File(...)):
+def get_session(session_id: str) -> Optional[ProctoringSession]:
+    """Retrieve proctoring session from storage."""
+    if redis_client:
+        try:
+            data = redis_client.get(f"proctoring_session:{session_id}")
+            if data:
+                session_dict = json.loads(data)
+                return ProctoringSession(**session_dict)
+        except Exception as e:
+            print(f"Redis error: {e}")
+    
+    return sessions.get(session_id)
+
+def save_session(session: ProctoringSession):
+    """Save proctoring session to storage."""
+    if redis_client:
+        try:
+            redis_client.setex(
+                f"proctoring_session:{session.session_id}",
+                3600,  # 1 hour expiry
+                json.dumps(session.dict(), default=str)
+            )
+        except Exception as e:
+            print(f"Redis error: {e}")
+    
+    sessions[session.session_id] = session
+
+@app.post("/ai/session/start")
+async def start_session(attempt_id: str, student_id: str):
+    """Start a new proctoring session."""
+    session_id = str(uuid.uuid4())
+    session = ProctoringSession(
+        session_id=session_id,
+        attempt_id=attempt_id,
+        student_id=student_id,
+        start_time=datetime.now()
+    )
+    
+    save_session(session)
+    
+    return {
+        "session_id": session_id,
+        "status": "started",
+        "start_time": session.start_time.isoformat()
+    }
+
+@app.post("/ai/analyze")
+async def analyze_frame_endpoint(
+    session_id: str = None,
+    image: UploadFile = File(...)
+):
+    """Analyze webcam frame for suspicious behavior."""
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID required")
+    
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
     contents = await image.read()
-    result = analyze_frame(contents)
+    result = analyze_frame(contents, session)
+    
+    # Save updated session
+    save_session(session)
+    
     return result
 
+@app.post("/ai/tab-switch")
+async def handle_tab_switch(event: TabSwitchEvent):
+    """Handle tab switching event."""
+    # Find session by attempt_id
+    session = None
+    for s in sessions.values():
+        if s.attempt_id == event.attempt_id:
+            session = s
+            break
+    
+    if not session:
+        # Try Redis
+        if redis_client:
+            try:
+                keys = redis_client.keys("proctoring_session:*")
+                for key in keys:
+                    data = redis_client.get(key)
+                    if data:
+                        session_dict = json.loads(data)
+                        if session_dict.get("attempt_id") == event.attempt_id:
+                            session = ProctoringSession(**session_dict)
+                            break
+            except:
+                pass
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Update session with tab switch event
+    session.tab_switch_count += 1
+    session.risk_score += 10  # Tab switching is suspicious
+    
+    session.events.append({
+        "type": "tab_switch",
+        "timestamp": event.timestamp,
+        "data": {
+            "url": event.url,
+            "reason": event.reason
+        }
+    })
+    
+    save_session(session)
+    
+    return {
+        "status": "recorded",
+        "tab_switch_count": session.tab_switch_count,
+        "risk_score": session.risk_score
+    }
 
-router = APIRouter()
-router.add_api_route("/analyze", analyze, methods=["POST"])
-app.include_router(router, prefix="/ai")
-app.add_api_route("/analyze", analyze, methods=["POST"])
+@app.get("/ai/session/{session_id}/status")
+async def get_session_status(session_id: str):
+    """Get current session status and risk score."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {
+        "session_id": session.session_id,
+        "attempt_id": session.attempt_id,
+        "student_id": session.student_id,
+        "risk_score": session.risk_score,
+        "start_time": session.start_time.isoformat(),
+        "events_count": len(session.events),
+        "stats": {
+            "face_detection_count": session.face_detection_count,
+            "no_face_count": session.no_face_count,
+            "multiple_faces_count": session.multiple_faces_count,
+            "tab_switch_count": session.tab_switch_count
+        }
+    }
 
+@app.get("/ai/session/{session_id}/events")
+async def get_session_events(session_id: str, limit: int = 50):
+    """Get recent events for a session."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Return most recent events
+    recent_events = sorted(session.events, key=lambda x: x["timestamp"], reverse=True)[:limit]
+    
+    return {
+        "events": recent_events,
+        "total_events": len(session.events)
+    }
+
+@app.post("/ai/session/{session_id}/end")
+async def end_session(session_id: str):
+    """End proctoring session and return final report."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Generate final report
+    final_report = {
+        "session_id": session.session_id,
+        "attempt_id": session.attempt_id,
+        "student_id": session.student_id,
+        "start_time": session.start_time.isoformat(),
+        "end_time": datetime.now().isoformat(),
+        "final_risk_score": session.risk_score,
+        "risk_level": "low" if session.risk_score < 30 else "medium" if session.risk_score < 70 else "high",
+        "summary": {
+            "total_events": len(session.events),
+            "face_detection_count": session.face_detection_count,
+            "no_face_count": session.no_face_count,
+            "multiple_faces_count": session.multiple_faces_count,
+            "tab_switch_count": session.tab_switch_count
+        },
+        "events": session.events
+    }
+    
+    # Clean up session
+    if redis_client:
+        try:
+            redis_client.delete(f"proctoring_session:{session_id}")
+        except:
+            pass
+    
+    if session_id in sessions:
+        del sessions[session_id]
+    
+    return final_report
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
-
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
