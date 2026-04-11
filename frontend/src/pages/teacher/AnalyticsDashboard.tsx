@@ -12,9 +12,7 @@ import {
   Line,
   PieChart,
   Pie,
-  Cell,
-  Users,
-  TrendingUp
+  Cell
 } from 'recharts'
 import api from '../../api'
 import toast from 'react-hot-toast'
@@ -71,8 +69,7 @@ export default function AnalyticsDashboard() {
   const [progressData, setProgressData] = useState<ProgressData[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [analyticsData] = useState<any>(null)
-
+  
   useEffect(() => {
     fetchAnalyticsData()
   }, [])
@@ -328,7 +325,7 @@ export default function AnalyticsDashboard() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <TrendingUp className="h-12 w-12 text-green-500 mx-auto mb-4" />
+              <div className="text-green-500 text-4xl mb-4">✓</div>
               <p className="text-gray-600">Excellent! All topics are performing well.</p>
             </div>
           )}
