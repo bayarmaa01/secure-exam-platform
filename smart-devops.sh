@@ -111,6 +111,100 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ========================================
+#  SERVICE STARTUP FUNCTIONS
+# ========================================
+start_docker() {
+    log_info "Checking Docker service..."
+    
+    # Check if Docker is running
+    if ! docker info &> /dev/null; then
+        log_warning "Docker is not running, attempting to start..."
+        
+        # Try different methods to start Docker based on OS
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            # Linux
+            if command -v systemctl &> /dev/null; then
+                sudo systemctl start docker || {
+                    log_error "Failed to start Docker with systemctl"
+                    return 1
+                }
+            elif command -v service &> /dev/null; then
+                sudo service docker start || {
+                    log_error "Failed to start Docker with service"
+                    return 1
+                }
+            else
+                log_error "Cannot start Docker - no systemctl or service command found"
+                return 1
+            fi
+        elif [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            open -a Docker || {
+                log_error "Failed to start Docker Desktop on macOS"
+                return 1
+            }
+            # Wait for Docker to start
+            local retries=30
+            while [[ $retries -gt 0 ]] && ! docker info &> /dev/null; do
+                sleep 2
+                ((retries--))
+            done
+        elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+            # Windows
+            log_info "Please start Docker Desktop manually on Windows"
+            read -p "Press Enter when Docker is running..."
+        fi
+        
+        # Verify Docker is running
+        if docker info &> /dev/null; then
+            log_success "Docker is now running"
+        else
+            log_error "Docker failed to start"
+            return 1
+        fi
+    else
+        log_success "Docker is already running"
+    fi
+}
+
+start_minikube() {
+    log_info "Checking Minikube status..."
+    
+    local minikube_status=$(detect_minikube)
+    
+    case $minikube_status in
+        "not_installed")
+            log_error "Minikube is not installed. Please install Minikube first."
+            log_info "Install from: https://minikube.sigs.k8s.io/docs/start/"
+            return 1
+            ;;
+        "running")
+            log_success "Minikube is already running"
+            return 0
+            ;;
+        "stopped")
+            log_warning "Minikube is stopped, starting it..."
+            minikube start --cpus=4 --memory=8192 --disk-size=20g || {
+                log_error "Failed to start Minikube"
+                return 1
+            }
+            log_success "Minikube started successfully"
+            ;;
+    esac
+    
+    # Verify Minikube is running
+    if minikube status | grep -q "Running"; then
+        log_success "Minikube is ready"
+        # Set Docker environment
+        eval $(minikube docker-env)
+        log_success "Docker environment configured for Minikube"
+    else
+        log_error "Minikube failed to start properly"
+        return 1
+    fi
+}
+
+# ========================================
 #  DETECTION FUNCTIONS
 # ========================================
 detect_minikube() {
@@ -793,15 +887,17 @@ main() {
         return 0
     fi
     
-    # Setup Minikube if needed
-    if [[ "$(detect_minikube)" != "running" ]]; then
-        log_info "Starting Minikube..."
-        minikube start --cpus=4 --memory=8192 --disk-size=20g || {
-            log_error "Failed to start Minikube"
-            exit 1
-        }
-        log_success "Minikube started"
-    fi
+    # Start Docker automatically
+    start_docker || {
+        log_error "Docker startup failed"
+        exit 1
+    }
+    
+    # Start Minikube automatically
+    start_minikube || {
+        log_error "Minikube startup failed"
+        exit 1
+    }
     
     # Build images if needed
     build_images
