@@ -44,7 +44,7 @@ BACKEND_PORT=4005
 AI_PORT=5005
 GRAFANA_PORT=3002
 PROMETHEUS_PORT=9092
-ARGOCD_PORT=18080
+ARGOCD_PORT=18081
 
 # Docker images
 FRONTEND_IMAGE="${DOCKER_REGISTRY}/exam-platform-frontend:latest"
@@ -489,7 +489,13 @@ deploy_manifests() {
         create_backend_manifest
     fi
     
-    if [[ -f "k8s/frontend.yaml" ]]; then
+    # Deploy frontend
+    if [[ -f "k8s/frontend-fixed.yaml" ]]; then
+        kubectl apply -f k8s/frontend-fixed.yaml || {
+            log_error "Failed to deploy frontend"
+            return 1
+        }
+    elif [[ -f "k8s/frontend.yaml" ]]; then
         kubectl apply -f k8s/frontend.yaml || {
             log_error "Failed to deploy frontend"
             return 1
@@ -510,9 +516,9 @@ deploy_manifests() {
     fi
     
     # Deploy monitoring (optional but recommended)
-    if [[ -f "k8s/grafana-working.yaml" ]]; then
-        kubectl apply -f k8s/grafana-working.yaml || {
-            log_warning "Failed to deploy working grafana, creating basic grafana deployment"
+    if [[ -f "k8s/grafana-final.yaml" ]]; then
+        kubectl apply -f k8s/grafana-final.yaml || {
+            log_warning "Failed to deploy final grafana, creating basic grafana deployment"
             create_grafana_manifest
         }
     elif [[ -f "k8s/grafana.yaml" ]]; then
@@ -1233,7 +1239,7 @@ health_check() {
     fi
     
     # Check prometheus
-    if ! check_endpoint "http://localhost:${PROMETHEUS_PORT}/-/healthy"; then
+    if ! check_endpoint "http://localhost:${PROMETHEUS_PORT}/metrics"; then
         all_healthy=false
     fi
     
@@ -1410,7 +1416,7 @@ main() {
         echo ""
         echo "Prometheus:  http://localhost:${PROMETHEUS_PORT}"
         echo ""
-        echo "ArgoCD:      http://localhost:${ARGOCD_PORT}"
+        echo "ArgoCD:      http://localhost:18081"
         echo "Username:    admin"
         echo "Password:    $argocd_password"
         echo "----------------------------------------"
