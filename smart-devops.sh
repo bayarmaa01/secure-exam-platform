@@ -44,7 +44,7 @@ BACKEND_PORT=4005
 AI_PORT=5005
 GRAFANA_PORT=3002
 PROMETHEUS_PORT=9092
-ARGOCD_PORT=18081
+ARGOCD_PORT=18080
 
 # Docker images
 FRONTEND_IMAGE="${DOCKER_REGISTRY}/exam-platform-frontend:latest"
@@ -72,7 +72,7 @@ show_usage() {
     echo "  AI:          http://localhost:${AI_PORT}"
     echo "  Grafana:      http://localhost:${GRAFANA_PORT}"
     echo "  Prometheus:   http://localhost:${PROMETHEUS_PORT}"
-    echo "  ArgoCD:       https://localhost:${ARGOCD_PORT}"
+    echo "  ArgoCD:       http://localhost:${ARGOCD_PORT}"
 }
 
 # Parse arguments
@@ -1233,7 +1233,7 @@ health_check() {
     fi
     
     # Check argocd
-    if ! check_endpoint "https://localhost:${ARGOCD_PORT}"; then
+    if ! check_endpoint "http://localhost:${ARGOCD_PORT}"; then
         all_healthy=false
     fi
     
@@ -1405,7 +1405,7 @@ main() {
         echo ""
         echo "Prometheus:  http://localhost:${PROMETHEUS_PORT}"
         echo ""
-        echo "ArgoCD:      https://localhost:${ARGOCD_PORT}"
+        echo "ArgoCD:      http://localhost:${ARGOCD_PORT}"
         echo "Username:    admin"
         echo "Password:    $argocd_password"
         echo "----------------------------------------"
