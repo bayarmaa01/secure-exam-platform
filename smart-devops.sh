@@ -228,6 +228,24 @@ start_docker() {
     fi
 }
 
+detect_system_resources() {
+    local total_mem_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    local total_mem_mb=$((total_mem_kb / 1024))
+    local available_mem_mb=$(free -m | awk 'NR==2{print $7}')
+    local cpu_count=$(nproc)
+    
+    # Calculate optimal Minikube resources (use 70% of available memory)
+    local minikube_memory=$((available_mem_mb * 70 / 100))
+    local minikube_cpus=$((cpu_count > 2 ? 2 : 1))
+    
+    # Ensure minimum requirements
+    if [[ $minikube_memory -lt 2048 ]]; then
+        minikube_memory=2048
+    fi
+    
+    echo "${minikube_memory} ${minikube_cpus}"
+}
+
 start_minikube() {
     log_info "Checking Minikube status..."
     
@@ -245,7 +263,14 @@ start_minikube() {
             ;;
         "stopped")
             log_warning "Minikube is stopped, starting it..."
-            minikube start --cpus=4 --memory=8192 --disk-size=20g || {
+            
+            # Detect system resources and configure Minikube accordingly
+            local resources=($(detect_system_resources))
+            local memory=${resources[0]}
+            local cpus=${resources[1]}
+            
+            log_info "Starting Minikube with ${memory}MB memory and ${cpus} CPUs..."
+            minikube start --cpus=$cpus --memory=$memory --disk-size=20g || {
                 log_error "Failed to start Minikube"
                 return 1
             }
