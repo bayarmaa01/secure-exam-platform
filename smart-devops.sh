@@ -497,14 +497,14 @@ deploy_manifests() {
     
     # Deploy frontend with versioned image
     if [[ -f "k8s/frontend.yaml" ]]; then
-        # Update deployment with versioned image
-        kubectl patch deployment frontend -n $NAMESPACE -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"frontend\",\"image\":\"$FRONTEND_IMAGE\"}]}}}" || {
-            log_warning "Failed to patch frontend with versioned image, using original"
-            kubectl apply -f k8s/frontend.yaml || {
-                log_error "Failed to deploy frontend"
-                return 1
-            }
+        # Apply original deployment first
+        kubectl apply -f k8s/frontend.yaml || {
+            log_error "Failed to deploy frontend"
+            return 1
         }
+        # Force update with versioned image
+        kubectl set image deployment/frontend frontend=$FRONTEND_IMAGE -n $NAMESPACE
+        kubectl rollout restart deployment/frontend -n $NAMESPACE
         log_success "Frontend deployed with version v${VERSION}"
     else
         log_warning "k8s/frontend.yaml not found, creating basic frontend deployment"
@@ -512,14 +512,14 @@ deploy_manifests() {
     fi
     
     if [[ -f "k8s/ai-proctoring.yaml" ]]; then
-        # Update deployment with versioned image
-        kubectl patch deployment ai-proctoring -n $NAMESPACE -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"ai-proctoring\",\"image\":\"$AI_IMAGE\"}]}}}" || {
-            log_warning "Failed to patch AI with versioned image, using original"
-            kubectl apply -f k8s/ai-proctoring.yaml || {
-                log_error "Failed to deploy AI service"
-                return 1
-            }
+        # Apply original deployment first
+        kubectl apply -f k8s/ai-proctoring.yaml || {
+            log_error "Failed to deploy AI service"
+            return 1
         }
+        # Force update with versioned image
+        kubectl set image deployment/ai-proctoring ai-proctoring=$AI_IMAGE -n $NAMESPACE
+        kubectl rollout restart deployment/ai-proctoring -n $NAMESPACE
         log_success "AI service deployed with version v${VERSION}"
     else
         log_warning "k8s/ai-proctoring.yaml not found, creating basic AI deployment"
