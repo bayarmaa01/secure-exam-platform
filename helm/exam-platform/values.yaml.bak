@@ -1,0 +1,39 @@
+frontend:
+  replicaCount: 2
+  image:
+    repository: exam-platform/frontend
+    tag: latest
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+backend:
+  replicaCount: 2
+  image:
+    repository: exam-platform/backend
+    tag: latest
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+aiProctoring:
+  replicaCount: 2
+  image:
+    repository: exam-platform/ai-proctoring
+    tag: latest
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+postgres:
+  enabled: true
+
+redis:
+  enabled: true
+
+ingress:
+  enabled: true
+  host: exam-platform.local

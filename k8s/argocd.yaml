@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-server
+  template:
+    metadata:
+      labels:
+        app: argocd-server
+    spec:
+      containers:
+      - name: argocd-server
+        image: argoproj/argocd:latest
+        command:
+        - argocd-server
+        - --insecure
+        env:
+        - name: ARGOCD_SERVER_INSECURE
+          value: "true"
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: argocd-server-tls
+          mountPath: /app/config/server/tls
+      volumes:
+      - name: argocd-server-tls
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  selector:
+    app: argocd-server
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-initial-admin-secret
+  namespace: argocd
+type: Opaque
+data:
+  password: YWRtaW4= # admin

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: exam-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: bayarmaa/exam-platform-frontend:latest
+        env:
+        - name: VITE_API_URL
+          value: http://localhost:4005/api
+        - name: VITE_AI_URL
+          value: http://localhost:5005
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: exam-platform
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 80
