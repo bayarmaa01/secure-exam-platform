@@ -46,10 +46,11 @@ GRAFANA_PORT=3002
 PROMETHEUS_PORT=9092
 ARGOCD_PORT=18081
 
-# Docker images
-FRONTEND_IMAGE="${DOCKER_REGISTRY}/exam-platform-frontend:latest"
-BACKEND_IMAGE="${DOCKER_REGISTRY}/exam-platform-backend:latest"
-AI_IMAGE="${DOCKER_REGISTRY}/exam-platform-ai-proctoring:latest"
+# Auto-versioning with timestamp
+VERSION=$(date +%Y%m%d-%H%M%S)
+FRONTEND_IMAGE="${DOCKER_REGISTRY}/exam-platform-frontend:v${VERSION}"
+BACKEND_IMAGE="${DOCKER_REGISTRY}/exam-platform-backend:v${VERSION}"
+AI_IMAGE="${DOCKER_REGISTRY}/exam-platform-ai-proctoring:v${VERSION}"
 
 # ========================================
 #  UTILITY FUNCTIONS
@@ -367,25 +368,25 @@ build_images() {
     log_info "Building Docker images..."
     
     # Build frontend
-    docker build -t $FRONTEND_IMAGE ./frontend || {
+    docker build --no-cache -t $FRONTEND_IMAGE ./frontend || {
         log_error "Frontend build failed"
         return 1
     }
-    log_success "Frontend built"
+    log_success "Frontend built with version v${VERSION}"
     
     # Build backend
-    docker build -t $BACKEND_IMAGE ./backend || {
+    docker build --no-cache -t $BACKEND_IMAGE ./backend || {
         log_error "Backend build failed"
         return 1
     }
-    log_success "Backend built"
+    log_success "Backend built with version v${VERSION}"
     
     # Build AI
-    docker build -t $AI_IMAGE ./ai-proctoring || {
+    docker build --no-cache -t $AI_IMAGE ./ai-proctoring || {
         log_error "AI build failed"
         return 1
     }
-    log_success "AI built"
+    log_success "AI built with version v${VERSION}"
     
     log_success "All images built successfully"
 }
@@ -489,22 +490,32 @@ deploy_manifests() {
         create_backend_manifest
     fi
     
-    # Deploy frontend
+    # Deploy frontend with versioned image
     if [[ -f "k8s/frontend.yaml" ]]; then
-        kubectl apply -f k8s/frontend.yaml || {
-            log_error "Failed to deploy frontend"
-            return 1
+        # Update deployment with versioned image
+        kubectl patch deployment frontend -n $NAMESPACE -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"frontend\",\"image\":\"$FRONTEND_IMAGE\"}]}}}" || {
+            log_warning "Failed to patch frontend with versioned image, using original"
+            kubectl apply -f k8s/frontend.yaml || {
+                log_error "Failed to deploy frontend"
+                return 1
+            }
         }
+        log_success "Frontend deployed with version v${VERSION}"
     else
         log_warning "k8s/frontend.yaml not found, creating basic frontend deployment"
         create_frontend_manifest
     fi
     
     if [[ -f "k8s/ai-proctoring.yaml" ]]; then
-        kubectl apply -f k8s/ai-proctoring.yaml || {
-            log_error "Failed to deploy AI service"
-            return 1
+        # Update deployment with versioned image
+        kubectl patch deployment ai-proctoring -n $NAMESPACE -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"ai-proctoring\",\"image\":\"$AI_IMAGE\"}]}}}" || {
+            log_warning "Failed to patch AI with versioned image, using original"
+            kubectl apply -f k8s/ai-proctoring.yaml || {
+                log_error "Failed to deploy AI service"
+                return 1
+            }
         }
+        log_success "AI service deployed with version v${VERSION}"
     else
         log_warning "k8s/ai-proctoring.yaml not found, creating basic AI deployment"
         create_ai_manifest
