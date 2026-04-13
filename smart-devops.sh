@@ -481,10 +481,15 @@ deploy_manifests() {
     
     # Deploy applications
     if [[ -f "k8s/backend.yaml" ]]; then
-        kubectl apply -f k8s/backend.yaml || {
-            log_error "Failed to deploy backend"
-            return 1
+        # Update deployment with versioned image
+        kubectl patch deployment backend -n $NAMESPACE -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"backend\",\"image\":\"$BACKEND_IMAGE\"}]}}}" || {
+            log_warning "Failed to patch backend with versioned image, using original"
+            kubectl apply -f k8s/backend.yaml || {
+                log_error "Failed to deploy backend"
+                return 1
+            }
         }
+        log_success "Backend deployed with version v${VERSION}"
     else
         log_warning "k8s/backend.yaml not found, creating basic backend deployment"
         create_backend_manifest
