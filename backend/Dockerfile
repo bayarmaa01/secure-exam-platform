@@ -4,7 +4,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci --no-cache && npm cache clean --force
 
 COPY . .
 RUN npm run build
@@ -15,7 +15,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --omit=dev curl
+RUN npm ci --no-cache && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
