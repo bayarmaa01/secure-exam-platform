@@ -490,12 +490,7 @@ deploy_manifests() {
     fi
     
     # Deploy frontend
-    if [[ -f "k8s/frontend-fixed.yaml" ]]; then
-        kubectl apply -f k8s/frontend-fixed.yaml || {
-            log_error "Failed to deploy frontend"
-            return 1
-        }
-    elif [[ -f "k8s/frontend.yaml" ]]; then
+    if [[ -f "k8s/frontend.yaml" ]]; then
         kubectl apply -f k8s/frontend.yaml || {
             log_error "Failed to deploy frontend"
             return 1
@@ -516,12 +511,7 @@ deploy_manifests() {
     fi
     
     # Deploy monitoring (optional but recommended)
-    if [[ -f "k8s/grafana-final.yaml" ]]; then
-        kubectl apply -f k8s/grafana-final.yaml || {
-            log_warning "Failed to deploy final grafana, creating basic grafana deployment"
-            create_grafana_manifest
-        }
-    elif [[ -f "k8s/grafana.yaml" ]]; then
+    if [[ -f "k8s/grafana.yaml" ]]; then
         kubectl apply -f k8s/grafana.yaml || {
             log_warning "Failed to deploy grafana, creating basic grafana deployment"
             create_grafana_manifest
@@ -531,12 +521,7 @@ deploy_manifests() {
         create_grafana_manifest
     fi
     
-    if [[ -f "k8s/prometheus-working.yaml" ]]; then
-        kubectl apply -f k8s/prometheus-working.yaml || {
-            log_warning "Failed to deploy working prometheus, creating basic prometheus deployment"
-            create_prometheus_manifest
-        }
-    elif [[ -f "k8s/prometheus.yaml" ]]; then
+    if [[ -f "k8s/prometheus.yaml" ]]; then
         kubectl apply -f k8s/prometheus.yaml || {
             log_warning "Failed to deploy prometheus, creating basic prometheus deployment"
             create_prometheus_manifest
