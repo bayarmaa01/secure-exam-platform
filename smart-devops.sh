@@ -39,6 +39,16 @@ retry_cmd() {
   done
 }
 
+enable_anonymous_docker_config() {
+  local anon_dir="${ROOT_DIR}/.docker-anon"
+  mkdir -p "${anon_dir}"
+  if [ ! -f "${anon_dir}/config.json" ]; then
+    printf '{ "auths": {} }\n' > "${anon_dir}/config.json"
+  fi
+  export DOCKER_CONFIG="${anon_dir}"
+  log "Using anonymous Docker config fallback."
+}
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     log "Missing required command: $1"
@@ -151,7 +161,16 @@ build_images_if_needed() {
   fi
 
   if [ "${MODE}" = "auto" ]; then
-    log "Local build failed in auto mode (likely network)."
+    log "Local build failed in auto mode. Trying anonymous Docker config fallback..."
+    enable_anonymous_docker_config
+    if retry_cmd 2 docker build -t "${FRONTEND_IMAGE}" ./frontend \
+      && retry_cmd 2 docker build -t "${BACKEND_IMAGE}" ./backend \
+      && retry_cmd 2 docker build -t "${AI_IMAGE}" ./ai-proctoring; then
+      log "Docker image builds completed with anonymous config."
+      return 0
+    fi
+
+    log "Local build still failed after anonymous fallback."
     use_prebuilt_images
     return 0
   fi
