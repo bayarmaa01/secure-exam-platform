@@ -57,7 +57,23 @@ wait_for_rollout() {
   local kind="$1"
   local name="$2"
   local ns="$3"
-  kubectl rollout status "${kind}/${name}" -n "${ns}" --timeout=240s
+  local attempt=1
+  local max_attempts=3
+
+  while [ "${attempt}" -le "${max_attempts}" ]; do
+    if kubectl rollout status "${kind}/${name}" -n "${ns}" --timeout=600s; then
+      return 0
+    fi
+
+    log "Rollout wait failed for ${kind}/${name} in ${ns} (attempt ${attempt}/${max_attempts})."
+    kubectl describe "${kind}" "${name}" -n "${ns}" || true
+    kubectl rollout restart "${kind}/${name}" -n "${ns}" || true
+    attempt=$((attempt + 1))
+    sleep 10
+  done
+
+  log "Rollout failed for ${kind}/${name} in namespace ${ns}."
+  exit 1
 }
 
 start_port_forward() {
@@ -174,6 +190,9 @@ main() {
   kubectl set image deployment/frontend frontend="${FRONTEND_IMAGE}" -n "${NAMESPACE}"
   kubectl set image deployment/backend backend="${BACKEND_IMAGE}" -n "${NAMESPACE}"
   kubectl set image deployment/ai-proctoring ai-proctoring="${AI_IMAGE}" -n "${NAMESPACE}"
+  kubectl rollout restart deployment/frontend -n "${NAMESPACE}"
+  kubectl rollout restart deployment/backend -n "${NAMESPACE}"
+  kubectl rollout restart deployment/ai-proctoring -n "${NAMESPACE}"
 
   log "Waiting for pods..."
   wait_for_rollout deployment postgres "${NAMESPACE}"
