@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/bayarmaa01/secure-exam-platform.git
-    path: k8s
+    path: k8s/platform
     targetRevision: main
   destination:
     server: https://kubernetes.default.svc

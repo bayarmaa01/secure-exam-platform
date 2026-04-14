@@ -201,33 +201,31 @@ jobs:
         run: |
           # Set image tag from short commit SHA
           IMAGE_TAG=${{ github.sha }}
-          
-          # Update values.yaml with new image tags
-          if [ -f "helm/exam-platform/values.yaml" ]; then
-            # Update frontend image tag
-            sed -i "s/frontend.tag: .*/frontend.tag: ${IMAGE_TAG}/g" helm/exam-platform/values.yaml
-            
-            # Update backend image tag  
-            sed -i "s/backend.tag: .*/backend.tag: ${IMAGE_TAG}/g" helm/exam-platform/values.yaml
-            
-            # Update AI service image tag
-            sed -i "s/ai.tag: .*/ai.tag: ${IMAGE_TAG}/g" helm/exam-platform/values.yaml
-            
-            # Update image repository if needed
-            sed -i "s|frontend.repository: .*|frontend.repository: ${{ env.IMAGE_PREFIX }}/exam-frontend|g" helm/exam-platform/values.yaml
-            sed -i "s|backend.repository: .*|backend.repository: ${{ env.IMAGE_PREFIX }}/exam-backend|g" helm/exam-platform/values.yaml
-            sed -i "s|ai.repository: .*|ai.repository: ${{ env.IMAGE_PREFIX }}/exam-ai-proctor|g" helm/exam-platform/values.yaml
-            
-            echo "Updated Helm values.yaml with new image tags"
-          else
-            echo "Helm values.yaml not found at helm/exam-platform/values.yaml"
+          VALUES_PATH="helm/exam-platform/values.yaml"
+          if [ ! -f "${VALUES_PATH}" ]; then
+            echo "Helm values.yaml not found at ${VALUES_PATH}"
             exit 1
           fi
 
+          awk -v prefix="${{ env.IMAGE_PREFIX }}" -v tag="${IMAGE_TAG}" '
+          /^frontend:/ {section="frontend"; print; next}
+          /^backend:/ {section="backend"; print; next}
+          /^aiProctoring:/ {section="aiProctoring"; print; next}
+          /^[a-zA-Z]/ && $0 !~ /:$/ {section=""}
+          /repository:/ && section=="frontend" {$0="    repository: " prefix "/exam-frontend"}
+          /tag:/ && section=="frontend" {$0="    tag: " tag}
+          /repository:/ && section=="backend" {$0="    repository: " prefix "/exam-backend"}
+          /tag:/ && section=="backend" {$0="    tag: " tag}
+          /repository:/ && section=="aiProctoring" {$0="    repository: " prefix "/exam-ai-proctoring"}
+          /tag:/ && section=="aiProctoring" {$0="    tag: " tag}
+          {print}
+          ' "${VALUES_PATH}" > "${VALUES_PATH}.tmp" && mv "${VALUES_PATH}.tmp" "${VALUES_PATH}"
+          echo "Updated Helm values.yaml with new image tags"
+
       - name: Commit and Push Changes
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           
           # Add updated values.yaml
           git add helm/exam-platform/values.yaml

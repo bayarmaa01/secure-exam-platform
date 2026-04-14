@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, APIRouter, HTTPException
+from fastapi import FastAPI, File, UploadFile, APIRouter, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import cv2
@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import redis
 import os
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 app = FastAPI(title="AI Proctoring Service")
 
@@ -34,6 +35,10 @@ except:
 
 # In-memory fallback for sessions
 sessions = {}
+
+AI_ANALYZE_TOTAL = Counter("ai_analyze_requests_total", "Total AI frame analysis requests")
+AI_TAB_SWITCH_TOTAL = Counter("ai_tab_switch_events_total", "Total tab-switch events")
+AI_RISK_SCORE = Gauge("ai_current_risk_score", "Current proctoring risk score", ["session_id"])
 
 class ProctoringSession(BaseModel):
     session_id: str
@@ -215,10 +220,12 @@ async def analyze_frame_endpoint(
         raise HTTPException(status_code=404, detail="Session not found")
     
     contents = await image.read()
+    AI_ANALYZE_TOTAL.inc()
     result = analyze_frame(contents, session)
     
     # Save updated session
     save_session(session)
+    AI_RISK_SCORE.labels(session.session_id).set(session.risk_score)
     
     return result
 
@@ -253,6 +260,7 @@ async def handle_tab_switch(event: TabSwitchEvent):
     # Update session with tab switch event
     session.tab_switch_count += 1
     session.risk_score += 10  # Tab switching is suspicious
+    AI_TAB_SWITCH_TOTAL.inc()
     
     session.events.append({
         "type": "tab_switch",
@@ -264,6 +272,7 @@ async def handle_tab_switch(event: TabSwitchEvent):
     })
     
     save_session(session)
+    AI_RISK_SCORE.labels(session.session_id).set(session.risk_score)
     
     return {
         "status": "recorded",
@@ -349,6 +358,10 @@ async def end_session(session_id: str):
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+@app.get("/metrics")
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 if __name__ == "__main__":
     import uvicorn
