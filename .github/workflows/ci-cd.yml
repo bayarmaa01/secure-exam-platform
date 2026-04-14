@@ -3,8 +3,12 @@ name: Secure Exam Platform Enterprise CI/CD
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'helm/exam-platform/values.yaml'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'helm/exam-platform/values.yaml'
 
 env:
   REGISTRY: docker.io
@@ -184,6 +188,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: docker-build
     name: Update Helm Values
+    if: github.event_name == 'push' && github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, 'Update Helm values for deployment')
 
     steps:
 
@@ -234,7 +239,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit - image tags already up to date"
           else
-            git commit -m "🚀 Update Helm values for deployment ${IMAGE_TAG}"
+            git commit -m "🚀 Update Helm values for deployment ${IMAGE_TAG} [skip ci]"
             git push
             echo "Helm values updated and pushed successfully"
           fi

@@ -8,6 +8,9 @@ ARGO_NS="argocd"
 FRONTEND_IMAGE="exam-platform-frontend:local"
 BACKEND_IMAGE="exam-platform-backend:local"
 AI_IMAGE="exam-platform-ai-proctoring:local"
+PREBUILT_FRONTEND_IMAGE="bayarmaa/exam-platform-frontend:latest"
+PREBUILT_BACKEND_IMAGE="bayarmaa/exam-platform-backend:latest"
+PREBUILT_AI_IMAGE="bayarmaa/exam-platform-ai-proctoring:latest"
 
 FRONTEND_PORT=3005
 BACKEND_PORT=4005
@@ -19,6 +22,7 @@ ARGO_PORT=18081
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_DIR="${ROOT_DIR}/.smart-devops-pids"
 mkdir -p "${PID_DIR}"
+MODE="${1:-auto}"
 
 log() { printf '%s\n' "$1"; }
 
@@ -67,22 +71,91 @@ start_port_forward() {
   echo "${pid}" > "${PID_DIR}/${ns}-${svc}.pid"
 }
 
+show_usage() {
+  log "Usage: ./smart-devops.sh [auto|fast|full]"
+  log "  auto (default): start cluster, smart rebuild/deploy"
+  log "  fast: skip docker builds, reuse existing images"
+  log "  full: delete minikube profile, recreate everything"
+}
+
+validate_mode() {
+  case "${MODE}" in
+    auto|fast|full) ;;
+    -h|--help|help)
+      show_usage
+      exit 0
+      ;;
+    *)
+      log "Invalid mode: ${MODE}"
+      show_usage
+      exit 1
+      ;;
+  esac
+}
+
+prepare_minikube() {
+  if [ "${MODE}" = "full" ]; then
+    log "Full mode: deleting existing Minikube cluster..."
+    minikube delete || true
+  fi
+
+  if [ "${MODE}" = "auto" ]; then
+    log "Auto mode: starting Minikube with reuse-friendly settings..."
+    minikube start --driver=docker
+  else
+    log "Starting Minikube..."
+    minikube start --driver=docker
+  fi
+
+  eval "$(minikube docker-env)"
+}
+
+use_prebuilt_images() {
+  log "Falling back to prebuilt images..."
+  retry_cmd 3 docker pull "${PREBUILT_FRONTEND_IMAGE}"
+  retry_cmd 3 docker pull "${PREBUILT_BACKEND_IMAGE}"
+  retry_cmd 3 docker pull "${PREBUILT_AI_IMAGE}"
+  FRONTEND_IMAGE="${PREBUILT_FRONTEND_IMAGE}"
+  BACKEND_IMAGE="${PREBUILT_BACKEND_IMAGE}"
+  AI_IMAGE="${PREBUILT_AI_IMAGE}"
+}
+
+build_images_if_needed() {
+  if [ "${MODE}" = "fast" ]; then
+    log "Fast mode: skipping image builds."
+    return 0
+  fi
+
+  log "Building Docker images..."
+  if retry_cmd 3 docker build -t "${FRONTEND_IMAGE}" ./frontend \
+    && retry_cmd 3 docker build -t "${BACKEND_IMAGE}" ./backend \
+    && retry_cmd 3 docker build -t "${AI_IMAGE}" ./ai-proctoring; then
+    log "Docker image builds completed."
+    return 0
+  fi
+
+  if [ "${MODE}" = "auto" ]; then
+    log "Local build failed in auto mode (likely network)."
+    use_prebuilt_images
+    return 0
+  fi
+
+  log "Build failed."
+  exit 1
+}
+
 main() {
   cd "${ROOT_DIR}"
+  validate_mode
 
   require_cmd minikube
   require_cmd kubectl
   require_cmd docker
   require_cmd curl
 
-  log "Starting Minikube..."
-  minikube start --cpus=2 --memory=4096 --driver=docker
-  eval "$(minikube docker-env)"
+  prepare_minikube
 
-  log "Building Docker images..."
-  retry_cmd 3 docker build -t "${FRONTEND_IMAGE}" ./frontend
-  retry_cmd 3 docker build -t "${BACKEND_IMAGE}" ./backend
-  retry_cmd 3 docker build -t "${AI_IMAGE}" ./ai-proctoring
+  build_images_if_needed
 
   log "Ensuring namespaces..."
   kubectl apply -f k8s/namespace.yaml
