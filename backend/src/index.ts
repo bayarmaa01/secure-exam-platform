@@ -49,17 +49,46 @@ const app = express()
 const server = createServer(app)
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "*",
-    methods: ["GET", "POST"]
+    origin: [
+      process.env.FRONTEND_URL || 'http://localhost:3005',
+      ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
+    ].filter(Boolean),
+    methods: ["GET", "POST"],
+    credentials: true
   }
 })
 
 // 🔥 IMPORTANT FIX (for proxies like Docker / Nginx)
 app.set('trust proxy', 1)
 
+// CORS Configuration
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:3005',
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
+].filter(Boolean)
+
+// CORS middleware configuration
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true)
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'), false)
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}
+
 // Middlewares
 app.use(helmet())
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*', credentials: true }))
+app.use(cors(corsOptions))
 app.use(express.json({ limit: '10mb' }))
 
 // Request logging and metrics middleware

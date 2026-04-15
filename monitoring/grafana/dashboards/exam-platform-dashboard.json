@@ -11,11 +11,11 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "up{job=\"exam-backend\"}",
+            "expr": "up{job=\"backend\"}",
             "legendFormat": "Backend"
           },
           {
-            "expr": "up{job=\"exam-ai-proctoring\"}",
+            "expr": "up{job=\"ai-proctoring\"}",
             "legendFormat": "AI Proctoring"
           }
         ],
@@ -81,6 +81,57 @@
           "w": 24,
           "x": 0,
           "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "AI Analysis Requests",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ai_analyze_requests_total[5m])",
+            "legendFormat": "Analysis Rate"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 5,
+        "title": "Tab Switch Events",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ai_tab_switch_events_total[5m])",
+            "legendFormat": "Tab Switch Rate"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        }
+      },
+      {
+        "id": 6,
+        "title": "Current Risk Scores",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "ai_current_risk_score",
+            "legendFormat": "Session {{session_id}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 24
         }
       }
     ],
