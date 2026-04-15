@@ -4,7 +4,7 @@ import { authService, User } from '../api/auth'
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<User>
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<User>
   register: (email: string, password: string, name: string, role?: 'student' | 'teacher') => Promise<User>
   logout: () => void
   refreshToken: () => Promise<void>
