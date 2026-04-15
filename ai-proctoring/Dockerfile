@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender1 \
     libgomp1 \
+    libxi6 \
+    libxtst6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
