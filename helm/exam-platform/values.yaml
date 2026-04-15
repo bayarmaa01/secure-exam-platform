@@ -2,7 +2,7 @@ frontend:
   replicaCount: 2
   image:
     repository: bayarmaa/exam-frontend
-    tag: 70cab2e5e44ae4ba9099ed31fb2a40f6bbf651cc
+    tag: c82560d687b8dbca7396611651ec12da87bc1be1
   resources:
     limits:
       cpu: 500m
@@ -12,7 +12,7 @@ backend:
   replicaCount: 2
   image:
     repository: bayarmaa/exam-backend
-    tag: 70cab2e5e44ae4ba9099ed31fb2a40f6bbf651cc
+    tag: c82560d687b8dbca7396611651ec12da87bc1be1
   resources:
     limits:
       cpu: 1000m
@@ -22,7 +22,7 @@ aiProctoring:
   replicaCount: 2
   image:
     repository: bayarmaa/exam-ai-proctoring
-    tag: 70cab2e5e44ae4ba9099ed31fb2a40f6bbf651cc
+    tag: c82560d687b8dbca7396611651ec12da87bc1be1
   resources:
     limits:
       cpu: 500m
