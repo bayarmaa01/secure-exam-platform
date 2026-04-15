@@ -77,9 +77,12 @@ router.post(
         }
 
         try {
+          // Use UPSERT to handle duplicate tokens gracefully
           await pool.query(
             `INSERT INTO refresh_tokens (token, user_id, expires_at)
-             VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
+             VALUES ($1, $2, NOW() + INTERVAL '7 days')
+             ON CONFLICT (token) DO UPDATE SET 
+             expires_at = NOW() + INTERVAL '7 days'`,
             [refreshToken, user.id]
           )
         } catch (tokenError) {
