@@ -23,63 +23,63 @@ router.post(
         return res.status(400).json({ errors: errors.array() })
       }
 
-      const { email, password } = req.body
-
-      let user: any = null
       try {
+        const { email, password } = req.body
+        let user: any = null
+
         const r = await pool.query('SELECT * FROM users WHERE email = $1', [email])
         user = r.rows[0]
+
+        // Prevent bcrypt crash
+        if (!user || !user.password_hash) {
+          return res.status(401).json({ message: 'Invalid credentials' })
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password_hash)
+
+        if (!isMatch) {
+          return res.status(401).json({ message: 'Invalid credentials' })
+        }
+
+        const accessToken = jwt.sign(
+          { userId: user.id, email: user.email, role: user.role },
+          secret,
+          { expiresIn: '15m' }
+        )
+
+        const refreshToken = jwt.sign(
+          { userId: user.id },
+          refreshSecret,
+          { expiresIn: '7d' }
+        )
+
+        await pool.query(
+          `INSERT INTO refresh_tokens (token, user_id, expires_at)
+           VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
+          [refreshToken, user.id]
+        )
+
+        return res.json({
+          accessToken,
+          refreshToken,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role
+          }
+        })
       } catch (dbError) {
         console.error('Database query error:', dbError)
         return res.status(500).json({ message: 'Database error' })
       }
-
-      // Prevent bcrypt crash
-      if (!user || !user.password_hash) {
-        return res.status(401).json({ message: 'Invalid credentials' })
-      }
-
-      const isMatch = await bcrypt.compare(password, user.password_hash)
-
-      if (!isMatch) {
-        return res.status(401).json({ message: 'Invalid credentials' })
-      }
-
-      const accessToken = jwt.sign(
-        { userId: user.id, email: user.email, role: user.role },
-        secret,
-        { expiresIn: '15m' }
-      )
-
-      const refreshToken = jwt.sign(
-        { userId: user.id },
-        refreshSecret,
-        { expiresIn: '7d' }
-      )
-
-      await pool.query(
-        `INSERT INTO refresh_tokens (token, user_id, expires_at)
-         VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
-        [refreshToken, user.id]
-      )
-
-      return res.json({
-        accessToken,
-        refreshToken,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role
-        }
-      })
     } catch (err) {
       console.error('Login error details:', {
-        email,
-        userFound: !!user,
-        userRole: user?.role,
-        teacherId: user?.teacher_id,
-        studentId: user?.student_id,
+        email: req.body.email,
+        userFound: !!req.body.email,
+        userRole: req.body.role,
+        teacherId: req.body.teacher_id,
+        studentId: req.body.student_id,
         error: err.message,
         stack: err.stack
       })
