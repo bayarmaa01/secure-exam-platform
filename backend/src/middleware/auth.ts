@@ -11,6 +11,7 @@ export interface AuthRequest extends Request {
     role: 'student' | 'teacher' | 'admin'
     name: string
   }
+  file?: Express.Multer.File
 }
 
 export interface JWTPayload {
