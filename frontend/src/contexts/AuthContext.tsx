@@ -23,14 +23,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Store user data in localStorage for session persistence
   useEffect(() => {
     const initializeAuth = async () => {
-      // Always clear localStorage on initialization to prevent stale sessions
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
-      localStorage.removeItem('user')
-      
-      const token = localStorage.getItem('accessToken')
+      const token = localStorage.getItem('token')
+      const userStr = localStorage.getItem('user')
 
-      if (token) {
+      if (token && userStr) {
         try {
           // Validate token by fetching current user
           const currentUser = await authService.getCurrentUser()
@@ -39,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
           console.error('Token validation failed:', error)
           // Clear invalid tokens
-          localStorage.removeItem('accessToken')
+          localStorage.removeItem('token')
           localStorage.removeItem('refreshToken')
           localStorage.removeItem('user')
           setUser(null)
@@ -57,11 +53,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await authService.login({ email, password })
       
       // Store tokens and user data
-      localStorage.setItem('accessToken', result.accessToken)
+      localStorage.setItem('token', result.accessToken)
       localStorage.setItem('refreshToken', result.refreshToken)
       localStorage.setItem('user', JSON.stringify(result.user))
       
       setUser(result.user)
+      
+      // Redirect based on role
+      const userRole = result.user.role
+      if (userRole === 'teacher') {
+        window.location.href = '/teacher-dashboard'
+      } else {
+        window.location.href = '/student-dashboard'
+      }
+      
       return result.user
     } catch (error) {
       console.error('Login failed:', error)
@@ -74,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await authService.register({ email, password, name, role: role || 'student' })
       
       // Store tokens and user data
-      localStorage.setItem('accessToken', result.accessToken)
+      localStorage.setItem('token', result.accessToken)
       localStorage.setItem('refreshToken', result.refreshToken)
       localStorage.setItem('user', JSON.stringify(result.user))
       
@@ -97,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = (): void => {
     // Clear all auth data
-    localStorage.removeItem('accessToken')
+    localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
     setUser(null)
