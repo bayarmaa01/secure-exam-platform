@@ -1,0 +1,160 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "AI Proctoring Dashboard",
+    "tags": ["ai", "proctoring", "exam"],
+    "timezone": "browser",
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "AI Service Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"ai-proctoring\"}",
+            "legendFormat": "AI Service"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "AI Frame Analysis Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ai_analyze_requests_total[5m])",
+            "legendFormat": "Frames/sec"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Tab Switch Events",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ai_tab_switch_events_total[5m])",
+            "legendFormat": "Tab Switches/sec"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Current Risk Scores",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "ai_current_risk_score",
+            "legendFormat": "Risk Score",
+            "format": "table"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "High Risk Sessions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(ai_current_risk_score > 70)",
+            "legendFormat": "High Risk Sessions"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 6,
+        "title": "Suspicious Events Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(suspicious_events_total[5m])",
+            "legendFormat": "Events/sec"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 18,
+          "x": 6,
+          "y": 16
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    }
+  }
+}

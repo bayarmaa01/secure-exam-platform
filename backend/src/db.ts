@@ -205,6 +205,9 @@ async function runMigrations(client: PoolClient) {
   
   // Add any missing columns to existing tables
   const migrations = [
+    // Refresh tokens table migration
+    `ALTER TABLE refresh_tokens DROP CONSTRAINT IF EXISTS refresh_tokens_user_id_fkey`,
+    `ALTER TABLE refresh_tokens ADD CONSTRAINT refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`,
     // Exams table migrations
     `ALTER TABLE exams ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'mcq' CHECK (type IN ('mcq', 'written', 'coding', 'mixed', 'ai_proctored'))`,
     `ALTER TABLE exams ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10) DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard'))`,

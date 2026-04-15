@@ -79,6 +79,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('user', JSON.stringify(result.user))
       
       setUser(result.user)
+      
+      // Redirect based on role
+      const userRole = result.user.role
+      if (userRole === 'teacher') {
+        window.location.href = '/teacher-dashboard'
+      } else {
+        window.location.href = '/student-dashboard'
+      }
+      
       return result.user
     } catch (error) {
       console.error('Registration failed:', error)
