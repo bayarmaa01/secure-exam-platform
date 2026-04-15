@@ -10,6 +10,7 @@ export interface User {
 export interface LoginRequest {
   email: string
   password: string
+  rememberMe?: boolean
 }
 
 export interface RegisterRequest {
@@ -48,9 +49,20 @@ export const authService = {
     return response.data
   },
   
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/forgot-password', { email })
+    return response.data
+  },
+  
+  resetPassword: async (token: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/reset-password', { token, newPassword })
+    return response.data
+  },
+  
   logout: (): void => {
-    localStorage.removeItem('accessToken')
+    localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
+    localStorage.removeItem('user')
     window.location.href = '/login'
   }
 }

@@ -48,9 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initializeAuth()
   }, [])
 
-  const login = async (email: string, password: string): Promise<User> => {
+  const login = async (email: string, password: string, rememberMe?: boolean): Promise<User> => {
     try {
-      const result = await authService.login({ email, password })
+      const result = await authService.login({ email, password, rememberMe })
       
       // Store tokens and user data
       localStorage.setItem('token', result.accessToken)

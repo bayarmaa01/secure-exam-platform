@@ -60,10 +60,11 @@ router.post(
         let accessToken: string
         let refreshToken: string
         try {
+          const tokenExpiry = rememberMe ? '7d' : '1h'
           accessToken = jwt.sign(
             { userId: user.id, email: user.email, role: user.role },
             secret,
-            { expiresIn: '15m' }
+            { expiresIn: tokenExpiry }
           )
 
           refreshToken = jwt.sign(
@@ -254,6 +255,100 @@ router.get('/me', auth, async (req: AuthRequest, res) => {
     return res.json(user)
   } catch (err) {
     console.error('Me error:', err)
+    return res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+/**
+ * FORGOT PASSWORD
+ */
+router.post('/forgot-password', [body('email').isEmail()], async (req, res) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() })
+    }
+
+    const { email } = req.body
+
+    // Check if user exists
+    const r = await pool.query('SELECT * FROM users WHERE email = $1', [email])
+    const user = r.rows[0]
+
+    if (!user) {
+      // Don't reveal that user doesn't exist for security
+      return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
+    }
+
+    // Generate reset token
+    const crypto = require('crypto')
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const resetTokenExpiry = new Date(Date.now() + 3600000) // 1 hour
+
+    // Save reset token to database
+    await pool.query(
+      'UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3',
+      [resetToken, resetTokenExpiry, user.id]
+    )
+
+    // Send reset email
+    try {
+      const { sendPasswordResetEmail } = await import('../services/emailService')
+      await sendPasswordResetEmail(email, resetToken)
+    } catch (emailError) {
+      console.error('Email sending failed:', emailError)
+      // Continue even if email fails, but log the error
+    }
+
+    return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    return res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+/**
+ * RESET PASSWORD
+ */
+router.post('/reset-password', [
+  body('token').notEmpty().withMessage('Reset token is required'),
+  body('newPassword')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() })
+    }
+
+    const { token, newPassword } = req.body
+
+    // Find user by reset token
+    const r = await pool.query(
+      'SELECT * FROM users WHERE reset_token = $1 AND reset_token_expiry > NOW()',
+      [token]
+    )
+    const user = r.rows[0]
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' })
+    }
+
+    // Hash new password
+    const hash = await bcrypt.hash(newPassword, 10)
+
+    // Update password and clear reset token
+    await pool.query(
+      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
+      [hash, user.id]
+    )
+
+    return res.json({ message: 'Password reset successfully' })
+  } catch (error) {
+    console.error('Reset password error:', error)
     return res.status(500).json({ message: 'Internal server error' })
   }
 })
