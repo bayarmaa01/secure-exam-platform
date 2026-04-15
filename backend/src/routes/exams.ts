@@ -174,19 +174,19 @@ router.post('/exams',
         INSERT INTO exams (
           title, description, type, duration_minutes, teacher_id, 
           start_time, end_time, difficulty, total_marks, passing_marks,
-          fullscreen_required, tab_switch_detection, copy_paste_blocked,
+          is_published, fullscreen_required, tab_switch_detection, copy_paste_blocked,
           camera_required, face_detection_enabled, shuffle_questions,
           shuffle_options, assign_to_all, assigned_groups, status
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16, $17, $18, $19
+          $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
         ) RETURNING *
       `
       
       const values = [
         title, description, type, duration_minutes, req.user!.id,
         start_time || new Date(), calculatedEndTime, difficulty, total_marks, passing_marks,
-        fullscreen_required, tab_switch_detection, copy_paste_blocked,
+        false, fullscreen_required, tab_switch_detection, copy_paste_blocked,
         camera_required, face_detection_enabled, shuffle_questions,
         shuffle_options, assign_to_all, assigned_groups, 'draft'
       ]
