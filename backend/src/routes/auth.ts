@@ -27,37 +27,65 @@ router.post(
         const { email, password } = req.body
         let user: any = null
 
-        const r = await pool.query('SELECT * FROM users WHERE email = $1', [email])
-        user = r.rows[0]
+        // Database query with better error handling
+        try {
+          const r = await pool.query('SELECT * FROM users WHERE email = $1', [email])
+          user = r.rows[0]
+        } catch (dbError) {
+          console.error('Database query error:', dbError)
+          // Check if it's a connection error
+          if (dbError.code === 'ECONNRESET' || dbError.code === 'ENOTFOUND') {
+            return res.status(503).json({ message: 'Service temporarily unavailable' })
+          }
+          return res.status(500).json({ message: 'Database error' })
+        }
 
         // Prevent bcrypt crash
         if (!user || !user.password_hash) {
           return res.status(401).json({ message: 'Invalid credentials' })
         }
 
-        const isMatch = await bcrypt.compare(password, user.password_hash)
+        let isMatch: boolean
+        try {
+          isMatch = await bcrypt.compare(password, user.password_hash)
+        } catch (bcryptError) {
+          console.error('Bcrypt comparison error:', bcryptError)
+          return res.status(500).json({ message: 'Authentication error' })
+        }
 
         if (!isMatch) {
           return res.status(401).json({ message: 'Invalid credentials' })
         }
 
-        const accessToken = jwt.sign(
-          { userId: user.id, email: user.email, role: user.role },
-          secret,
-          { expiresIn: '15m' }
-        )
+        let accessToken: string
+        let refreshToken: string
+        try {
+          accessToken = jwt.sign(
+            { userId: user.id, email: user.email, role: user.role },
+            secret,
+            { expiresIn: '15m' }
+          )
 
-        const refreshToken = jwt.sign(
-          { userId: user.id },
-          refreshSecret,
-          { expiresIn: '7d' }
-        )
+          refreshToken = jwt.sign(
+            { userId: user.id },
+            refreshSecret,
+            { expiresIn: '7d' }
+          )
+        } catch (jwtError) {
+          console.error('JWT token generation error:', jwtError)
+          return res.status(500).json({ message: 'Token generation error' })
+        }
 
-        await pool.query(
-          `INSERT INTO refresh_tokens (token, user_id, expires_at)
-           VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
-          [refreshToken, user.id]
-        )
+        try {
+          await pool.query(
+            `INSERT INTO refresh_tokens (token, user_id, expires_at)
+             VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
+            [refreshToken, user.id]
+          )
+        } catch (tokenError) {
+          console.error('Refresh token storage error:', tokenError)
+          // Continue even if refresh token fails
+        }
 
         return res.json({
           accessToken,
@@ -69,9 +97,9 @@ router.post(
             role: user.role
           }
         })
-      } catch (dbError) {
-        console.error('Database query error:', dbError)
-        return res.status(500).json({ message: 'Database error' })
+      } catch (generalError) {
+        console.error('Login general error:', generalError)
+        return res.status(500).json({ message: 'Internal server error' })
       }
     } catch (err) {
       console.error('Login error details:', {
