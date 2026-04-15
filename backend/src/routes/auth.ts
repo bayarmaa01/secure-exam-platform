@@ -25,10 +25,16 @@ router.post(
 
       const { email, password } = req.body
 
-      const r = await pool.query('SELECT * FROM users WHERE email = $1', [email])
-      const user = r.rows[0]
+      let user: any = null
+      try {
+        const r = await pool.query('SELECT * FROM users WHERE email = $1', [email])
+        user = r.rows[0]
+      } catch (dbError) {
+        console.error('Database query error:', dbError)
+        return res.status(500).json({ message: 'Database error' })
+      }
 
-      // ✅ FIX: prevent bcrypt crash
+      // Prevent bcrypt crash
       if (!user || !user.password_hash) {
         return res.status(401).json({ message: 'Invalid credentials' })
       }
