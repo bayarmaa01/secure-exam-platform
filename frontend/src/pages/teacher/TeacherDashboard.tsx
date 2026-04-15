@@ -23,7 +23,7 @@ interface Stats {
 }
 
 export default function TeacherDashboard() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const [exams, setExams] = useState<Exam[]>([])
   const [stats, setStats] = useState<Stats>({
     totalExams: 0,
@@ -104,6 +104,12 @@ export default function TeacherDashboard() {
               <span className="px-3 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                 Teacher
               </span>
+              <button
+                onClick={() => logout()}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>

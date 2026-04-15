@@ -56,6 +56,10 @@ import StudentResults from './pages/student/StudentResults'
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/TeacherDashboard'
+import TeacherLayout from './components/TeacherLayout'
+import Courses from './pages/teacher/Courses'
+import Students from './pages/teacher/Students'
+import ExamsPage from './pages/teacher/ExamsPage'
 import CreateExam from './pages/teacher/CreateExam'
 import ManageExams from './pages/teacher/ManageExams'
 import AddQuestions from './pages/teacher/AddQuestions'
@@ -148,15 +152,29 @@ function AppRoutes() {
         path="/teacher-dashboard" 
         element={
           <ProtectedRoute role="teacher">
-            <TeacherDashboard />
+            <TeacherLayout>
+              <TeacherDashboard />
+            </TeacherLayout>
           </ProtectedRoute>
         } 
       />
       <Route 
-        path="/teacher/create-exam" 
+        path="/teacher/courses" 
         element={
           <ProtectedRoute role="teacher">
-            <CreateExam />
+            <TeacherLayout>
+              <Courses />
+            </TeacherLayout>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/teacher/students" 
+        element={
+          <ProtectedRoute role="teacher">
+            <TeacherLayout>
+              <Students />
+            </TeacherLayout>
           </ProtectedRoute>
         } 
       />
@@ -164,7 +182,19 @@ function AppRoutes() {
         path="/teacher/exams" 
         element={
           <ProtectedRoute role="teacher">
-            <ManageExams />
+            <TeacherLayout>
+              <ExamsPage />
+            </TeacherLayout>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/teacher/create-exam" 
+        element={
+          <ProtectedRoute role="teacher">
+            <TeacherLayout>
+              <CreateExam />
+            </TeacherLayout>
           </ProtectedRoute>
         } 
       />
@@ -172,7 +202,9 @@ function AppRoutes() {
         path="/teacher/exam/:id/questions" 
         element={
           <ProtectedRoute role="teacher">
-            <AddQuestions />
+            <TeacherLayout>
+              <AddQuestions />
+            </TeacherLayout>
           </ProtectedRoute>
         } 
       />
@@ -180,7 +212,9 @@ function AppRoutes() {
         path="/teacher/results" 
         element={
           <ProtectedRoute role="teacher">
-            <ViewResults />
+            <TeacherLayout>
+              <ViewResults />
+            </TeacherLayout>
           </ProtectedRoute>
         } 
       />

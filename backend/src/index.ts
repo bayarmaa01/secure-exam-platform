@@ -16,6 +16,7 @@ import { resultsRoutes } from './routes/results'
 import { notificationRoutes } from './routes/notifications'
 import coursesRouter from './routes/courses'
 import questionsRouter from './routes/questions'
+import attemptsRouter from './routes/attempts'
 import seedRouter from './routes/seed'
 
 // Prometheus metrics
@@ -133,6 +134,7 @@ app.use('/api/results', resultsRoutes)
 app.use('/api', notificationRoutes)
 app.use('/api', coursesRouter)
 app.use('/api', questionsRouter)
+app.use('/api', attemptsRouter)
 app.use('/api', seedRouter)
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))

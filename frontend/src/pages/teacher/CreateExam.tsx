@@ -1,14 +1,18 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
+import { coursesApi, Course } from '../../api/courses'
 
 export default function CreateExam() {
   useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [courses, setCourses] = useState<Course[]>([])
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    course_id: searchParams.get('courseId') || '',
     type: 'mcq',
     durationMinutes: 60,
     difficulty: 'medium',
@@ -27,6 +31,22 @@ export default function CreateExam() {
     assignToAll: true
   })
   const [loading, setLoading] = useState(false)
+  const [coursesLoading, setCoursesLoading] = useState(true)
+
+  useEffect(() => {
+    fetchCourses()
+  }, [])
+
+  const fetchCourses = async () => {
+    try {
+      const data = await coursesApi.getTeacherCourses()
+      setCourses(data)
+    } catch (error) {
+      console.error('Failed to fetch courses:', error)
+    } finally {
+      setCoursesLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,6 +57,7 @@ export default function CreateExam() {
       const payload = {
         title: formData.title,
         description: formData.description,
+        course_id: formData.course_id,
         type: formData.type,
         duration_minutes: formData.durationMinutes,
         start_time: formData.startTime || formData.scheduledAt,
@@ -95,6 +116,29 @@ export default function CreateExam() {
                     onChange={(e) => setFormData({...formData, title: e.target.value})}
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Course *</label>
+                  {coursesLoading ? (
+                    <div className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-gray-500">
+                      Loading courses...
+                    </div>
+                  ) : (
+                    <select
+                      required
+                      value={formData.course_id}
+                      onChange={(e) => setFormData({...formData, course_id: e.target.value})}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select a course</option>
+                      {courses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
