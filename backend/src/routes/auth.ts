@@ -68,8 +68,19 @@ router.post(
         }
       })
     } catch (err) {
-      console.error('Login error:', err)
-      return res.status(500).json({ message: 'Internal server error' })
+      console.error('Login error details:', {
+        email,
+        userFound: !!user,
+        userRole: user?.role,
+        teacherId: user?.teacher_id,
+        studentId: user?.student_id,
+        error: err.message,
+        stack: err.stack
+      })
+      return res.status(500).json({ 
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      })
     }
   }
 )
