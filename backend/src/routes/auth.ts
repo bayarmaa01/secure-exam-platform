@@ -15,7 +15,7 @@ const refreshSecret = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret'
  */
 router.post(
   '/login',
-  [body('email').isEmail(), body('password').notEmpty()],
+  [body('email').isEmail(), body('password').notEmpty(), body('rememberMe').optional().isBoolean()],
   async (req, res) => {
     try {
       const errors = validationResult(req)
@@ -24,7 +24,7 @@ router.post(
       }
 
       try {
-        const { email, password } = req.body
+        const { email, password, rememberMe = false } = req.body
         let user: any = null
 
         // Database query with better error handling

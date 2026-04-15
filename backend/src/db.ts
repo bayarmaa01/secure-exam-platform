@@ -205,6 +205,9 @@ async function runMigrations(client: PoolClient) {
   
   // Add any missing columns to existing tables
   const migrations = [
+    // Users table migrations for password reset
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`,
     // Refresh tokens table migration
     `ALTER TABLE refresh_tokens DROP CONSTRAINT IF EXISTS refresh_tokens_user_id_fkey`,
     `ALTER TABLE refresh_tokens ADD CONSTRAINT refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`,
