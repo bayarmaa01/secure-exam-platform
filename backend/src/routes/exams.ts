@@ -179,7 +179,7 @@ router.post('/exams',
           shuffle_options, assign_to_all, assigned_groups, status
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16, $17, $18, 'draft'
+          $11, $12, $13, $14, $15, $16, $17, $18, $19
         ) RETURNING *
       `
       
@@ -188,7 +188,7 @@ router.post('/exams',
         start_time || new Date(), calculatedEndTime, difficulty, total_marks, passing_marks,
         fullscreen_required, tab_switch_detection, copy_paste_blocked,
         camera_required, face_detection_enabled, shuffle_questions,
-        shuffle_options, assign_to_all, assigned_groups
+        shuffle_options, assign_to_all, assigned_groups, 'draft'
       ]
 
       console.log('POST /api/exams - SQL Query:', query)
@@ -198,8 +198,8 @@ router.post('/exams',
 
       console.log('POST /api/exams - Success:', JSON.stringify(r.rows[0], null, 2))
       
-      // Send notification to students (temporarily disabled for debugging)
-      // await notifyNewExam(r.rows[0].id, req.user!.id)
+      // Send notification to students
+      await notifyNewExam(r.rows[0].id, req.user!.id)
       
       res.status(201).json(r.rows[0])
     } catch (error) {

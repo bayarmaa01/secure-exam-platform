@@ -67,7 +67,7 @@ describe('Authentication Routes', () => {
     test('should register a new user successfully', async () => {
       const userData = {
         email: 'test@example.com',
-        password: 'password123',
+        password: 'Password123!',
         name: 'Test User',
         role: 'student'
       };
@@ -121,7 +121,7 @@ describe('Authentication Routes', () => {
     test('should login successfully with valid credentials', async () => {
       const loginData = {
         email: 'test@example.com',
-        password: 'password123'
+        password: 'Password123!'
       };
 
       const mockUser = {
@@ -160,10 +160,14 @@ describe('Authentication Routes', () => {
 
     test('should return 401 for invalid credentials', async () => {
       const loginData = {
-        email: 'test@example.com',
+        email: 'nonexistent@example.com',
         password: 'wrongpassword'
       };
 
+      // Clear all previous mocks
+      jest.clearAllMocks();
+      
+      // Mock the user query to return empty rows (user not found)
       mockPoolQuery.mockResolvedValueOnce({
         rows: []
       } as never);

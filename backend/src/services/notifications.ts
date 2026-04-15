@@ -139,7 +139,7 @@ export async function notifyNewExam(examId: string, teacherId: string) {
       [examId]
     )
     
-    if (result.rows.length > 0) {
+    if (result && result.rows && result.rows.length > 0) {
       const exam = result.rows[0]
       const notification: NotificationData = {
         type: 'new_exam',
