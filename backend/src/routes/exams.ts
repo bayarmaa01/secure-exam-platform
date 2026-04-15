@@ -162,7 +162,13 @@ router.post('/exams',
       } = req.body
 
       // Calculate end_time if not provided
-      const calculatedEndTime = end_time || new Date(new Date(start_time).getTime() + duration_minutes * 60 * 1000)
+      let calculatedEndTime = end_time
+      if (!calculatedEndTime && start_time) {
+        calculatedEndTime = new Date(new Date(start_time).getTime() + duration_minutes * 60 * 1000)
+      }
+      if (!calculatedEndTime) {
+        calculatedEndTime = new Date(Date.now() + duration_minutes * 60 * 1000)
+      }
 
       const query = `
         INSERT INTO exams (
@@ -179,7 +185,7 @@ router.post('/exams',
       
       const values = [
         title, description, type, duration_minutes, req.user!.id,
-        start_time, calculatedEndTime, difficulty, total_marks, passing_marks,
+        start_time || new Date(), calculatedEndTime, difficulty, total_marks, passing_marks,
         fullscreen_required, tab_switch_detection, copy_paste_blocked,
         camera_required, face_detection_enabled, shuffle_questions,
         shuffle_options, assign_to_all, assigned_groups
@@ -192,8 +198,8 @@ router.post('/exams',
 
       console.log('POST /api/exams - Success:', JSON.stringify(r.rows[0], null, 2))
       
-      // Send notification to students
-      await notifyNewExam(r.rows[0].id, req.user!.id)
+      // Send notification to students (temporarily disabled for debugging)
+      // await notifyNewExam(r.rows[0].id, req.user!.id)
       
       res.status(201).json(r.rows[0])
     } catch (error) {
