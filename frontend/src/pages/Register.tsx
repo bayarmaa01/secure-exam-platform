@@ -8,18 +8,30 @@ export default function Register() {
   const [name, setName] = useState('')
   const [role, setRole] = useState<'student' | 'teacher'>('student')
   const [err, setErr] = useState<string>('')
+  const [isLoading, setIsLoading] = useState(false)
   const { register } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setErr('')
+    setIsLoading(true)
+    
     try {
       await register(email, password, name, role)
       navigate('/dashboard')
     } catch (error: unknown) {
-      const err = error as Error
-      setErr(err.message || 'Registration failed')
+      const err = error as any
+      if (err.response?.data?.errors) {
+        // Handle validation errors from backend
+        const validationErrors = err.response.data.errors
+        const errorMessages = validationErrors.map((e: any) => e.message).join(', ')
+        setErr(errorMessages)
+      } else {
+        setErr(err.response?.data?.message || err.message || 'Registration failed')
+      }
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -55,7 +67,7 @@ export default function Register() {
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Password (min 8 chars, uppercase, lowercase, number, special char)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -63,8 +75,12 @@ export default function Register() {
             className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:ring-2 focus:ring-blue-500"
           />
           {err && <p className="text-red-400 text-sm">{err}</p>}
-          <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg">
-            Register
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg"
+          >
+            {isLoading ? 'Registering...' : 'Register'}
           </button>
         </form>
         <p className="mt-4 text-slate-400 text-sm">

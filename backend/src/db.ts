@@ -29,7 +29,7 @@ async function ensureTablesExist(client: PoolClient) {
     
     `CREATE TABLE IF NOT EXISTS refresh_tokens (
       token VARCHAR(500) PRIMARY KEY,
-      user_id UUID REFERENCES users(id),
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
       expires_at TIMESTAMP NOT NULL
     )`,
     

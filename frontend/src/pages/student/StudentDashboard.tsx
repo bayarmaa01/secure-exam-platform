@@ -20,7 +20,7 @@ interface Attempt {
 }
 
 export default function StudentDashboard() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const [exams, setExams] = useState<Exam[]>([])
   const [recentAttempts, setRecentAttempts] = useState<Attempt[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,6 +70,12 @@ export default function StudentDashboard() {
               <span className="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
                 Student
               </span>
+              <button
+                onClick={logout}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>

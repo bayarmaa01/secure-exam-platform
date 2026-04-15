@@ -16,9 +16,21 @@ scrape_configs:
       - targets: ['backend:4000']
     metrics_path: '/metrics'
     scrape_interval: 15s
+    scrape_timeout: 10s
 
   - job_name: 'ai-proctoring'
     static_configs:
       - targets: ['ai-proctoring:8000']
     metrics_path: '/metrics'
     scrape_interval: 15s
+    scrape_timeout: 10s
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s

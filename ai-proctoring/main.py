@@ -12,6 +12,7 @@ from datetime import datetime
 import redis
 import os
 from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+import mediapipe as mp
 
 app = FastAPI(title="AI Proctoring Service")
 
@@ -19,6 +20,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
+)
+
+# Initialize MediaPipe Face Detection
+mp_face_detection = mp.solutions.face_detection
+face_detection = mp_face_detection.FaceDetection(
+    model_selection=0, min_detection_confidence=0.5
 )
 
 # Redis connection for session management
@@ -65,7 +72,7 @@ class TabSwitchEvent(BaseModel):
     reason: str
 
 def analyze_frame(image_bytes: bytes, session: ProctoringSession) -> dict:
-    """Analyze webcam frame for suspicious behavior with enhanced detection."""
+    """Analyze webcam frame for suspicious behavior with enhanced MediaPipe detection."""
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:
@@ -91,11 +98,22 @@ def analyze_frame(image_bytes: bytes, session: ProctoringSession) -> dict:
     
     session.last_frame_time = current_time
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    )
-    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+    # Convert BGR to RGB for MediaPipe
+    rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    results = face_detection.process(rgb_img)
+    
+    # Extract face information from MediaPipe results
+    faces = []
+    if results.detections:
+        for detection in results.detections:
+            bbox = detection.location_data.relative_bounding_box
+            h, w, _ = img.shape
+            faces.append((
+                int(bbox.xmin * w),
+                int(bbox.ymin * h),
+                int(bbox.width * w),
+                int(bbox.height * h)
+            ))
 
     event_data = {
         "timestamp": current_time,

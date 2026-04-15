@@ -55,7 +55,7 @@ router.get('/student', auth, requireStudent, async (req: AuthRequest, res) => {
     })
   } catch (error) {
     console.error('Get student results error:', error)
-    res.status(500).json({ message: 'Internal server error' })
+    res.status(500).json({ message: 'Failed to fetch results', error: error instanceof Error ? error.message : 'Unknown error' })
   }
 })
 

@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     libxi6 \
     libxtst6 \
+    libopencv-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
@@ -26,7 +27,7 @@ COPY main.py .
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run AI service

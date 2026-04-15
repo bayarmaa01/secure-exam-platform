@@ -4,6 +4,7 @@
     "title": "Secure Exam Platform Overview",
     "tags": ["exam", "platform"],
     "timezone": "browser",
+    "refresh": "5s",
     "panels": [
       {
         "id": 1,
@@ -52,7 +53,7 @@
         "targets": [
           {
             "expr": "rate(http_requests_total[5m])",
-            "legendFormat": "{{method}} {{endpoint}}"
+            "legendFormat": "{{method}} {{route}}"
           }
         ],
         "gridPos": {
@@ -78,30 +79,64 @@
         ],
         "gridPos": {
           "h": 8,
-          "w": 24,
+          "w": 12,
           "x": 0,
           "y": 8
         }
       },
       {
         "id": 4,
-        "title": "AI Analysis Requests",
+        "title": "Error Rate",
         "type": "graph",
         "targets": [
           {
-            "expr": "rate(ai_analyze_requests_total[5m])",
-            "legendFormat": "Analysis Rate"
+            "expr": "rate(http_requests_total{status_code=~\"5..\"}[5m]) / rate(http_requests_total[5m])",
+            "legendFormat": "Error Rate"
           }
         ],
         "gridPos": {
           "h": 8,
           "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "Active Exam Sessions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "exam_sessions_active",
+            "legendFormat": "Active Sessions"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 6,
           "x": 0,
           "y": 16
         }
       },
       {
-        "id": 5,
+        "id": 6,
+        "title": "AI Analysis Requests",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ai_analyze_requests_total[5m])",
+            "legendFormat": "AI Requests/sec"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 18,
+          "x": 6,
+          "y": 16
+        }
+      },
+      {
+        "id": 7,
         "title": "Tab Switch Events",
         "type": "graph",
         "targets": [
@@ -113,12 +148,12 @@
         "gridPos": {
           "h": 8,
           "w": 12,
-          "x": 12,
-          "y": 16
+          "x": 0,
+          "y": 24
         }
       },
       {
-        "id": 6,
+        "id": 8,
         "title": "Current Risk Scores",
         "type": "stat",
         "targets": [
@@ -129,8 +164,8 @@
         ],
         "gridPos": {
           "h": 8,
-          "w": 24,
-          "x": 0,
+          "w": 12,
+          "x": 12,
           "y": 24
         }
       }
@@ -138,7 +173,6 @@
     "time": {
       "from": "now-1h",
       "to": "now"
-    },
-    "refresh": "5s"
+    }
   }
 }
