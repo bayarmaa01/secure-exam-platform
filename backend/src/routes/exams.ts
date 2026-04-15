@@ -170,6 +170,17 @@ router.post('/exams',
         calculatedEndTime = new Date(Date.now() + duration_minutes * 60 * 1000)
       }
 
+      const values = [
+        title, description, type, duration_minutes, req.user!.id,
+        start_time || new Date(), calculatedEndTime, difficulty, total_marks, passing_marks,
+        false, fullscreen_required, tab_switch_detection, copy_paste_blocked,
+        camera_required, face_detection_enabled, shuffle_questions,
+        shuffle_options, assign_to_all, assigned_groups, 'draft'
+      ]
+
+      // Generate placeholders dynamically to prevent mismatch
+      const placeholders = values.map((_, i) => `$${i+1}`).join(', ')
+
       const query = `
         INSERT INTO exams (
           title, description, type, duration_minutes, teacher_id, 
@@ -178,18 +189,9 @@ router.post('/exams',
           camera_required, face_detection_enabled, shuffle_questions,
           shuffle_options, assign_to_all, assigned_groups, status
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+          ${placeholders}
         ) RETURNING *
       `
-      
-      const values = [
-        title, description, type, duration_minutes, req.user!.id,
-        start_time || new Date(), calculatedEndTime, difficulty, total_marks, passing_marks,
-        false, fullscreen_required, tab_switch_detection, copy_paste_blocked,
-        camera_required, face_detection_enabled, shuffle_questions,
-        shuffle_options, assign_to_all, assigned_groups, 'draft'
-      ]
 
       console.log('POST /api/exams - SQL Query:', query)
       console.log('POST /api/exams - Values:', JSON.stringify(values, null, 2))
