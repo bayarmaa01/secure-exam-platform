@@ -6,14 +6,16 @@ import { notifyNewExam, notifyExamStarted } from '../services/notifications'
 
 const router = Router()
 
-// Student: Get available exams
+// Student: Get available exams from enrolled courses
 router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, title, description, duration_minutes, start_time, status 
-       FROM exams 
-       WHERE status = 'published' AND start_time <= NOW()
-       ORDER BY start_time ASC`
+      `SELECT e.*
+       FROM exams e
+       JOIN enrollments en ON e.course_id = en.course_id
+       WHERE en.student_id = $1 AND e.status = 'published' AND e.start_time <= NOW()
+       ORDER BY e.start_time ASC`,
+      [req.user!.id]
     )
     res.json(r.rows.map((row) => ({
       id: row.id,
@@ -110,6 +112,7 @@ router.post('/exams',
   [
     body('title').notEmpty().trim(),
     body('description').optional().trim(),
+    body('course_id').notEmpty().withMessage('Course ID is required'),
     body('type').optional().isIn(['mcq', 'written', 'coding', 'mixed', 'ai_proctored']),
     body('duration_minutes').isInt({ min: 1, max: 480 }),
     body('difficulty').optional().isIn(['easy', 'medium', 'hard']),
@@ -143,6 +146,7 @@ router.post('/exams',
       const { 
         title, 
         description, 
+        course_id,
         type = 'mcq',
         duration_minutes = 60,
         difficulty = 'medium',
@@ -171,7 +175,7 @@ router.post('/exams',
       }
 
       const values = [
-        title, description, type, duration_minutes, req.user!.id,
+        title, description, course_id, type, duration_minutes, req.user!.id,
         start_time || new Date(), calculatedEndTime, difficulty, total_marks, passing_marks,
         false, fullscreen_required, tab_switch_detection, copy_paste_blocked,
         camera_required, face_detection_enabled, shuffle_questions,
@@ -183,7 +187,7 @@ router.post('/exams',
 
       const query = `
         INSERT INTO exams (
-          title, description, type, duration_minutes, teacher_id, 
+          title, description, course_id, type, duration_minutes, teacher_id, 
           start_time, end_time, difficulty, total_marks, passing_marks,
           is_published, fullscreen_required, tab_switch_detection, copy_paste_blocked,
           camera_required, face_detection_enabled, shuffle_questions,

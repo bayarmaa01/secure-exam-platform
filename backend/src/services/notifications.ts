@@ -151,9 +151,14 @@ export async function notifyNewExam(examId: string, teacherId: string) {
         data: { examId, teacherId }
       }
       
-      // Get all students and store notifications
+      // Get all students enrolled in course and store notifications
       const students = await pool.query(
-        'SELECT id FROM users WHERE role = \'student\''
+        `SELECT u.id FROM users u
+         JOIN enrollments en ON u.id = en.student_id
+         WHERE en.course_id = (
+           SELECT course_id FROM exams WHERE id = $1
+         ) AND u.role = 'student'`,
+        [examId]
       )
       
       for (const student of students.rows) {
@@ -190,9 +195,14 @@ export async function notifyExamPublished(examId: string) {
         data: { examId }
       }
       
-      // Get all students and store notifications
+      // Get all students enrolled in course and store notifications
       const students = await pool.query(
-        'SELECT id FROM users WHERE role = \'student\''
+        `SELECT u.id FROM users u
+         JOIN enrollments en ON u.id = en.student_id
+         WHERE en.course_id = (
+           SELECT course_id FROM exams WHERE id = $1
+         ) AND u.role = 'student'`,
+        [examId]
       )
       
       for (const student of students.rows) {

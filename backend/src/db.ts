@@ -33,6 +33,23 @@ async function ensureTablesExist(client: PoolClient) {
       expires_at TIMESTAMP NOT NULL
     )`,
     
+    `CREATE TABLE IF NOT EXISTS courses (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      teacher_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS enrollments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+      student_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      enrolled_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(course_id, student_id)
+    )`,
+    
     `CREATE TABLE IF NOT EXISTS exams (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       title VARCHAR(255) NOT NULL,
@@ -45,6 +62,7 @@ async function ensureTablesExist(client: PoolClient) {
       total_marks INT DEFAULT 100,
       passing_marks INT DEFAULT 50,
       is_published BOOLEAN DEFAULT false,
+      course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
       teacher_id UUID REFERENCES users(id),
       fullscreen_required BOOLEAN DEFAULT false,
       tab_switch_detection BOOLEAN DEFAULT false,
@@ -184,7 +202,11 @@ async function ensureTablesExist(client: PoolClient) {
     'CREATE INDEX IF NOT EXISTS idx_analytics_student_id ON analytics(student_id)',
     'CREATE INDEX IF NOT EXISTS idx_analytics_exam_id ON analytics(exam_id)',
     'CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)',
-    'CREATE INDEX IF NOT EXISTS idx_leaderboard_student_id ON leaderboard(student_id)'
+    'CREATE INDEX IF NOT EXISTS idx_leaderboard_student_id ON leaderboard(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_courses_teacher_id ON courses(teacher_id)',
+    'CREATE INDEX IF NOT EXISTS idx_enrollments_course_id ON enrollments(course_id)',
+    'CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_exams_course_id ON exams(course_id)'
   ]
   
   for (const index of indexes) {
@@ -211,7 +233,8 @@ async function runMigrations(client: PoolClient) {
     // Refresh tokens table migration
     `ALTER TABLE refresh_tokens DROP CONSTRAINT IF EXISTS refresh_tokens_user_id_fkey`,
     `ALTER TABLE refresh_tokens ADD CONSTRAINT refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`,
-    // Exams table migrations
+    // Exams table migrations for LMS integration
+    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES courses(id) ON DELETE CASCADE`,
     `ALTER TABLE exams ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'mcq' CHECK (type IN ('mcq', 'written', 'coding', 'mixed', 'ai_proctored'))`,
     `ALTER TABLE exams ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10) DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard'))`,
     `ALTER TABLE exams ADD COLUMN IF NOT EXISTS total_marks INT DEFAULT 100`,
