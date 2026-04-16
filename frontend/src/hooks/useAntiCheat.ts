@@ -88,7 +88,7 @@ export const useAntiCheat = (
 
   // Track fullscreen changes
   useEffect(() => {
-    if (!config.preventFullscreenExit) return
+    if (!config.preventFullscreenExit) return;
 
     const handleFullscreenChange = () => {
       const isCurrentlyFullscreen = !!(

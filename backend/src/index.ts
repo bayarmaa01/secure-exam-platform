@@ -21,7 +21,7 @@ import questionsRouter from './routes/questions'
 import attemptsRouter from './routes/attempts'
 import seedRouter from './routes/seed'
 import { 
-  activeExamSessions, 
+  activeExamSessions as activeExamSessionsMetric, 
   examStartedTotal, 
   examSubmittedTotal, 
   examForceSubmittedTotal, 

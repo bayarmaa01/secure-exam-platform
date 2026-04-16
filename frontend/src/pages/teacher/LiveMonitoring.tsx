@@ -40,6 +40,46 @@ export default function LiveMonitoring() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedExam, setSelectedExam] = useState<string | null>(null)
 
+  // Function definitions
+  const fetchActiveSessions = async () => {
+    try {
+      const response = await api.get('/exam-sessions/sessions/active')
+      setActiveSessions(response.data)
+    } catch (error) {
+      console.error('Failed to fetch active sessions:', error)
+    }
+  }
+
+  const fetchExamStats = async () => {
+    try {
+      const response = await api.get('/teacher/exams')
+      const exams = response.data
+      
+      const stats = exams.map((exam: any) => ({
+        exam_id: exam.id,
+        exam_title: exam.title,
+        active_sessions: activeSessions.filter(s => s.exam_id === exam.id).length,
+        total_violations: activeSessions
+          .filter(s => s.exam_id === exam.id)
+          .reduce((sum, s) => sum + s.violation_count, 0),
+        completion_rate: 0 // Would need to calculate from completed sessions
+      }))
+      
+      setExamStats(stats)
+    } catch (error) {
+      console.error('Failed to fetch exam stats:', error)
+    }
+  }
+
+  const fetchRecentViolations = async () => {
+    try {
+      const response = await api.get('/exam-sessions/violations/recent')
+      setRecentViolations(response.data.slice(0, 20))
+    } catch (error) {
+      console.error('Failed to fetch recent violations:', error)
+    }
+  }
+
   // Initialize WebSocket connection
   useEffect(() => {
     socketRef.current = io(process.env.REACT_APP_API_URL || 'http://localhost:4000')
@@ -88,45 +128,6 @@ export default function LiveMonitoring() {
     fetchExamStats()
     fetchRecentViolations()
   }, [])
-
-  const fetchActiveSessions = async () => {
-    try {
-      const response = await api.get('/exam-sessions/sessions/active')
-      setActiveSessions(response.data)
-    } catch (error) {
-      console.error('Failed to fetch active sessions:', error)
-    }
-  }
-
-  const fetchExamStats = async () => {
-    try {
-      const response = await api.get('/teacher/exams')
-      const exams = response.data
-      
-      const stats = exams.map((exam: any) => ({
-        exam_id: exam.id,
-        exam_title: exam.title,
-        active_sessions: activeSessions.filter(s => s.exam_id === exam.id).length,
-        total_violations: activeSessions
-          .filter(s => s.exam_id === exam.id)
-          .reduce((sum, s) => sum + s.violation_count, 0),
-        completion_rate: 0 // Would need to calculate from completed sessions
-      }))
-      
-      setExamStats(stats)
-    } catch (error) {
-      console.error('Failed to fetch exam stats:', error)
-    }
-  }
-
-  const fetchRecentViolations = async () => {
-    try {
-      const response = await api.get('/exam-sessions/violations/recent')
-      setRecentViolations(response.data.slice(0, 20))
-    } catch (error) {
-      console.error('Failed to fetch recent violations:', error)
-    }
-  }
 
   const handleForceSubmit = async (sessionId: string, studentName: string) => {
     if (!confirm(`Force submit exam for ${studentName}?`)) {

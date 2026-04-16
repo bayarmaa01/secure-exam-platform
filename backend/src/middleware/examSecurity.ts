@@ -74,7 +74,7 @@ export const examSecurityMiddleware = (options: ExamSecurityOptions = {}) => {
       if (options.validateTimeIntegrity) {
         const sessionId = req.headers['x-exam-session-id']
         if (sessionId) {
-          const sessionCheck = await pool.query<ExamSession[]>(
+          const sessionCheck = await pool.query(
             'SELECT * FROM exam_sessions WHERE id = $1 AND user_id = $2',
             [sessionId, decoded.userId]
           )
@@ -83,7 +83,7 @@ export const examSecurityMiddleware = (options: ExamSecurityOptions = {}) => {
             return res.status(404).json({ message: 'Exam session not found' })
           }
 
-          const session = sessionCheck.rows[0]
+          const session = sessionCheck.rows[0] as ExamSession
           const now = new Date()
           const sessionAge = now.getTime() - new Date(session.start_time).getTime()
           const maxSessionAge = 24 * 60 * 60 * 1000 // 24 hours
@@ -132,7 +132,7 @@ export const examSecurityMiddleware = (options: ExamSecurityOptions = {}) => {
           }
 
           // Attach session data to request for downstream middleware
-          req.examSession = session
+          (req as any).examSession = session
         }
       }
 

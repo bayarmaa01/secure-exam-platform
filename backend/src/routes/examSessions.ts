@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent } from '../middleware/auth'
+import { getIO } from '../utils/socketHelper'
 import { 
   activeExamSessions, 
   examStartedTotal, 
@@ -71,8 +72,8 @@ router.post('/sessions',
       const session = sessionResult.rows[0]
 
       // Track metrics
-      incrementExamStarted(examId, courseId)
-      setActiveExamSessions(1, examId, courseId)
+      incrementExamStarted(exam_id, course_id, userId)
+      setActiveExamSessions(1, exam_id, course_id)
 
       // Get exam questions
       const questionsResult = await pool.query(

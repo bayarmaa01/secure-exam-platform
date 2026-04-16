@@ -474,7 +474,13 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
     )
 
     // Send notification to teachers
-    await notifyExamStarted(examId, userId)
+    // Notify exam started via WebSocket
+    const io = require('../utils/socketHelper').getIO()
+    io.emit('exam_started', {
+      exam_id: examId,
+      user_id: userId,
+      timestamp: new Date()
+    })
 
     res.json({ attemptId: r.rows[0].id })
   } catch (error) {

@@ -62,7 +62,7 @@ export default function LiveExam() {
 
   // Calculate remaining time based on server time
   const calculateRemainingTime = useCallback(() => {
-    if (!session) return 0
+    if (!session) return 0;
     
     const now = new Date()
     const endTime = new Date(session.end_time)
