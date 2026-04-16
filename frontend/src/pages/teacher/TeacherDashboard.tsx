@@ -22,9 +22,18 @@ interface Stats {
   activeStudents: number
 }
 
+interface Student {
+  id: string
+  name: string
+  email: string
+  registration_number: string
+  created_at: string
+}
+
 export default function TeacherDashboard() {
   const { user, logout } = useAuth()
   const [exams, setExams] = useState<Exam[]>([])
+  const [students, setStudents] = useState<Student[]>([])
   const [stats, setStats] = useState<Stats>({
     totalExams: 0,
     publishedExams: 0,
@@ -39,8 +48,13 @@ export default function TeacherDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const examsRes = await api.get('/teacher/exams')
+      const [examsRes, studentsRes] = await Promise.all([
+        api.get('/teacher/exams'),
+        api.get('/teacher/students')
+      ])
+      
       setExams(examsRes.data.slice(0, 5)) // Show only 5 recent exams
+      setStudents(studentsRes.data)
       
       // Calculate stats
       const totalExams = examsRes.data.length
@@ -271,6 +285,44 @@ export default function TeacherDashboard() {
                       <dt className="text-sm font-medium text-gray-500 truncate">Active Students</dt>
                       <dd className="text-lg font-medium text-gray-900">{stats.activeStudents}</dd>
                     </dl>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Student Management */}
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">Student Management</h3>
+                <Link
+                  to="/teacher/students"
+                  className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                >
+                  Manage Students
+                </Link>
+              </div>
+              
+              {/* Student Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-white overflow-hidden shadow rounded-lg">
+                  <div className="p-5">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0118 0z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-5 w-0 flex-1">
+                        <dl>
+                          <dt className="text-sm font-medium text-gray-500 truncate">Total Students</dt>
+                          <dd className="text-lg font-medium text-gray-900">{students.length}</dd>
+                        </dl>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

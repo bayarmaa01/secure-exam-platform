@@ -154,12 +154,12 @@ router.post('/courses/:courseId/enroll',
   auth,
   requireTeacher,
   [
-    body('student_id').notEmpty().trim()
+    body('registration_number').notEmpty().trim()
   ],
   async (req: AuthRequest, res) => {
     try {
       const courseId = req.params.courseId
-      const { student_id } = req.body
+      const { registration_number } = req.body
 
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
@@ -180,10 +180,10 @@ router.post('/courses/:courseId/enroll',
         return res.status(403).json({ message: 'Not authorized to enroll students in this course' })
       }
 
-      // Find student by student_id
+      // Find student by registration_number
       const studentCheck = await pool.query(
-        'SELECT id FROM users WHERE student_id = $1 AND role = $2',
-        [student_id, 'student']
+        'SELECT id FROM users WHERE registration_number = $1 AND role = $2',
+        [registration_number, 'student']
       )
 
       if (studentCheck.rows.length === 0) {

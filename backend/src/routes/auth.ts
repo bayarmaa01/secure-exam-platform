@@ -137,6 +137,12 @@ router.post(
       .withMessage('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'),
     body('name').notEmpty().withMessage('Name is required'),
     body('role').optional().isIn(['student', 'teacher', 'admin']).withMessage('Role must be student, teacher, or admin'),
+    body('registration_number')
+      .if(body('role').equals('student'))
+      .notEmpty()
+      .withMessage('Registration number is required for students')
+      .matches(/^REG\d{7}$/)
+      .withMessage('Registration number must be in format REGYYYYNNNN (e.g., REG2026001)'),
     body('student_id').optional().isString().withMessage('Student ID must be a string'),
     body('teacher_id').optional().isString().withMessage('Teacher ID must be a string')
   ],
@@ -147,15 +153,15 @@ router.post(
         return res.status(400).json({ errors: errors.array() })
       }
 
-      const { email, password, name, role = 'student', student_id, teacher_id } = req.body
+      const { email, password, name, role = 'student', registration_number, student_id, teacher_id } = req.body
 
       const hash = await bcrypt.hash(password, 10)
 
       const r = await pool.query(
-        `INSERT INTO users (email, password_hash, name, role, student_id, teacher_id)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, email, name, role, student_id, teacher_id`,
-        [email, hash, name, role, student_id || null, teacher_id || null]
+        `INSERT INTO users (email, password_hash, name, role, registration_number, student_id, teacher_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, email, name, role, registration_number, student_id, teacher_id`,
+        [email, hash, name, role, registration_number || null, student_id || null, teacher_id || null]
       )
 
       const user = r.rows[0]

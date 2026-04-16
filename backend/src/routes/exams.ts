@@ -1,8 +1,7 @@
 import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
-import { auth, AuthRequest, requireTeacher, requireStudent, requireAdmin } from '../middleware/auth'
-import { notifyNewExam, notifyExamStarted } from '../services/notifications'
+import { auth, AuthRequest, requireTeacher, requireAdmin, requireStudent } from '../middleware/auth'
 
 const router = Router()
 
@@ -205,7 +204,30 @@ router.post('/exams',
       console.log('POST /api/exams - Success:', JSON.stringify(r.rows[0], null, 2))
       
       // Send notification to students
-      await notifyNewExam(r.rows[0].id, req.user!.id)
+      try {
+        // Get all students enrolled in the course
+        const studentsResult = await pool.query(
+          `SELECT u.id as user_id
+           FROM users u
+           JOIN enrollments en ON u.id = en.student_id
+           WHERE en.course_id = $1 AND u.role = 'student'`,
+          [r.rows[0].course_id]
+        )
+
+        // Create notifications for each student
+        if (studentsResult.rows.length > 0) {
+          const examTitle = r.rows[0].title || 'New Exam'
+          for (const student of studentsResult.rows) {
+            await pool.query(
+              `INSERT INTO notifications (user_id, message, type, created_at)
+               VALUES ($1, $2, 'exam_created', NOW())`,
+              [student.user_id, `New exam available: ${examTitle}`]
+            )
+          }
+        }
+      } catch (notifError) {
+        console.error('Failed to send exam notifications:', notifError)
+      }
       
       res.status(201).json(r.rows[0])
     } catch (error) {

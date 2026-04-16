@@ -5,6 +5,7 @@ export interface User {
   email: string
   name: string
   role: 'student' | 'teacher' | 'admin'
+  registration_number?: string
 }
 
 export interface LoginRequest {
@@ -18,6 +19,7 @@ export interface RegisterRequest {
   password: string
   name: string
   role: 'student' | 'teacher'
+  registration_number?: string
   studentId?: string
   teacherId?: string
 }

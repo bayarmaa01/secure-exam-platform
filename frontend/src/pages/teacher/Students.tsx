@@ -6,6 +6,7 @@ interface Student {
   id: string
   name: string
   email: string
+  registration_number: string
   student_id: string
   role: string
   created_at: string
@@ -24,9 +25,8 @@ export default function Students() {
   const fetchStudents = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/admin/users')
-      const studentUsers = response.data.filter((user: { role: string }) => user.role === 'student')
-      setStudents(studentUsers)
+      const response = await api.get('/teacher/students')
+      setStudents(response.data)
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
       setError(apiError.response?.data?.message || 'Failed to fetch students')

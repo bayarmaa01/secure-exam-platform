@@ -7,6 +7,7 @@ export default function Register() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState<'student' | 'teacher'>('student')
+  const [registrationNumber, setRegistrationNumber] = useState('')
   const [err, setErr] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const { register } = useAuth()
@@ -18,7 +19,7 @@ export default function Register() {
     setIsLoading(true)
     
     try {
-      await register(email, password, name, role)
+      await register(email, password, name, role, role === 'student' ? registrationNumber : undefined)
       navigate('/dashboard')
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { errors?: { message: string }[], message?: string } } }
@@ -48,6 +49,16 @@ export default function Register() {
             required
             className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:ring-2 focus:ring-blue-500"
           />
+          {role === 'student' && (
+            <input
+              type="text"
+              placeholder="Registration Number (REG2026001)"
+              value={registrationNumber}
+              onChange={(e) => setRegistrationNumber(e.target.value)}
+              required
+              className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:ring-2 focus:ring-blue-500"
+            />
+          )}
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as 'student' | 'teacher')}

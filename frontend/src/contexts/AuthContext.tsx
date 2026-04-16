@@ -5,7 +5,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   login: (email: string, password: string, rememberMe?: boolean) => Promise<User>
-  register: (email: string, password: string, name: string, role?: 'student' | 'teacher') => Promise<User>
+  register: (email: string, password: string, name: string, role?: 'student' | 'teacher', registration_number?: string) => Promise<User>
   logout: () => void
   refreshToken: () => Promise<void>
   isAuthenticated: boolean
@@ -74,9 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const register = async (email: string, password: string, name: string, role?: 'student' | 'teacher'): Promise<User> => {
+  const register = async (email: string, password: string, name: string, role?: 'student' | 'teacher', registration_number?: string): Promise<User> => {
     try {
-      const result = await authService.register({ email, password, name, role: role || 'student' })
+      const result = await authService.register({ email, password, name, role: role || 'student', registration_number })
       
       // Store tokens and user data
       localStorage.setItem('token', result.accessToken)

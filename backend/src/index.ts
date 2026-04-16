@@ -15,6 +15,7 @@ import { securityRoutes } from './routes/security'
 import { resultsRoutes } from './routes/results'
 import { notificationRoutes } from './routes/notifications'
 import coursesRouter from './routes/courses'
+import { teacherRoutes } from './routes/teacher'
 import questionsRouter from './routes/questions'
 import attemptsRouter from './routes/attempts'
 import seedRouter from './routes/seed'
@@ -133,6 +134,7 @@ app.use('/api', securityRoutes)
 app.use('/api/results', resultsRoutes)
 app.use('/api', notificationRoutes)
 app.use('/api', coursesRouter)
+app.use('/api', teacherRoutes)
 app.use('/api', questionsRouter)
 app.use('/api', attemptsRouter)
 app.use('/api', seedRouter)
