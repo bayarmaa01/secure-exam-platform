@@ -16,9 +16,23 @@ import { resultsRoutes } from './routes/results'
 import { notificationRoutes } from './routes/notifications'
 import coursesRouter from './routes/courses'
 import { teacherRoutes } from './routes/teacher'
+import { examSessionRoutes } from './routes/examSessions'
 import questionsRouter from './routes/questions'
 import attemptsRouter from './routes/attempts'
 import seedRouter from './routes/seed'
+import { 
+  activeExamSessions, 
+  examStartedTotal, 
+  examSubmittedTotal, 
+  examForceSubmittedTotal, 
+  examViolationsTotal,
+  websocketConnections,
+  apiRequestDuration,
+  dbQueryDuration,
+  examSessionDuration,
+  violationRateByExam
+} from './metrics/examMetrics'
+import { setIO } from './utils/socketHelper'
 
 // Prometheus metrics
 collectDefaultMetrics({ register })
@@ -135,6 +149,7 @@ app.use('/api/results', resultsRoutes)
 app.use('/api', notificationRoutes)
 app.use('/api', coursesRouter)
 app.use('/api', teacherRoutes)
+app.use('/api', examSessionRoutes)
 app.use('/api', questionsRouter)
 app.use('/api', attemptsRouter)
 app.use('/api', seedRouter)
@@ -174,6 +189,9 @@ const PORT = process.env.PORT || 4000
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`)
   
+  // Track WebSocket connections
+  websocketConnections.inc({ type: 'total' })
+  
   // Join user to their personal room
   socket.on('join_user_room', (userId) => {
     socket.join(`user_${userId}`)
@@ -188,11 +206,15 @@ io.on('connection', (socket) => {
   
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`)
+    websocketConnections.dec({ type: 'total' })
   })
 })
 
 // Make io available to routes
 app.set('io', io)
+
+// Set IO instance for helper functions
+setIO(io)
 
 // Start server only after DB is ready
 async function start() {

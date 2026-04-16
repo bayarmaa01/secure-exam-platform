@@ -1,0 +1,136 @@
+groups:
+  - name: exam_monitoring
+    rules:
+      # High violation rate alert
+      - alert: HighViolationRate
+        expr: rate(exam_violations_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: exam-system
+        annotations:
+          summary: "High violation rate detected"
+          description: "Exam violation rate is {{ $value }} violations per second"
+
+      # Too many force submits
+      - alert: TooManyForceSubmits
+        expr: increase(exam_force_submitted_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: exam-system
+        annotations:
+          summary: "Too many force submits detected"
+          description: "{{ $value }} exams have been force submitted in the last 5 minutes"
+
+      # API latency alert
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, api_request_duration_seconds) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: exam-system
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile API latency is {{ $value }} seconds"
+
+      # Critical API latency
+      - alert: CriticalAPILatency
+        expr: histogram_quantile(0.95, api_request_duration_seconds) > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: exam-system
+        annotations:
+          summary: "Critical API latency detected"
+          description: "95th percentile API latency is {{ $value }} seconds"
+
+      # Database latency alert
+      - alert: HighDBLatency
+        expr: histogram_quantile(0.95, db_query_duration_seconds) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: exam-system
+        annotations:
+          summary: "High database latency detected"
+          description: "95th percentile DB query latency is {{ $value }} seconds"
+
+      # Critical database latency
+      - alert: CriticalDBLatency
+        expr: histogram_quantile(0.95, db_query_duration_seconds) > 2
+        for: 2m
+        labels:
+          severity: critical
+          service: exam-system
+        annotations:
+          summary: "Critical database latency detected"
+          description: "95th percentile DB query latency is {{ $value }} seconds"
+
+      # WebSocket connections anomaly
+      - alert: WebSocketConnectionsAnomaly
+        expr: websocket_connections < 10
+        for: 5m
+        labels:
+          severity: warning
+          service: exam-system
+        annotations:
+          summary: "Low WebSocket connections"
+          description: "Only {{ $value }} WebSocket connections active"
+
+      # No active exams (should only fire during exam hours)
+      - alert: NoActiveExams
+        expr: sum(exam_active_sessions) == 0
+        for: 10m
+        labels:
+          severity: info
+          service: exam-system
+        annotations:
+          summary: "No active exams"
+          description: "No active exam sessions detected"
+
+      # System down alert
+      - alert: SystemDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: exam-system
+        annotations:
+          summary: "System is down"
+          description: "The secure exam platform is not responding"
+
+  - name: exam_performance
+    rules:
+      # Long running exams
+      - alert: LongRunningExam
+        expr: time() - min(exam_sessions_start_time) > 7200
+        for: 5m
+        labels:
+          severity: warning
+          service: exam-system
+        annotations:
+          summary: "Exam running for more than 2 hours"
+          description: "Exam has been active for {{ $value }} seconds"
+
+      # High violation count per student
+      - alert: HighViolationCountPerStudent
+        expr: max by (user_id) (exam_violations_total) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: exam-system
+        annotations:
+          summary: "High violation count per student"
+          description: "Student has {{ $value }} violations"
+
+      # Exam completion rate low
+      - alert: LowExamCompletionRate
+        expr: (increase(exam_submitted_total[1h]) / increase(exam_started_total[1h])) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: exam-system
+        annotations:
+          summary: "Low exam completion rate"
+          description: "Only {{ $value | humanizePercentage }} of exams are being completed"

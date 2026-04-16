@@ -1,0 +1,774 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Live Exam Monitoring",
+    "tags": ["exam", "monitoring", "live"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active Exams",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(exam_active_sessions)",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "displayMode": "list",
+              "orientation": "horizontal",
+              "text": {},
+              "mappings": [],
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ],
+                "mode": "absolute"
+              }
+            },
+            "overrides": []
+          },
+          "overrides": [],
+          "unit": "short"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": [
+            {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          ],
+          "textMode": "auto"
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "sum(exam_active_sessions)",
+            "interval": "",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "title": "Active Exams",
+        "type": "stat"
+      },
+      {
+        "id": 2,
+        "title": "Exams Started",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(exam_started_total[5m])",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "displayMode": "list",
+              "orientation": "horizontal",
+              "text": {},
+              "mappings": [],
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ],
+                "mode": "absolute"
+              }
+            },
+            "overrides": []
+          },
+          "unit": "short"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 6,
+          "y": 0
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": [
+            {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          ],
+          "textMode": "auto"
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "increase(exam_started_total[5m])",
+            "interval": "",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "title": "Exams Started (5m)",
+        "type": "stat"
+      },
+      {
+        "id": 3,
+        "title": "Exams Submitted",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(exam_submitted_total[5m])",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "displayMode": "list",
+              "orientation": "horizontal",
+              "text": {},
+              "mappings": [],
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ],
+                "mode": "absolute"
+              }
+            },
+            "overrides": []
+          },
+          "unit": "short"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": [
+            {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          ],
+          "textMode": "auto"
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "increase(exam_submitted_total[5m])",
+            "interval": "",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "title": "Exams Submitted (5m)",
+        "type": "stat"
+      },
+      {
+        "id": 4,
+        "title": "Violations Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(exam_violations_total[5m])",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "axisCenter": "zero",
+              "axisSoftMin": 0,
+              "axisSoftMax": 10
+            },
+            "overrides": []
+          },
+          "unit": "reqps"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "options": {
+          "colorMode": "palette-classic",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": [
+            {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          ],
+          "textMode": "auto"
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "rate(exam_violations_total[5m])",
+            "interval": "",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "title": "Violations Rate",
+        "type": "graph"
+      },
+      {
+        "id": 5,
+        "title": "Force Submit Events",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(exam_force_submitted_total[5m])",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "displayMode": "list",
+              "orientation": "horizontal",
+              "text": {},
+              "mappings": [],
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ],
+                "mode": "absolute"
+              }
+            },
+            "overrides": []
+          },
+          "unit": "short"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 6,
+          "y": 8
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": [
+            {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          ],
+          "textMode": "auto"
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "increase(exam_force_submitted_total[5m])",
+            "interval": "",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "title": "Force Submit Events (5m)",
+        "type": "stat"
+      },
+      {
+        "id": 6,
+        "title": "API Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, api_request_duration_seconds)",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, api_request_duration_seconds)",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "axisCenter": "zero",
+              "axisSoftMin": 0,
+              "axisSoftMax": 10
+            },
+            "overrides": []
+          },
+          "unit": "s"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "options": {
+          "colorMode": "palette-classic",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": [
+            {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          ],
+          "textMode": "auto"
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, api_request_duration_seconds)",
+            "interval": "",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, api_request_duration_seconds)",
+            "interval": "",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "title": "API Latency",
+        "type": "graph"
+      },
+      {
+        "id": 7,
+        "title": "WebSocket Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "websocket_connections",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "axisCenter": "zero",
+              "axisSoftMin": 0,
+              "axisSoftMax": 10
+            },
+            "overrides": []
+          },
+          "unit": "short"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "options": {
+          "colorMode": "palette-classic",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": [
+            {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          ],
+          "textMode": "auto"
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "websocket_connections",
+            "interval": "",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "title": "WebSocket Connections",
+        "type": "graph"
+      },
+      {
+        "id": 8,
+        "title": "Top Exams by Activity",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, sum by (exam_id) (exam_started_total + exam_submitted_total))",
+            "format": "table",
+            "instant": true,
+            "interval": ""
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "list",
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "Total"
+            }
+          ]
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "topk(10, sum by (exam_id) (exam_started_total + exam_submitted_total))",
+            "format": "table",
+            "instant": true,
+            "interval": ""
+          }
+        ],
+        "title": "Top Exams by Activity",
+        "type": "table"
+      },
+      {
+        "id": 9,
+        "title": "Violations per Student",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(20, sum by (user_id) (exam_violations_total))",
+            "format": "table",
+            "instant": true,
+            "interval": ""
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "list",
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "Violations"
+            }
+          ]
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "topk(20, sum by (user_id) (exam_violations_total))",
+            "format": "table",
+            "instant": true,
+            "interval": ""
+          }
+        ],
+        "title": "Violations per Student",
+        "type": "table"
+      },
+      {
+        "id": 10,
+        "title": "System Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "displayMode": "list",
+              "orientation": "horizontal",
+              "text": {},
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "index": 0,
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": [],
+            "unit": "short"
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 24
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": [
+            {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          ],
+          "textMode": "auto"
+        },
+        "pluginVersion": "9.0.0",
+        "targets": [
+          {
+            "expr": "up",
+            "interval": "",
+            "legendFormat": "{{__value__.labels}}"
+          }
+        ],
+        "title": "System Health",
+        "type": "stat"
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}
