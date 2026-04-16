@@ -222,11 +222,11 @@ export const useAntiCheat = (
     if (elem.requestFullscreen) {
       elem.requestFullscreen()
     } else if ((elem as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen) {
-      (elem as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen()
+      ((elem as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen)()
     } else if ((elem as unknown as { mozRequestFullScreen?: () => void }).mozRequestFullScreen) {
-      (elem as unknown as { mozRequestFullScreen?: () => void }).mozRequestFullScreen()
+      ((elem as unknown as { mozRequestFullScreen?: () => void }).mozRequestFullScreen)()
     } else if ((elem as unknown as { msRequestFullscreen?: () => void }).msRequestFullscreen) {
-      (elem as unknown as { msRequestFullscreen?: () => void }).msRequestFullscreen()
+      ((elem as unknown as { msRequestFullscreen?: () => void }).msRequestFullscreen)()
     }
   }, [])
 

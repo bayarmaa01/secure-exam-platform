@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 import { useAntiCheat } from '../../hooks/useAntiCheat'
 import { io, Socket } from 'socket.io-client'
@@ -36,8 +35,8 @@ export default function LiveExam() {
   const { examId } = useParams<{ examId: string }>()
   const navigate = useNavigate()
   const socketRef = useRef<Socket | null>(null)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const timerRef = useRef<number | null>(null)
+  const syncIntervalRef = useRef<number | null>(null)
   
   const [session, setSession] = useState<ExamSession | null>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
@@ -68,7 +67,6 @@ export default function LiveExam() {
         const updatedSession = response.data
         setSession(updatedSession)
         setTimeRemaining(updatedSession.remaining_time_ms)
-        setServerTime(new Date(updatedSession.server_time))
       } catch (error) {
         console.error('Failed to sync time:', error)
       }
@@ -109,7 +107,7 @@ export default function LiveExam() {
   useEffect(() => {
     if (!session) return
 
-    socketRef.current = io(process.env.REACT_APP_API_URL || 'http://localhost:4000')
+    socketRef.current = io((window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000')
     
     socketRef.current.on('connect', () => {
       console.log('Connected to exam WebSocket')
@@ -153,7 +151,7 @@ export default function LiveExam() {
             : a
         )
       } else {
-        return [...prev, { question_id: questionId, selected_answer }]
+        return [...prev, { question_id: questionId, selected_answer: selectedAnswer }]
       }
     })
   }, [])
@@ -258,7 +256,6 @@ export default function LiveExam() {
         const sessionData = response.data
         setSession(sessionData)
         setTimeRemaining(sessionData.remaining_time_ms)
-        setServerTime(new Date(sessionData.server_time))
         
         // Request fullscreen on start
         requestFullscreen()

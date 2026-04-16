@@ -35,7 +35,7 @@ export default function LiveMonitoring() {
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
   const [recentViolations, setRecentViolations] = useState<Violation[]>([])
   const [examStats, setExamStats] = useState<ExamStats[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading] = useState(true)
 
   // Function definitions
   const fetchActiveSessions = async () => {
@@ -79,7 +79,7 @@ export default function LiveMonitoring() {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    socketRef.current = io(process.env.REACT_APP_API_URL || 'http://localhost:4000')
+    socketRef.current = io((window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000')
     
     socketRef.current.on('connect', () => {
       console.log('Teacher monitoring socket connected')
