@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { io } from 'socket.io-client'
+import { io, Socket } from 'socket.io-client'
 import api from '../api'
 
 interface Violation {
@@ -27,7 +27,7 @@ export const useAntiCheat = (
   const [violations, setViolations] = useState<Violation[]>([])
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isTabActive, setIsTabActive] = useState(true)
-  const socketRef = useRef<any>(null)
+  const socketRef = useRef<Socket | null>(null)
   const lastViolationTimeRef = useRef<number>(0)
 
   // Record violation with throttling
@@ -222,11 +222,11 @@ export const useAntiCheat = (
     if (elem.requestFullscreen) {
       elem.requestFullscreen()
     } else if ((elem as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen) {
-      ((elem as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen)()
+      ((elem as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen)?.()
     } else if ((elem as unknown as { mozRequestFullScreen?: () => void }).mozRequestFullScreen) {
-      ((elem as unknown as { mozRequestFullScreen?: () => void }).mozRequestFullScreen)()
+      ((elem as unknown as { mozRequestFullScreen?: () => void }).mozRequestFullScreen)?.()
     } else if ((elem as unknown as { msRequestFullscreen?: () => void }).msRequestFullscreen) {
-      ((elem as unknown as { msRequestFullscreen?: () => void }).msRequestFullscreen)()
+      ((elem as unknown as { msRequestFullscreen?: () => void }).msRequestFullscreen)?.()
     }
   }, [])
 

@@ -57,6 +57,57 @@ export default function LiveExam() {
     }
   )
 
+  // Handle force submit from teacher
+  const handleForceSubmit = useCallback((reason: string) => {
+    if (isSubmitting || isAutoSubmitting) return;
+    
+    setIsAutoSubmitting(true);
+    setIsSubmitting(true);
+    
+    // Submit with current answers
+    api.post(`/exam-sessions/${session?.session_id}/submit`, {
+      answers,
+      violation_count: antiCheat.violationCount
+    }).then(() => {
+      navigate('/student-dashboard', { 
+        state: { 
+          message: `Exam force submitted: ${reason}`,
+          forceSubmitted: true 
+        } 
+      });
+    }).catch(error => {
+      console.error('Force submit failed:', error);
+      setIsSubmitting(false);
+      setIsAutoSubmitting(false);
+    });
+  }, [session, answers, antiCheat.violationCount, isSubmitting, isAutoSubmitting, navigate]);
+
+  // Auto-submit when time ends
+  const handleAutoSubmit = useCallback(async () => {
+    if (isSubmitting || isAutoSubmitting) return;
+    
+    setIsAutoSubmitting(true);
+    setIsSubmitting(true);
+    
+    try {
+      await api.post(`/exam-sessions/${session?.session_id}/submit`, {
+        answers,
+        violation_count: antiCheat.violationCount
+      });
+      
+      navigate('/student-dashboard', { 
+        state: { 
+          message: 'Exam auto-submitted due to time limit or violations',
+          autoSubmitted: true 
+        } 
+      });
+    } catch (error) {
+      console.error('Auto-submit failed:', error);
+      setIsSubmitting(false);
+      setIsAutoSubmitting(false);
+    }
+  }, [session, answers, antiCheat.violationCount, isSubmitting, isAutoSubmitting, navigate]);
+
   // Sync with server time every 5 seconds
   useEffect(() => {
     if (!session) return
@@ -83,7 +134,7 @@ export default function LiveExam() {
         clearInterval(syncIntervalRef.current)
       }
     }
-  }, [session?.session_id])
+  }, [session?.session_id, antiCheat, handleAutoSubmit])
 
   // Local timer for countdown
   useEffect(() => {
@@ -101,7 +152,7 @@ export default function LiveExam() {
         clearInterval(timerRef.current)
       }
     }
-  }, [timeRemaining])
+  }, [timeRemaining, handleAutoSubmit])
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -131,14 +182,15 @@ export default function LiveExam() {
         socketRef.current.disconnect()
       }
     }
-  }, [session])
+  }, [session, handleForceSubmit])
 
+  
   // Check for auto-submit conditions
   useEffect(() => {
     if (antiCheat.shouldAutoSubmit()) {
       handleAutoSubmit()
     }
-  }, [antiCheat.violations])
+  }, [antiCheat.violations, handleAutoSubmit])
 
   // Handle answer selection
   const handleAnswerSelect = useCallback((questionId: string, selectedAnswer: string) => {
@@ -156,81 +208,6 @@ export default function LiveExam() {
     })
   }, [])
 
-  // Auto-submit when time ends
-  const handleAutoSubmit = useCallback(async () => {
-    if (isSubmitting || isAutoSubmitting) return
-    
-    setIsAutoSubmitting(true)
-    setIsSubmitting(true)
-    
-    try {
-      await api.post(`/exam-sessions/${session?.session_id}/submit`, {
-        answers,
-        violation_count: antiCheat.violationCount
-      })
-      
-      navigate('/student-dashboard', { 
-        state: { 
-          message: 'Exam auto-submitted due to time limit or violations',
-          autoSubmitted: true 
-        } 
-      })
-    } catch (error) {
-      console.error('Auto-submit failed:', error)
-      setIsSubmitting(false)
-      setIsAutoSubmitting(false)
-    }
-  }, [session, answers, antiCheat.violationCount, isSubmitting, isAutoSubmitting])
-
-  // Handle force submit from teacher
-  const handleForceSubmit = useCallback((reason: string) => {
-    if (isSubmitting || isAutoSubmitting) return
-    
-    setIsAutoSubmitting(true)
-    setIsSubmitting(true)
-    
-    // Submit with current answers
-    api.post(`/exam-sessions/${session?.session_id}/submit`, {
-      answers,
-      violation_count: antiCheat.violationCount
-    }).then(() => {
-      navigate('/student-dashboard', { 
-        state: { 
-          message: `Exam force submitted: ${reason}`,
-          forceSubmitted: true 
-        } 
-      })
-    }).catch(error => {
-      console.error('Force submit failed:', error)
-      setIsSubmitting(false)
-      setIsAutoSubmitting(false)
-    })
-  }, [session, answers, antiCheat.violationCount, isSubmitting, isAutoSubmitting])
-
-  // Manual submit
-  const handleSubmit = useCallback(async () => {
-    if (isSubmitting || isAutoSubmitting) return
-    
-    setIsSubmitting(true)
-    
-    try {
-      await api.post(`/exam-sessions/${session?.session_id}/submit`, {
-        answers,
-        violation_count: antiCheat.violationCount
-      })
-      
-      navigate('/student-dashboard', { 
-        state: { 
-          message: 'Exam submitted successfully',
-          submitted: true 
-        } 
-      })
-    } catch (error) {
-      console.error('Submit failed:', error)
-      setIsSubmitting(false)
-    }
-  }, [session, answers, antiCheat.violationCount, isSubmitting, isAutoSubmitting])
-
   // Request fullscreen
   const requestFullscreen = useCallback(() => {
     antiCheat.requestFullscreen()
@@ -243,6 +220,30 @@ export default function LiveExam() {
     const seconds = totalSeconds % 60
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }
+
+  // Manual submit
+  const handleSubmit = useCallback(async () => {
+    if (isSubmitting || isAutoSubmitting) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      await api.post(`/exam-sessions/${session?.session_id}/submit`, {
+        answers,
+        violation_count: antiCheat.violationCount
+      });
+      
+      navigate('/student-dashboard', { 
+        state: { 
+          message: 'Exam submitted successfully',
+          submitted: true 
+        } 
+      });
+    } catch (error) {
+      console.error('Submit failed:', error);
+      setIsSubmitting(false);
+    }
+  }, [session, answers, antiCheat.violationCount, isSubmitting, isAutoSubmitting]);
 
   // Load initial session data
   useEffect(() => {
