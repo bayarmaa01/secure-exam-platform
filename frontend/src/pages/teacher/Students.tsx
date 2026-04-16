@@ -38,6 +38,7 @@ export default function Students() {
   const filteredStudents = students.filter(student =>
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (student.registration_number && student.registration_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (student.student_id && student.student_id.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
@@ -137,12 +138,12 @@ export default function Students() {
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
                           <span className="text-blue-600 text-xs font-medium">
-                            {student.student_id ? student.student_id.slice(-3) : 'N/A'}
+                            {student.registration_number ? student.registration_number.slice(-3) : 'N/A'}
                           </span>
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {student.student_id || 'N/A'}
+                            {student.registration_number || student.student_id || 'N/A'}
                           </div>
                         </div>
                       </div>
@@ -163,12 +164,12 @@ export default function Students() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(student.created_at).toLocaleDateString()}
+                      {student.created_at ? new Date(student.created_at).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => {
-                          const studentId = student.student_id || 'N/A'
+                          const studentId = student.registration_number || student.student_id || 'N/A'
                           navigator.clipboard.writeText(studentId)
                           // Show toast or alert
                           alert(`Student ID ${studentId} copied to clipboard!`)
@@ -181,7 +182,7 @@ export default function Students() {
                         </svg>
                       </button>
                       <Link
-                        to={`/teacher/courses?enroll=${student.student_id || ''}`}
+                        to={`/teacher/courses?enroll=${student.registration_number || ''}`}
                         className="text-green-600 hover:text-green-900"
                         title="Enroll in Course"
                       >

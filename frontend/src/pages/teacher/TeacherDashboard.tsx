@@ -46,6 +46,22 @@ export default function TeacherDashboard() {
     fetchDashboardData()
   }, [])
 
+  const deleteExam = async (examId: string) => {
+    if (!confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      await api.delete(`/exams/${examId}`)
+      // Refresh the dashboard data
+      fetchDashboardData()
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { message?: string } } }
+      console.error('Failed to delete exam:', apiError.response?.data?.message || 'Unknown error')
+      alert('Failed to delete exam. Please try again.')
+    }
+  }
+
   const fetchDashboardData = async () => {
     try {
       const [examsRes, studentsRes] = await Promise.all([
@@ -370,6 +386,13 @@ export default function TeacherDashboard() {
                           >
                             Manage
                           </Link>
+                          <button
+                            onClick={() => deleteExam(exam.id)}
+                            className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                            title="Delete Exam"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
                     </div>

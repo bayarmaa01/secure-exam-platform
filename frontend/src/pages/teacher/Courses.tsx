@@ -16,7 +16,7 @@ export default function Courses() {
     description: ''
   })
   const [enrollData, setEnrollData] = useState({
-    student_id: ''
+    registration_number: ''
   })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -77,7 +77,7 @@ export default function Courses() {
       setError('')
       await coursesApi.enrollStudent(selectedCourse!.id, enrollData)
       setSuccess('Student enrolled successfully!')
-      setEnrollData({ student_id: '' })
+      setEnrollData({ registration_number: '' })
       setShowEnrollModal(false)
       setTimeout(() => setSuccess(''), 3000)
     } catch (error: unknown) {
@@ -285,9 +285,9 @@ export default function Courses() {
               <div className="flex space-x-2">
                 <input
                   type="text"
-                  value={enrollData.student_id}
-                  onChange={(e) => setEnrollData({ student_id: e.target.value })}
-                  placeholder="Enter Student ID (e.g., STU001)"
+                  value={enrollData.registration_number}
+                  onChange={(e) => setEnrollData({ registration_number: e.target.value })}
+                  placeholder="Enter Registration Number (e.g., REG2026001)"
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />

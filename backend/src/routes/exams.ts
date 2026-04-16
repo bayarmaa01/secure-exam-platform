@@ -872,4 +872,39 @@ router.post('/student/submit', auth, requireStudent, [
   }
 })
 
+// Teacher: Delete exam
+router.delete('/exams/:id', auth, requireTeacher, async (req: AuthRequest, res) => {
+  try {
+    const examId = req.params.id
+
+    // Check if exam belongs to teacher
+    const examCheck = await pool.query(
+      'SELECT teacher_id FROM exams WHERE id = $1',
+      [examId]
+    )
+
+    if (examCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Exam not found' })
+    }
+
+    if (examCheck.rows[0].teacher_id !== req.user!.id) {
+      return res.status(403).json({ message: 'Not authorized to delete this exam' })
+    }
+
+    // Delete related records first (due to foreign key constraints)
+    await pool.query('DELETE FROM exam_attempts WHERE exam_id = $1', [examId])
+    await pool.query('DELETE FROM results WHERE exam_id = $1', [examId])
+    await pool.query('DELETE FROM exam_questions WHERE exam_id = $1', [examId])
+    await pool.query('DELETE FROM exam_sessions WHERE exam_id = $1', [examId])
+    
+    // Delete the exam
+    await pool.query('DELETE FROM exams WHERE id = $1', [examId])
+    
+    res.json({ message: 'Exam deleted successfully' })
+  } catch (error) {
+    console.error('DELETE /api/exams/:id - Error:', error)
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
 export { router as examRoutes }

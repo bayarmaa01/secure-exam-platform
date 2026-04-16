@@ -18,7 +18,7 @@ export interface CreateCourseRequest {
 }
 
 export interface EnrollStudentRequest {
-  student_id: string
+  registration_number: string
 }
 
 export interface Student {
