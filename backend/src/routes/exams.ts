@@ -242,12 +242,22 @@ router.post('/exams',
 
         // Create notifications for each student
         if (studentsResult.rows.length > 0) {
-          const examTitle = r.rows[0].title || 'New Exam'
+          const exam = r.rows[0]
+          const examTitle = exam.title || 'New Exam'
           for (const student of studentsResult.rows) {
             await pool.query(
-              `INSERT INTO notifications (user_id, message, type, created_at)
-               VALUES ($1, $2, 'exam_created', NOW())`,
-              [student.user_id, `New exam available: ${examTitle}`]
+              `INSERT INTO notifications (user_id, title, message, type, data, created_at)
+               VALUES ($1, $2, $3, 'exam_created', $4, NOW())`,
+              [
+                student.user_id, 
+                'New Exam Available', 
+                `New exam "${examTitle}" is now available in your course.`,
+                JSON.stringify({
+                  exam_id: exam.id,
+                  exam_title: exam.title,
+                  course_id: exam.course_id
+                })
+              ]
             )
           }
         }

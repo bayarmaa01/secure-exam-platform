@@ -64,4 +64,64 @@ router.delete('/courses/:courseId/students/:studentId',
   }
 )
 
+// Teacher: Get dashboard stats
+router.get('/teacher/stats',
+  auth,
+  requireTeacher,
+  async (req: AuthRequest, res) => {
+    try {
+      const teacherId = req.user!.id
+      
+      // Get total exams
+      const totalExamsResult = await pool.query(
+        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1',
+        [teacherId]
+      )
+      
+      // Get published exams
+      const publishedExamsResult = await pool.query(
+        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1 AND is_published = true',
+        [teacherId]
+      )
+      
+      // Get ongoing exams
+      const ongoingExamsResult = await pool.query(
+        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1 AND status = $2 AND start_time <= NOW() AND end_time > NOW()',
+        [teacherId, 'published']
+      )
+      
+      // Get total questions
+      const totalQuestionsResult = await pool.query(
+        `SELECT COUNT(*) as count 
+         FROM questions q 
+         JOIN exams e ON q.exam_id = e.id 
+         WHERE e.teacher_id = $1`,
+        [teacherId]
+      )
+      
+      // Get total students in teacher's courses
+      const totalStudentsResult = await pool.query(
+        `SELECT COUNT(DISTINCT en.student_id) as count 
+         FROM enrollments en 
+         JOIN courses c ON en.course_id = c.id 
+         WHERE c.teacher_id = $1`,
+        [teacherId]
+      )
+      
+      const stats = {
+        totalExams: parseInt(totalExamsResult.rows[0].count),
+        publishedExams: parseInt(publishedExamsResult.rows[0].count),
+        ongoingExams: parseInt(ongoingExamsResult.rows[0].count),
+        totalQuestions: parseInt(totalQuestionsResult.rows[0].count),
+        totalStudents: parseInt(totalStudentsResult.rows[0].count)
+      }
+      
+      res.json(stats)
+    } catch (error) {
+      console.error('GET /api/teacher/stats - Error:', error)
+      res.status(500).json({ message: 'Internal server error' })
+    }
+  }
+)
+
 export { router as teacherRoutes }
