@@ -11,7 +11,7 @@ jest.mock('../src/db', () => ({
 
 jest.mock('../src/middleware/auth', () => ({
   auth: jest.fn((req: any, res: any, next: any) => {
-    req.user = { id: '1', email: 'test@example.com', role: 'teacher', name: 'Test Teacher' };
+    req.user = { id: 1, email: 'test@example.com', role: 'teacher', name: 'Test Teacher' };
     next();
   }),
   requireStudent: jest.fn((req: any, res: any, next: any) => next()),
@@ -66,7 +66,7 @@ describe('Exam Routes', () => {
         description: 'Basic mathematics',
         duration_minutes: 60,
         total_marks: 100,
-        teacher_id: '1', // Match the mock user ID
+        teacher_id: 1, // Match the mock user ID
         status: 'published',
         start_time: new Date().toISOString(),
         created_at: new Date().toISOString(),
@@ -104,7 +104,8 @@ describe('Exam Routes', () => {
         description: 'Test description',
         duration_minutes: 60,
         start_time: new Date().toISOString(),
-        end_time: new Date(Date.now() + 3600000).toISOString()
+        end_time: new Date(Date.now() + 3600000).toISOString(),
+        course_id: 1
       };
 
       const mockCreatedExam = {
@@ -135,7 +136,7 @@ describe('Exam Routes', () => {
 
       // Mock ownership check
       mockPoolQuery.mockResolvedValueOnce({
-        rows: [{ teacher_id: '1' }] // Match the mock user ID
+        rows: [{ teacher_id: 1 }] // Database returns number
       } as never);
 
       // Mock update result
@@ -204,7 +205,7 @@ describe('Exam Routes', () => {
     test('should get exam questions', async () => {
       // Mock exam access check
       mockPoolQuery.mockResolvedValueOnce({
-        rows: [{ teacher_id: '1', status: 'published' }] // Match the mock user ID and status
+        rows: [{ teacher_id: 1, status: 'published' }] // Match the mock user ID and status
       } as never);
 
       const mockQuestions = [
