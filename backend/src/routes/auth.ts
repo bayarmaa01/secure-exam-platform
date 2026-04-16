@@ -302,18 +302,6 @@ router.post('/forgot-password', [body('email').isEmail()], async (req, res) => {
       const { sendPasswordResetEmail } = await import('../services/emailService')
       await sendPasswordResetEmail(email, resetToken)
     } catch (emailError) {
-      console.error('Email sending failed:', emailError)
-      // Continue even if email fails, but log the error
-    }
-
-    return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
-  } catch (error) {
-    console.error('Forgot password error:', error)
-    return res.status(500).json({ message: 'Internal server error' })
-  }
-})
-
-/**
  * RESET PASSWORD
  */
 router.post('/reset-password', [
@@ -354,7 +342,29 @@ router.post('/reset-password', [
 
     return res.json({ message: 'Password reset successfully' })
   } catch (error) {
-    console.error('Reset password error:', error)
+
+// Update user profile
+router.put('/profile', auth, async (req: AuthRequest, res) => {
+  try {
+    const { name, email, registration_number } = req.body
+    const userId = req.user!.id
+
+    const result = await pool.query(
+      `UPDATE users 
+         SET name = $1, email = $2, registration_number = $3, updated_at = NOW()
+         WHERE id = $4
+         RETURNING id, name, email, registration_number, updated_at`,
+      [name, email, registration_number, userId]
+    )
+
+    const updatedUser = result.rows[0]
+
+    return res.json({
+      message: 'Profile updated successfully',
+      user: updatedUser
+    })
+  } catch (error) {
+    console.error('Profile update error:', error)
     return res.status(500).json({ message: 'Internal server error' })
   }
 })

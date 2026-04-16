@@ -38,7 +38,7 @@ export default function Students() {
   const filteredStudents = students.filter(student =>
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.student_id.toLowerCase().includes(searchTerm.toLowerCase())
+    (student.student_id && student.student_id.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
   if (loading) {
@@ -137,12 +137,12 @@ export default function Students() {
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
                           <span className="text-blue-600 text-xs font-medium">
-                            {student.student_id.slice(-3)}
+                            {student.student_id ? student.student_id.slice(-3) : 'N/A'}
                           </span>
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {student.student_id}
+                            {student.student_id || 'N/A'}
                           </div>
                         </div>
                       </div>
@@ -168,9 +168,10 @@ export default function Students() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(student.student_id)
+                          const studentId = student.student_id || 'N/A'
+                          navigator.clipboard.writeText(studentId)
                           // Show toast or alert
-                          alert(`Student ID ${student.student_id} copied to clipboard!`)
+                          alert(`Student ID ${studentId} copied to clipboard!`)
                         }}
                         className="text-blue-600 hover:text-blue-900 mr-3"
                         title="Copy Student ID"
@@ -180,7 +181,7 @@ export default function Students() {
                         </svg>
                       </button>
                       <Link
-                        to={`/teacher/courses?enroll=${student.student_id}`}
+                        to={`/teacher/courses?enroll=${student.student_id || ''}`}
                         className="text-green-600 hover:text-green-900"
                         title="Enroll in Course"
                       >
@@ -243,7 +244,7 @@ export default function Students() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Student IDs</p>
               <p className="text-2xl font-bold text-gray-900">
-                {students.filter(s => s.student_id).length}
+                {students.filter(s => s.student_id && s.student_id.trim() !== '').length}
               </p>
             </div>
           </div>

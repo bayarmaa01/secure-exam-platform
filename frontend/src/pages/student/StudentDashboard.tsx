@@ -36,10 +36,42 @@ export default function StudentDashboard() {
   const [attempts, setAttempts] = useState<Attempt[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileData, setProfileData] = useState({
+    name: '',
+    email: '',
+    registration_number: ''
+  })
+  const [profileError, setProfileError] = useState('')
+  const [success, setSuccess] = useState('')
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
+
+  useEffect(() => {
+    if (user) {
+      setProfileData({
+        name: user.name || '',
+        email: user.email || '',
+        registration_number: user.registration_number || ''
+      })
+    }
+  }, [user])
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setProfileError('')
+      await api.put('/auth/profile', profileData)
+      setSuccess('Profile updated successfully!')
+      setShowProfileModal(false)
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { message?: string } } }
+      setProfileError(apiError.response?.data?.message || 'Failed to update profile')
+    }
+  }
 
   const fetchDashboardData = async () => {
     try {
@@ -189,6 +221,33 @@ export default function StudentDashboard() {
                 </div>
               </div>
             </div>
+            <div className="bg-white overflow-hidden shadow rounded-lg">
+              <div className="p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 100-8 4 4 0 00-8 4v8a2 2 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">Student Profile</dt>
+                        <dd className="text-lg font-medium text-gray-900">View & Edit</dd>
+                      </dl>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowProfileModal(true)}
+                    className="px-3 py-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                  >
+                    Edit Profile
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Content Grid */}
@@ -259,6 +318,84 @@ export default function StudentDashboard() {
           </div>
         </div>
       </main>
+      
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Edit Profile</h2>
+            
+            {profileError && (
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                {profileError}
+              </div>
+            )}
+            
+            {success && (
+              <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                {success}
+              </div>
+            )}
+            
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={profileData.name}
+                  onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={profileData.email}
+                  onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Registration Number
+                </label>
+                <input
+                  type="text"
+                  value={profileData.registration_number}
+                  onChange={(e) => setProfileData({ ...profileData, registration_number: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="REG2026001"
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(false)}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
