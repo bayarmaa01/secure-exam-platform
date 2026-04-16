@@ -302,6 +302,16 @@ router.post('/forgot-password', [body('email').isEmail()], async (req, res) => {
       const { sendPasswordResetEmail } = await import('../services/emailService')
       await sendPasswordResetEmail(email, resetToken)
     } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError)
+      // Continue even if email fails - user can still reset with token
+    }
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    return res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+/**
  * RESET PASSWORD
  */
 router.post('/reset-password', [
@@ -342,8 +352,14 @@ router.post('/reset-password', [
 
     return res.json({ message: 'Password reset successfully' })
   } catch (error) {
+    console.error('Reset password error:', error)
+    return res.status(500).json({ message: 'Internal server error' })
+  }
+})
 
-// Update user profile
+/**
+ * UPDATE USER PROFILE
+ */
 router.put('/profile', auth, async (req: AuthRequest, res) => {
   try {
     const { name, email, registration_number } = req.body

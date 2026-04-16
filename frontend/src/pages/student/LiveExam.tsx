@@ -4,6 +4,15 @@ import api from '../../api'
 import { useAntiCheat } from '../../hooks/useAntiCheat'
 import { io, Socket } from 'socket.io-client'
 
+// Type definition for window object with process env
+interface WindowWithProcessEnv extends Window {
+  process?: {
+    env?: {
+      REACT_APP_API_URL?: string
+    }
+  }
+}
+
 interface Question {
   id: string
   question_text: string
@@ -158,7 +167,7 @@ export default function LiveExam() {
   useEffect(() => {
     if (!session) return
 
-    const apiUrl = (window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
+    const apiUrl = (window as WindowWithProcessEnv).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
     socketRef.current = io(apiUrl)
     
     socketRef.current.on('connect', () => {

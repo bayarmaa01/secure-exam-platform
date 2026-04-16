@@ -3,6 +3,15 @@ import { Link } from 'react-router-dom'
 import api from '../../api'
 import { io, Socket } from 'socket.io-client'
 
+// Type definition for window object with process env
+interface WindowWithProcessEnv extends Window {
+  process?: {
+    env?: {
+      REACT_APP_API_URL?: string
+    }
+  }
+}
+
 interface ActiveSession {
   session_id: string
   exam_id: string
@@ -50,14 +59,14 @@ export default function LiveMonitoring() {
   const [isLoading] = useState(true)
 
   // Function definitions
-  const fetchActiveSessions = async () => {
+  const fetchActiveSessions = useCallback(async () => {
     try {
       const response = await api.get('/exam-sessions/sessions/active')
       setActiveSessions(response.data)
     } catch (error) {
       console.error('Failed to fetch active sessions:', error)
     }
-  }
+  }, [])
 
   const fetchExamStats = useCallback(async () => {
     try {
@@ -80,18 +89,18 @@ export default function LiveMonitoring() {
     }
   }, [activeSessions])
 
-  const fetchRecentViolations = async () => {
+  const fetchRecentViolations = useCallback(async () => {
     try {
       const response = await api.get('/exam-sessions/violations/recent')
       setRecentViolations(response.data.slice(0, 20))
     } catch (error) {
       console.error('Failed to fetch recent violations:', error)
     }
-  }
+  }, [])
 
   // Initialize WebSocket connection
   useEffect(() => {
-    const apiUrl = (window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
+    const apiUrl = (window as WindowWithProcessEnv).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
     socketRef.current = io(apiUrl)
     
     socketRef.current.on('connect', () => {
@@ -130,14 +139,14 @@ export default function LiveMonitoring() {
         socketRef.current.disconnect()
       }
     }
-  }, [])
+  }, [fetchActiveSessions, fetchExamStats])
 
   // Fetch initial data
   useEffect(() => {
     fetchActiveSessions()
     fetchExamStats()
     fetchRecentViolations()
-  }, [fetchExamStats])
+  }, [fetchExamStats, fetchActiveSessions, fetchRecentViolations])
 
   const handleForceSubmit = async (sessionId: string, studentName: string) => {
     if (!confirm(`Force submit exam for ${studentName}?`)) {

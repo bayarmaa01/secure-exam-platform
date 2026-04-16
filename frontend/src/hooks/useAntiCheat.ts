@@ -2,6 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import api from '../api'
 
+// Type definition for window object with process env
+interface WindowWithProcessEnv extends Window {
+  process?: {
+    env?: {
+      REACT_APP_API_URL?: string
+    }
+  }
+}
+
 interface Violation {
   type: 'tab_switch' | 'fullscreen_exit' | 'copy_paste' | 'right_click'
   details: string
@@ -72,7 +81,7 @@ export const useAntiCheat = (
 
   // Initialize socket connection
   useEffect(() => {
-    const apiUrl = (window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
+    const apiUrl = (window as WindowWithProcessEnv).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
     socketRef.current = io(apiUrl)
     
     socketRef.current.on('connect', () => {
