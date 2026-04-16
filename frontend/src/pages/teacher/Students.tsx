@@ -143,7 +143,7 @@ export default function Students() {
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {student.registration_number || student.student_id || 'N/A'}
+                            {student.registration_number || 'N/A'}
                           </div>
                         </div>
                       </div>
@@ -169,7 +169,7 @@ export default function Students() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => {
-                          const studentId = student.registration_number || student.student_id || 'N/A'
+                          const studentId = student.registration_number || 'N/A'
                           navigator.clipboard.writeText(studentId)
                           // Show toast or alert
                           alert(`Student ID ${studentId} copied to clipboard!`)

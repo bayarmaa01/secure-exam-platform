@@ -71,6 +71,10 @@ router.get('/teacher/courses',
   requireTeacher,
   async (req: AuthRequest, res) => {
     try {
+      console.log('=== TEACHER COURSES DEBUG ===')
+      console.log('User ID:', req.user!.id)
+      console.log('User role:', req.user!.role)
+      
       const r = await pool.query(
         `SELECT c.*, 
                 COUNT(DISTINCT e.id) as exam_count,
@@ -83,6 +87,18 @@ router.get('/teacher/courses',
          ORDER BY c.created_at DESC`,
         [req.user!.id]
       )
+      
+      console.log('Raw teacher courses results:', JSON.stringify(r.rows, null, 2))
+      console.log('Number of courses found:', r.rows.length)
+      
+      // Also check enrollments table directly
+      const enrollmentsCheck = await pool.query(
+        'SELECT course_id, COUNT(*) as student_count FROM enrollments GROUP BY course_id'
+      )
+      console.log('Direct enrollments check:', JSON.stringify(enrollmentsCheck.rows, null, 2))
+      
+      console.log('=== END TEACHER COURSES DEBUG ===')
+      
       res.json(r.rows)
     } catch (error) {
       console.error('GET /api/teacher/courses - Error:', error)
@@ -96,6 +112,10 @@ router.get('/student/courses',
   auth,
   async (req: AuthRequest, res) => {
     try {
+      console.log('=== STUDENT COURSES DEBUG ===')
+      console.log('User ID:', req.user!.id)
+      console.log('User role:', req.user!.role)
+      
       const r = await pool.query(
         `SELECT c.*, 
                 u.name as teacher_name,
@@ -109,6 +129,11 @@ router.get('/student/courses',
          ORDER BY c.created_at DESC`,
         [req.user!.id]
       )
+      
+      console.log('Raw student courses results:', JSON.stringify(r.rows, null, 2))
+      console.log('Number of courses found:', r.rows.length)
+      console.log('=== END STUDENT COURSES DEBUG ===')
+      
       res.json(r.rows)
     } catch (error) {
       console.error('GET /api/student/courses - Error:', error)

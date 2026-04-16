@@ -32,6 +32,17 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
 // Teacher: Get all my exams
 router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res) => {
   try {
+    console.log('=== TEACHER EXAMS DEBUG ===')
+    console.log('User ID:', req.user!.id)
+    console.log('Query being executed:')
+    console.log(`SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.status, e.created_at, e.course_id,
+              c.name as course_name,
+              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
+       FROM exams e
+       LEFT JOIN courses c ON e.course_id = c.id
+       WHERE e.teacher_id = ${req.user!.id}
+       ORDER BY e.created_at DESC`)
+    
     const r = await pool.query(
       `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.status, e.created_at, e.course_id,
               c.name as course_name,
@@ -42,7 +53,10 @@ router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res)
        ORDER BY e.created_at DESC`,
       [req.user!.id]
     )
-    res.json(r.rows.map((row) => ({
+    
+    console.log('Raw database results:', JSON.stringify(r.rows, null, 2))
+    
+    const mappedResults = r.rows.map((row) => ({
       id: row.id,
       title: row.title,
       description: row.description,
@@ -53,8 +67,14 @@ router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res)
       courseId: row.course_id,
       courseName: row.course_name,
       questionCount: parseInt(row.question_count) || 0
-    })))
+    }))
+    
+    console.log('Mapped results being sent to frontend:', JSON.stringify(mappedResults, null, 2))
+    console.log('=== END TEACHER EXAMS DEBUG ===')
+    
+    res.json(mappedResults)
   } catch (error) {
+    console.error('Error in teacher exams endpoint:', error)
     res.status(500).json({ message: 'Internal server error' })
   }
 })
