@@ -21,6 +21,7 @@ async function ensureTablesExist(client: PoolClient) {
       password_hash VARCHAR(255) NOT NULL,
       name VARCHAR(255) NOT NULL,
       role VARCHAR(20) DEFAULT 'student' CHECK (role IN ('student', 'teacher', 'admin')),
+      registration_number VARCHAR(20) UNIQUE,
       student_id VARCHAR(50),
       teacher_id VARCHAR(50),
       created_at TIMESTAMP DEFAULT NOW(),
@@ -227,7 +228,8 @@ async function runMigrations(client: PoolClient) {
   
   // Add any missing columns to existing tables
   const migrations = [
-    // Users table migrations for password reset
+    // Users table migrations for password reset and registration
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_number VARCHAR(20) UNIQUE`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`,
     // Refresh tokens table migration
