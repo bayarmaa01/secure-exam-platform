@@ -49,7 +49,8 @@ export default function Courses() {
       setShowCreateModal(false)
       setTimeout(() => setSuccess(''), 3000)
     } catch (error: unknown) {
-      setError(error.response?.data?.message || 'Failed to create course')
+      const apiError = error as { response?: { data?: { message?: string } } }
+      setError(apiError.response?.data?.message || 'Failed to create course')
     }
   }
 
@@ -65,7 +66,8 @@ export default function Courses() {
       setSuccess('Course deleted successfully!')
       setTimeout(() => setSuccess(''), 3000)
     } catch (error: unknown) {
-      setError(error.response?.data?.message || 'Failed to delete course')
+      const apiError = error as { response?: { data?: { message?: string } } }
+      setError(apiError.response?.data?.message || 'Failed to delete course')
     }
   }
 
@@ -79,7 +81,8 @@ export default function Courses() {
       setShowEnrollModal(false)
       setTimeout(() => setSuccess(''), 3000)
     } catch (error: unknown) {
-      setError(error.response?.data?.message || 'Failed to enroll student')
+      const apiError = error as { response?: { data?: { message?: string } } }
+      setError(apiError.response?.data?.message || 'Failed to enroll student')
     }
   }
 
@@ -91,7 +94,8 @@ export default function Courses() {
       setSelectedCourse(course)
       setShowEnrollModal(true)
     } catch (error: unknown) {
-      setError(error.response?.data?.message || 'Failed to fetch students')
+      const apiError = error as { response?: { data?: { message?: string } } }
+      setError(apiError.response?.data?.message || 'Failed to fetch students')
     }
   }
 

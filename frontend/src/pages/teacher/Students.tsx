@@ -28,7 +28,8 @@ export default function Students() {
       const studentUsers = response.data.filter((user: { role: string }) => user.role === 'student')
       setStudents(studentUsers)
     } catch (error: unknown) {
-      setError(error.response?.data?.message || 'Failed to fetch students')
+      const apiError = error as { response?: { data?: { message?: string } } }
+      setError(apiError.response?.data?.message || 'Failed to fetch students')
     } finally {
       setLoading(false)
     }

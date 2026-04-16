@@ -11,6 +11,14 @@ interface Question {
   points: number
 }
 
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string
+    }
+  }
+}
+
 export default function AddQuestions() {
   const { id } = useParams<{ id: string }>()
   const [questions, setQuestions] = useState<Question[]>([])
@@ -68,8 +76,10 @@ export default function AddQuestions() {
       setShowAddModal(false)
       fetchQuestions(id!)
       setTimeout(() => setSuccess(''), 3000)
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Failed to add question')
+    } catch (error: unknown) {
+      const apiError = error as ApiError
+      const errorMessage = apiError.response?.data?.message || 'Failed to add question'
+      setError(errorMessage)
     }
   }
 
@@ -97,8 +107,10 @@ export default function AddQuestions() {
       setShowUploadModal(false)
       fetchQuestions(id!)
       setTimeout(() => setSuccess(''), 3000)
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Failed to upload questions')
+    } catch (error: unknown) {
+      const apiError = error as ApiError
+      const errorMessage = apiError.response?.data?.message || 'Failed to upload questions'
+      setError(errorMessage)
     } finally {
       setUploading(false)
     }
@@ -115,8 +127,10 @@ export default function AddQuestions() {
       setSuccess('Question deleted successfully!')
       fetchQuestions(id!)
       setTimeout(() => setSuccess(''), 3000)
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Failed to delete question')
+    } catch (error: unknown) {
+      const apiError = error as ApiError
+      const errorMessage = apiError.response?.data?.message || 'Failed to delete question'
+      setError(errorMessage)
     }
   }
 
@@ -394,8 +408,6 @@ export default function AddQuestions() {
           </div>
         </div>
       )}
-        </div>
-      </main>
 
       {/* Upload File Modal */}
       {showUploadModal && (

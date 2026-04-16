@@ -42,7 +42,8 @@ export default function ExamsPage() {
       setExams(examsData.data)
       setCourses(coursesData)
     } catch (error: unknown) {
-      setError(error.response?.data?.message || 'Failed to fetch data')
+      const apiError = error as { response?: { data?: { message?: string } } }
+      setError(apiError.response?.data?.message || 'Failed to fetch data')
     } finally {
       setLoading(false)
     }

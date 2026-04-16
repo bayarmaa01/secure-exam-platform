@@ -21,14 +21,14 @@ export default function Register() {
       await register(email, password, name, role)
       navigate('/dashboard')
     } catch (error: unknown) {
-      const err = error as Error
-      if (err.response?.data?.errors) {
+      const apiError = error as { response?: { data?: { errors?: { message: string }[], message?: string } } }
+      if (apiError.response?.data?.errors) {
         // Handle validation errors from backend
-        const validationErrors = err.response.data.errors
+        const validationErrors = apiError.response.data.errors
         const errorMessages = validationErrors.map((e: { message: string }) => e.message).join(', ')
         setErr(errorMessages)
       } else {
-        setErr(err.response?.data?.message || err.message || 'Registration failed')
+        setErr(apiError.response?.data?.message || (error as Error).message || 'Registration failed')
       }
     } finally {
       setIsLoading(false)
