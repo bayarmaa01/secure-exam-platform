@@ -48,7 +48,7 @@ export default function Courses() {
       setFormData({ name: '', description: '' })
       setShowCreateModal(false)
       setTimeout(() => setSuccess(''), 3000)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError(error.response?.data?.message || 'Failed to create course')
     }
   }
@@ -64,7 +64,7 @@ export default function Courses() {
       setCourses(courses.filter(c => c.id !== courseId))
       setSuccess('Course deleted successfully!')
       setTimeout(() => setSuccess(''), 3000)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError(error.response?.data?.message || 'Failed to delete course')
     }
   }
@@ -78,7 +78,7 @@ export default function Courses() {
       setEnrollData({ student_id: '' })
       setShowEnrollModal(false)
       setTimeout(() => setSuccess(''), 3000)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError(error.response?.data?.message || 'Failed to enroll student')
     }
   }
@@ -90,7 +90,7 @@ export default function Courses() {
       setCourseStudents(students)
       setSelectedCourse(course)
       setShowEnrollModal(true)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError(error.response?.data?.message || 'Failed to fetch students')
     }
   }

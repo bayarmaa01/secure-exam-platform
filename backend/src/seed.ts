@@ -20,10 +20,6 @@ interface Course {
   id?: string
 }
 
-interface Enrollment {
-  course_id: string
-  student_id: string
-}
 
 export async function seedDatabase() {
   console.log('Starting database seeding...')

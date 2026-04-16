@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { body, validationResult } from 'express-validator'
+import { body } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent, requireTeacher } from '../middleware/auth'
 

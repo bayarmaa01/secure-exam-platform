@@ -61,7 +61,6 @@ import Courses from './pages/teacher/Courses'
 import Students from './pages/teacher/Students'
 import ExamsPage from './pages/teacher/ExamsPage'
 import CreateExam from './pages/teacher/CreateExam'
-import ManageExams from './pages/teacher/ManageExams'
 import AddQuestions from './pages/teacher/AddQuestions'
 import ViewResults from './pages/teacher/ViewResults'
 

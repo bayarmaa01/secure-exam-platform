@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
@@ -20,19 +20,18 @@ interface Attempt {
   time_remaining?: number
 }
 
-interface Answer {
-  question_id: string
-  answer: string
-  is_correct?: boolean
-  points_earned?: number
+interface Exam {
+  id: string
+  title: string
+  description: string
+  duration_minutes: number
 }
 
 export default function DynamicExamRoom() {
   const { id: examId } = useParams<{ id: string }>()
-  const { user } = useAuth()
   const navigate = useNavigate()
   
-  const [exam, setExam] = useState<any>(null)
+  const [exam, setExam] = useState<Exam | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [attempt, setAttempt] = useState<Attempt | null>(null)
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -40,14 +39,13 @@ export default function DynamicExamRoom() {
   const [submitting, setSubmitting] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState(0)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [error, setError] = useState('')
 
   // Initialize exam
   useEffect(() => {
     if (examId) {
       initializeExam()
     }
-  }, [examId])
+  }, [examId, initializeExam])
 
   // Timer countdown
   useEffect(() => {
@@ -63,7 +61,7 @@ export default function DynamicExamRoom() {
       }, 1000)
       return () => clearInterval(timer)
     }
-  }, [timeRemaining, attempt?.status])
+  }, [timeRemaining, attempt?.status, handleSubmitExam])
 
   const initializeExam = async () => {
     try {
@@ -71,7 +69,7 @@ export default function DynamicExamRoom() {
       
       // Start exam attempt
       const attemptResponse = await api.post(`/exams/${examId}/start`)
-      const newAttempt = attemptResponse.data
+      const newAttempt = attemptResponse.data as Attempt
       setAttempt(newAttempt)
 
       // Calculate time remaining
@@ -86,11 +84,11 @@ export default function DynamicExamRoom() {
         api.get(`/exams/${examId}`),
         api.get(`/exams/${examId}/questions`)
       ])
-
-      setExam(examResponse.data)
-      setQuestions(questionsResponse.data)
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Failed to start exam')
+      
+      setExam(examResponse.data as Exam)
+      setQuestions(questionsResponse.data as Question[])
+    } catch (error: unknown) {
+      setError((error as any).data?.message || 'Failed to start exam')
     } finally {
       setLoading(false)
     }
@@ -111,7 +109,7 @@ export default function DynamicExamRoom() {
         question_id: questionId,
         answer: answers[questionId]
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to submit answer:', error)
     }
   }
@@ -131,8 +129,8 @@ export default function DynamicExamRoom() {
       await api.post(`/attempts/${attempt.id}/submit`)
       
       navigate('/student/results')
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Failed to submit exam')
+    } catch (error: unknown) {
+      setError((error as any).response?.data?.message || 'Failed to submit exam')
     } finally {
       setSubmitting(false)
     }
@@ -185,7 +183,7 @@ export default function DynamicExamRoom() {
               rows={6}
             />
             <p className="text-sm text-gray-500 mt-2">
-              Your answer will be marked as "pending" for manual grading
+              Your answer will be marked as &quot;pending&quot; for manual grading
             </p>
           </div>
         )
