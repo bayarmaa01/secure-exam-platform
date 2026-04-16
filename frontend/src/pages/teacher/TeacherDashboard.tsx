@@ -8,9 +8,11 @@ interface Exam {
   title: string
   description: string
   durationMinutes: number
-  scheduledAt: string
+  startTime: string
   status: string
   createdAt: string
+  courseId?: string
+  courseName?: string
   questionCount?: number
   attemptCount?: number
 }
@@ -369,10 +371,16 @@ export default function TeacherDashboard() {
                           <p className="text-sm text-gray-600 mt-1">{exam.description}</p>
                           <div className="flex items-center space-x-4 mt-2">
                             <span className="text-sm text-gray-500">
-                              {exam.durationMinutes} minutes
+                              {exam.courseName || 'Unknown Course'}
                             </span>
                             <span className="text-sm text-gray-500">
-                              {new Date(exam.createdAt).toLocaleDateString()}
+                              {exam.durationMinutes || 0} minutes
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              {exam.questionCount || 0} questions
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              {exam.startTime ? new Date(exam.startTime).toLocaleDateString() : 'No date set'}
                             </span>
                           </div>
                         </div>

@@ -33,10 +33,13 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
 router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, title, description, duration_minutes, start_time, status, created_at
-       FROM exams 
-       WHERE teacher_id = $1
-       ORDER BY created_at DESC`,
+      `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.status, e.created_at, e.course_id,
+              c.name as course_name,
+              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
+       FROM exams e
+       LEFT JOIN courses c ON e.course_id = c.id
+       WHERE e.teacher_id = $1
+       ORDER BY e.created_at DESC`,
       [req.user!.id]
     )
     res.json(r.rows.map((row) => ({
@@ -46,7 +49,10 @@ router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res)
       durationMinutes: row.duration_minutes,
       startTime: row.start_time,
       status: row.status,
-      createdAt: row.created_at
+      createdAt: row.created_at,
+      courseId: row.course_id,
+      courseName: row.course_name,
+      questionCount: parseInt(row.question_count) || 0
     })))
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' })
@@ -874,36 +880,62 @@ router.post('/student/submit', auth, requireStudent, [
 
 // Teacher: Delete exam
 router.delete('/exams/:id', auth, requireTeacher, async (req: AuthRequest, res) => {
+  const client = await pool.connect()
   try {
+    await client.query('BEGIN')
+    
     const examId = req.params.id
 
-    // Check if exam belongs to teacher
-    const examCheck = await pool.query(
-      'SELECT teacher_id FROM exams WHERE id = $1',
+    // Check if exam belongs to teacher and get exam details
+    const examCheck = await client.query(
+      'SELECT teacher_id, title FROM exams WHERE id = $1',
       [examId]
     )
 
     if (examCheck.rows.length === 0) {
+      await client.query('ROLLBACK')
       return res.status(404).json({ message: 'Exam not found' })
     }
 
     if (examCheck.rows[0].teacher_id !== req.user!.id) {
+      await client.query('ROLLBACK')
       return res.status(403).json({ message: 'Not authorized to delete this exam' })
     }
 
-    // Delete related records first (due to foreign key constraints)
-    await pool.query('DELETE FROM exam_attempts WHERE exam_id = $1', [examId])
-    await pool.query('DELETE FROM results WHERE exam_id = $1', [examId])
-    await pool.query('DELETE FROM exam_questions WHERE exam_id = $1', [examId])
-    await pool.query('DELETE FROM exam_sessions WHERE exam_id = $1', [examId])
+    console.log(`Deleting exam: ${examCheck.rows[0].title} (${examId})`)
+
+    // Delete related records in correct order to avoid foreign key constraints
+    await client.query('DELETE FROM exam_violations WHERE exam_id = $1', [examId])
+    await client.query('DELETE FROM exam_sessions WHERE exam_id = $1', [examId])
+    await client.query('DELETE FROM exam_attempts WHERE exam_id = $1', [examId])
+    await client.query('DELETE FROM results WHERE exam_id = $1', [examId])
+    await client.query('DELETE FROM questions WHERE exam_id = $1', [examId])
     
     // Delete the exam
-    await pool.query('DELETE FROM exams WHERE id = $1', [examId])
+    const deleteResult = await client.query('DELETE FROM exams WHERE id = $1', [examId])
     
+    if (deleteResult.rowCount === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ message: 'Exam not found' })
+    }
+    
+    await client.query('COMMIT')
+    console.log(`Successfully deleted exam: ${examId}`)
     res.json({ message: 'Exam deleted successfully' })
   } catch (error) {
-    console.error('DELETE /api/exams/:id - Error:', error)
-    res.status(500).json({ message: 'Internal server error' })
+    await client.query('ROLLBACK')
+    console.error('DELETE /api/exams/:id - Error:', {
+      message: error.message,
+      stack: error.stack,
+      examId: req.params.id,
+      userId: req.user?.id
+    })
+    res.status(500).json({ 
+      message: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
+  } finally {
+    client.release()
   }
 })
 

@@ -122,29 +122,86 @@ router.delete('/courses/:id',
   auth,
   requireTeacher,
   async (req: AuthRequest, res) => {
+    const client = await pool.connect()
     try {
+      await client.query('BEGIN')
+      
       const courseId = req.params.id
 
-      // Check if course belongs to teacher
-      const courseCheck = await pool.query(
-        'SELECT teacher_id FROM courses WHERE id = $1',
+      // Check if course belongs to teacher and get course details
+      const courseCheck = await client.query(
+        'SELECT teacher_id, name FROM courses WHERE id = $1',
         [courseId]
       )
 
       if (courseCheck.rows.length === 0) {
+        await client.query('ROLLBACK')
         return res.status(404).json({ message: 'Course not found' })
       }
 
       if (courseCheck.rows[0].teacher_id !== req.user!.id) {
+        await client.query('ROLLBACK')
         return res.status(403).json({ message: 'Not authorized to delete this course' })
       }
 
-      await pool.query('DELETE FROM courses WHERE id = $1', [courseId])
+      console.log(`Deleting course: ${courseCheck.rows[0].name} (${courseId})`)
+
+      // Get all exams in this course for logging
+      const examsInCourse = await client.query(
+        'SELECT id, title FROM exams WHERE course_id = $1',
+        [courseId]
+      )
+
+      // Delete related records in correct order to avoid foreign key constraints
+      // 1. Delete exam-related records
+      for (const exam of examsInCourse.rows) {
+        await client.query('DELETE FROM exam_violations WHERE exam_id = $1', [exam.id])
+        await client.query('DELETE FROM exam_sessions WHERE exam_id = $1', [exam.id])
+        await client.query('DELETE FROM exam_attempts WHERE exam_id = $1', [exam.id])
+        await client.query('DELETE FROM results WHERE exam_id = $1', [exam.id])
+        await client.query('DELETE FROM questions WHERE exam_id = $1', [exam.id])
+        console.log(`  Deleted exam: ${exam.title} (${exam.id})`)
+      }
+
+      // 2. Delete exams themselves
+      await client.query('DELETE FROM exams WHERE course_id = $1', [courseId])
+
+      // 3. Delete enrollments for this course
+      const enrollmentResult = await client.query('DELETE FROM enrollments WHERE course_id = $1', [courseId])
+      console.log(`  Deleted ${enrollmentResult.rowCount} enrollments`)
+
+      // 4. Delete notifications related to this course
+      await client.query('DELETE FROM notifications WHERE course_id = $1', [courseId])
+
+      // 5. Delete the course
+      const deleteResult = await client.query('DELETE FROM courses WHERE id = $1', [courseId])
       
-      res.json({ message: 'Course deleted successfully' })
+      if (deleteResult.rowCount === 0) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ message: 'Course not found' })
+      }
+      
+      await client.query('COMMIT')
+      console.log(`Successfully deleted course: ${courseId}`)
+      res.json({ 
+        message: 'Course deleted successfully',
+        deletedExams: examsInCourse.rows.length,
+        deletedEnrollments: enrollmentResult.rowCount
+      })
     } catch (error) {
-      console.error('DELETE /api/courses/:id - Error:', error)
-      res.status(500).json({ message: 'Internal server error' })
+      await client.query('ROLLBACK')
+      console.error('DELETE /api/courses/:id - Error:', {
+        message: error.message,
+        stack: error.stack,
+        courseId: req.params.id,
+        userId: req.user?.id
+      })
+      res.status(500).json({ 
+        message: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
+    } finally {
+      client.release()
     }
   }
 )
