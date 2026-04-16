@@ -72,7 +72,8 @@ export const useAntiCheat = (
 
   // Initialize socket connection
   useEffect(() => {
-    socketRef.current = io((window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000')
+    const apiUrl = (window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
+    socketRef.current = io(apiUrl)
     
     socketRef.current.on('connect', () => {
       console.log('Anti-cheat socket connected')

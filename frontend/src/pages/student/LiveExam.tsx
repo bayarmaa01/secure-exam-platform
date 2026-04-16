@@ -134,7 +134,7 @@ export default function LiveExam() {
         clearInterval(syncIntervalRef.current)
       }
     }
-  }, [session?.session_id, antiCheat, handleAutoSubmit])
+  }, [session?.session_id, antiCheat, handleAutoSubmit, session])
 
   // Local timer for countdown
   useEffect(() => {
@@ -158,7 +158,8 @@ export default function LiveExam() {
   useEffect(() => {
     if (!session) return
 
-    socketRef.current = io((window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000')
+    const apiUrl = (window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
+    socketRef.current = io(apiUrl)
     
     socketRef.current.on('connect', () => {
       console.log('Connected to exam WebSocket')
@@ -190,7 +191,7 @@ export default function LiveExam() {
     if (antiCheat.shouldAutoSubmit()) {
       handleAutoSubmit()
     }
-  }, [antiCheat.violations, handleAutoSubmit])
+  }, [antiCheat.violations, handleAutoSubmit, antiCheat])
 
   // Handle answer selection
   const handleAnswerSelect = useCallback((questionId: string, selectedAnswer: string) => {
@@ -243,7 +244,7 @@ export default function LiveExam() {
       console.error('Submit failed:', error);
       setIsSubmitting(false);
     }
-  }, [session, answers, antiCheat.violationCount, isSubmitting, isAutoSubmitting]);
+  }, [session, answers, antiCheat.violationCount, isSubmitting, isAutoSubmitting, navigate]);
 
   // Load initial session data
   useEffect(() => {

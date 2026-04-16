@@ -52,7 +52,7 @@ export default function LiveMonitoring() {
       const response = await api.get('/teacher/exams')
       const exams = response.data
       
-      const stats = exams.map((exam: any) => ({
+      const stats = exams.map((exam: Exam) => ({
         exam_id: exam.id,
         exam_title: exam.title,
         active_sessions: activeSessions.filter(s => s.exam_id === exam.id).length,
@@ -79,7 +79,8 @@ export default function LiveMonitoring() {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    socketRef.current = io((window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000')
+    const apiUrl = (window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
+    socketRef.current = io(apiUrl)
     
     socketRef.current.on('connect', () => {
       console.log('Teacher monitoring socket connected')
@@ -124,7 +125,7 @@ export default function LiveMonitoring() {
     fetchActiveSessions()
     fetchExamStats()
     fetchRecentViolations()
-  }, [])
+  }, [fetchExamStats])
 
   const handleForceSubmit = async (sessionId: string, studentName: string) => {
     if (!confirm(`Force submit exam for ${studentName}?`)) {
