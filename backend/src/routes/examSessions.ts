@@ -4,11 +4,6 @@ import { pool } from '../db'
 import { auth, AuthRequest, requireStudent } from '../middleware/auth'
 import { getIO } from '../utils/socketHelper'
 import { 
-  activeExamSessions, 
-  examStartedTotal, 
-  examSubmittedTotal, 
-  examForceSubmittedTotal, 
-  examViolationsTotal,
   incrementExamStarted,
   incrementExamSubmitted,
   incrementExamForceSubmitted,

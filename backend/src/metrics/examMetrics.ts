@@ -1,4 +1,4 @@
-import { register, Counter, Histogram, Gauge } from 'prom-client'
+import { Counter, Histogram, Gauge } from 'prom-client'
 
 // Define metrics for live exam system
 export const activeExamSessions = new Gauge({

@@ -165,7 +165,6 @@ export const examSecurityMiddleware = (options: ExamSecurityOptions = {}) => {
 
       // Validate request origin and timing
       const origin = req.headers.origin
-      const referer = req.headers.referer
       const userAgent = req.headers['user-agent']
 
       // Check for suspicious patterns

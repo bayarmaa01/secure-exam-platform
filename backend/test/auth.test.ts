@@ -69,7 +69,8 @@ describe('Authentication Routes', () => {
         email: 'test@example.com',
         password: 'Password123!',
         name: 'Test User',
-        role: 'student'
+        role: 'student',
+        registration_number: 'REG2026001'
       };
 
       mockBcrypt.hash.mockResolvedValue('hashedPassword' as never);
@@ -125,7 +126,7 @@ describe('Authentication Routes', () => {
       };
 
       const mockUser = {
-        id: '1',
+        id: 1,
         email: loginData.email,
         password_hash: 'hashedPassword',
         name: 'Test User',
