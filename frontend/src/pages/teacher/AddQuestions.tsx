@@ -417,7 +417,7 @@ export default function AddQuestions() {
               <div className="mb-4">
                 <p className="text-sm text-gray-600">
                   <strong>JSON Format:</strong><br />
-                  [{"{"question": "...", "type": "mcq", "options": ["A", "B"], "answer": "A"}{"}"}]
+                  [{&quot;question&quot;: &quot;...&quot;, &quot;type&quot;: &quot;mcq&quot;, &quot;options&quot;: [&quot;A&quot;, &quot;B&quot;], &quot;answer&quot;: &quot;A&quot;}]
                 </p>
                 <p className="text-sm text-gray-600 mt-2">
                   <strong>CSV Format:</strong><br />
@@ -444,42 +444,3 @@ export default function AddQuestions() {
               </div>
             </form>
           </div>
-        </div>
-      )}
-    </div>
-  )
-}
-            <Link
-              to="/teacher/exams"
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-            >
-              Back to Exams
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="bg-white shadow rounded-lg p-6">
-            {loading ? (
-              <div>Loading...</div>
-            ) : (
-              <div>
-                <h3 className="text-lg font-medium mb-4">Questions</h3>
-                <div className="space-y-4">
-                  {questions.map((q: { id: string; text: string; type: string }) => (
-                    <div key={q.id} className="border rounded p-4">
-                      <p>{q.text}</p>
-                      <p className="text-sm text-gray-500">Type: {q.type}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-    </div>
-  )
-}

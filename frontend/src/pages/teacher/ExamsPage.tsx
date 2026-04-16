@@ -41,7 +41,7 @@ export default function ExamsPage() {
       
       setExams(examsData.data)
       setCourses(coursesData)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError(error.response?.data?.message || 'Failed to fetch data')
     } finally {
       setLoading(false)

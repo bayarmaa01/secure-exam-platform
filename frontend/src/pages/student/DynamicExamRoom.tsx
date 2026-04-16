@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 
 interface Question {
@@ -63,7 +62,7 @@ export default function DynamicExamRoom() {
     }
   }, [timeRemaining, attempt?.status, handleSubmitExam])
 
-  const initializeExam = async () => {
+  const initializeExam = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -92,7 +91,7 @@ export default function DynamicExamRoom() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [examId])
 
   const handleAnswerChange = (questionId: string, answer: string) => {
     setAnswers(prev => ({
@@ -114,14 +113,14 @@ export default function DynamicExamRoom() {
     }
   }
 
-  const handleSubmitExam = async () => {
+  const handleSubmitExam = useCallback(async () => {
     if (!attempt || submitting) return
 
     try {
       setSubmitting(true)
       
       // Submit all remaining answers
-      for (const [questionId, answer] of Object.entries(answers)) {
+      for (const [questionId] of Object.entries(answers)) {
         await submitAnswer(questionId)
       }
 
@@ -134,7 +133,7 @@ export default function DynamicExamRoom() {
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [attempt, submitting, answers, navigate])
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
@@ -143,7 +142,7 @@ export default function DynamicExamRoom() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const renderQuestion = (question: Question, index: number) => {
+  const renderQuestion = (question: Question, _index: number) => {
     const currentAnswer = answers[question.id] || ''
 
     switch (question.type) {

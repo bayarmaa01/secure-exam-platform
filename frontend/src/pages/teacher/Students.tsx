@@ -25,9 +25,9 @@ export default function Students() {
     try {
       setLoading(true)
       const response = await api.get('/admin/users')
-      const studentUsers = response.data.filter((user: any) => user.role === 'student')
+      const studentUsers = response.data.filter((user: { role: string }) => user.role === 'student')
       setStudents(studentUsers)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError(error.response?.data?.message || 'Failed to fetch students')
     } finally {
       setLoading(false)

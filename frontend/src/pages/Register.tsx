@@ -21,11 +21,11 @@ export default function Register() {
       await register(email, password, name, role)
       navigate('/dashboard')
     } catch (error: unknown) {
-      const err = error as any
+      const err = error as Error
       if (err.response?.data?.errors) {
         // Handle validation errors from backend
         const validationErrors = err.response.data.errors
-        const errorMessages = validationErrors.map((e: any) => e.message).join(', ')
+        const errorMessages = validationErrors.map((e: { message: string }) => e.message).join(', ')
         setErr(errorMessages)
       } else {
         setErr(err.response?.data?.message || err.message || 'Registration failed')
