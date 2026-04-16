@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 import { io, Socket } from 'socket.io-client'
 
@@ -32,13 +31,11 @@ interface ExamStats {
 }
 
 export default function LiveMonitoring() {
-  const { user } = useAuth()
   const socketRef = useRef<Socket | null>(null)
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
   const [recentViolations, setRecentViolations] = useState<Violation[]>([])
   const [examStats, setExamStats] = useState<ExamStats[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedExam, setSelectedExam] = useState<string | null>(null)
 
   // Function definitions
   const fetchActiveSessions = async () => {

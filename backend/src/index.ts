@@ -15,24 +15,13 @@ import { securityRoutes } from './routes/security'
 import { resultsRoutes } from './routes/results'
 import { notificationRoutes } from './routes/notifications'
 import coursesRouter from './routes/courses'
-import { teacherRoutes } from './routes/teacher'
-import { examSessionRoutes } from './routes/examSessions'
 import questionsRouter from './routes/questions'
 import attemptsRouter from './routes/attempts'
 import seedRouter from './routes/seed'
-import { 
-  activeExamSessions as activeExamSessionsMetric, 
-  examStartedTotal, 
-  examSubmittedTotal, 
-  examForceSubmittedTotal, 
-  examViolationsTotal,
-  websocketConnections,
-  apiRequestDuration,
-  dbQueryDuration,
-  examSessionDuration,
-  violationRateByExam
-} from './metrics/examMetrics'
+import { websocketConnections } from './metrics/examMetrics'
 import { setIO } from './utils/socketHelper'
+import { teacherRoutes } from './routes/teacher'
+import { examSessionRoutes } from './routes/examSessions'
 
 // Prometheus metrics
 collectDefaultMetrics({ register })

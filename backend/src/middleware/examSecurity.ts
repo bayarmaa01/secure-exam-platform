@@ -31,7 +31,7 @@ export const examSecurityMiddleware = (options: ExamSecurityOptions = {}) => {
       }
 
       const token = authHeader.substring(7)
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as any
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as { userId: string; [key: string]: unknown }
       
       // Check if user has active exam session
       if (options.preventMultipleSessions) {
@@ -44,7 +44,7 @@ export const examSecurityMiddleware = (options: ExamSecurityOptions = {}) => {
           // Check if this is the same session
           const currentSessionId = req.headers['x-exam-session-id']
           const isSameSession = activeSessionCheck.rows.some(
-            (session: any) => session.id === currentSessionId
+            (session: { id: string }) => session.id === currentSessionId
           )
 
           if (!isSameSession) {
@@ -132,7 +132,7 @@ export const examSecurityMiddleware = (options: ExamSecurityOptions = {}) => {
           }
 
           // Attach session data to request for downstream middleware
-          (req as any).examSession = session
+          (req as Request & { examSession: ExamSession }).examSession = session
         }
       }
 
@@ -234,9 +234,9 @@ export const generateExamToken = (sessionId: string, userId: string): string => 
 }
 
 // Helper function to validate exam token
-export const validateExamToken = (token: string): any => {
+export const validateExamToken = (token: string): { sessionId: string; userId: string; type: string; timestamp: number } | null => {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET || 'dev-secret')
+    return jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as { sessionId: string; userId: string; type: string; timestamp: number }
   } catch (error) {
     return null
   }

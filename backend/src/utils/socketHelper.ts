@@ -13,27 +13,27 @@ export const getIO = (): SocketIOServer => {
   return ioInstance
 }
 
-export const emitToUser = (userId: string, event: string, data: any) => {
+export const emitToUser = (userId: string, event: string, data: Record<string, unknown>) => {
   const io = getIO()
   io.emit(`user_${userId}`, event, data)
 }
 
-export const emitToExamRoom = (examId: string, event: string, data: any) => {
+export const emitToExamRoom = (examId: string, event: string, data: Record<string, unknown>) => {
   const io = getIO()
   io.emit(`exam_${examId}`, event, data)
 }
 
-export const broadcastToTeachers = (event: string, data: any) => {
+export const broadcastToTeachers = (event: string, data: Record<string, unknown>) => {
   const io = getIO()
   io.emit('teachers', event, data)
 }
 
-export const broadcastToStudents = (event: string, data: any) => {
+export const broadcastToStudents = (event: string, data: Record<string, unknown>) => {
   const io = getIO()
   io.emit('students', event, data)
 }
 
-export const broadcastToAll = (event: string, data: any) => {
+export const broadcastToAll = (event: string, data: Record<string, unknown>) => {
   const io = getIO()
   io.emit(event, data)
 }

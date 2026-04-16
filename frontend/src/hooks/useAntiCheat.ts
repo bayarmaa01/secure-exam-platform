@@ -28,12 +28,51 @@ export const useAntiCheat = (
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isTabActive, setIsTabActive] = useState(true)
   const socketRef = useRef<any>(null)
-  const violationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastViolationTimeRef = useRef<number>(0)
+
+  // Record violation with throttling
+  const recordViolation = useCallback((type: Violation['type'], details: string) => {
+    const now = Date.now()
+    
+    // Throttle violations to avoid spam (max 1 per second)
+    if (now - lastViolationTimeRef.current < 1000) {
+      return
+    }
+    
+    lastViolationTimeRef.current = now
+    
+    const violation: Violation = {
+      type,
+      details,
+      timestamp: new Date().toISOString()
+    }
+    
+    // Add to local state
+    setViolations(prev => [...prev, violation])
+    
+    // Send to backend
+    if (socketRef.current && sessionId) {
+      socketRef.current.emit('record_violation', {
+        sessionId,
+        type,
+        details,
+        timestamp: violation.timestamp
+      })
+    }
+    
+    // Also send via HTTP API as backup
+    api.post(`/exam-sessions/${sessionId}/violations`, {
+      type,
+      details,
+      timestamp: violation.timestamp
+    }).catch(error => {
+      console.error('Failed to record violation:', error)
+    })
+  }, [sessionId])
 
   // Initialize socket connection
   useEffect(() => {
-    socketRef.current = io(process.env.REACT_APP_API_URL || 'http://localhost:4000')
+    socketRef.current = io((window as any).process?.env?.REACT_APP_API_URL || 'http://localhost:4000')
     
     socketRef.current.on('connect', () => {
       console.log('Anti-cheat socket connected')
@@ -84,7 +123,7 @@ export const useAntiCheat = (
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', handleBlur)
     }
-  }, [config.preventTabSwitch, isTabActive])
+  }, [config.preventTabSwitch, isTabActive, recordViolation])
 
   // Track fullscreen changes
   useEffect(() => {
@@ -93,9 +132,9 @@ export const useAntiCheat = (
     const handleFullscreenChange = () => {
       const isCurrentlyFullscreen = !!(
         document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement
+        (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+        (document as unknown as { mozFullScreenElement?: Element }).mozFullScreenElement ||
+        (document as unknown as { msFullscreenElement?: Element }).msFullscreenElement
       )
 
       if (isFullscreen && !isCurrentlyFullscreen) {
@@ -116,7 +155,7 @@ export const useAntiCheat = (
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange)
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange)
     }
-  }, [config.preventFullscreenExit, isFullscreen])
+  }, [config.preventFullscreenExit, isFullscreen, recordViolation])
 
   // Prevent copy/paste
   useEffect(() => {
@@ -175,59 +214,19 @@ export const useAntiCheat = (
       document.removeEventListener('contextmenu', handleContextMenu)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [config.preventCopyPaste])
-
-  // Record violation with throttling
-  const recordViolation = useCallback((type: Violation['type'], details: string) => {
-    const now = Date.now()
-    
-    // Throttle violations to avoid spam (max 1 per second)
-    if (now - lastViolationTimeRef.current < 1000) {
-      return
-    }
-    
-    lastViolationTimeRef.current = now
-    
-    const violation: Violation = {
-      type,
-      details,
-      timestamp: new Date().toISOString()
-    }
-    
-    // Add to local state
-    setViolations(prev => [...prev, violation])
-    
-    // Send to backend
-    if (socketRef.current && sessionId) {
-      socketRef.current.emit('record_violation', {
-        sessionId,
-        type,
-        details,
-        timestamp: violation.timestamp
-      })
-    }
-    
-    // Also send via HTTP API as backup
-    api.post(`/exam-sessions/${sessionId}/violations`, {
-      type,
-      details,
-      timestamp: violation.timestamp
-    }).catch(error => {
-      console.error('Failed to record violation:', error)
-    })
-  }, [sessionId])
+  }, [config.preventCopyPaste, recordViolation])
 
   // Request fullscreen
   const requestFullscreen = useCallback(() => {
     const elem = document.documentElement
     if (elem.requestFullscreen) {
       elem.requestFullscreen()
-    } else if ((elem as any).webkitRequestFullscreen) {
-      (elem as any).webkitRequestFullscreen()
-    } else if ((elem as any).mozRequestFullScreen) {
-      (elem as any).mozRequestFullScreen()
-    } else if ((elem as any).msRequestFullscreen) {
-      (elem as any).msRequestFullscreen()
+    } else if ((elem as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen) {
+      (elem as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen()
+    } else if ((elem as unknown as { mozRequestFullScreen?: () => void }).mozRequestFullScreen) {
+      (elem as unknown as { mozRequestFullScreen?: () => void }).mozRequestFullScreen()
+    } else if ((elem as unknown as { msRequestFullscreen?: () => void }).msRequestFullscreen) {
+      (elem as unknown as { msRequestFullscreen?: () => void }).msRequestFullscreen()
     }
   }, [])
 

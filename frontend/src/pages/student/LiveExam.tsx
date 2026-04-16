@@ -33,7 +33,6 @@ interface Answer {
 }
 
 export default function LiveExam() {
-  const { user } = useAuth()
   const { examId } = useParams<{ examId: string }>()
   const navigate = useNavigate()
   const socketRef = useRef<Socket | null>(null)
@@ -46,7 +45,6 @@ export default function LiveExam() {
   const [timeRemaining, setTimeRemaining] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [serverTime, setServerTime] = useState(new Date())
   const [isAutoSubmitting, setIsAutoSubmitting] = useState(false)
 
   // Anti-cheat configuration
@@ -59,16 +57,6 @@ export default function LiveExam() {
       preventRightClick: true
     }
   )
-
-  // Calculate remaining time based on server time
-  const calculateRemainingTime = useCallback(() => {
-    if (!session) return 0;
-    
-    const now = new Date()
-    const endTime = new Date(session.end_time)
-    const remaining = Math.max(0, endTime.getTime() - now.getTime())
-    return remaining
-  }, [session])
 
   // Sync with server time every 5 seconds
   useEffect(() => {
