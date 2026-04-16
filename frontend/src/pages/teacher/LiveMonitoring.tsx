@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../api'
 import { io, Socket } from 'socket.io-client'
@@ -20,6 +20,18 @@ interface Violation {
   type: string
   details: string
   timestamp: string
+}
+
+interface Exam {
+  id: string
+  title: string
+  description: string
+  durationMinutes: number
+  scheduledAt: string
+  status: string
+  createdAt: string
+  questionCount?: number
+  attemptCount?: number
 }
 
 interface ExamStats {
@@ -47,7 +59,7 @@ export default function LiveMonitoring() {
     }
   }
 
-  const fetchExamStats = async () => {
+  const fetchExamStats = useCallback(async () => {
     try {
       const response = await api.get('/teacher/exams')
       const exams = response.data
@@ -66,7 +78,7 @@ export default function LiveMonitoring() {
     } catch (error) {
       console.error('Failed to fetch exam stats:', error)
     }
-  }
+  }, [activeSessions])
 
   const fetchRecentViolations = async () => {
     try {
