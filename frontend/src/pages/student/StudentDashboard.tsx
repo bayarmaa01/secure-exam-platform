@@ -36,7 +36,6 @@ export default function StudentDashboard() {
   const [attempts, setAttempts] = useState<Attempt[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   useEffect(() => {
     fetchDashboardData()
@@ -45,7 +44,6 @@ export default function StudentDashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
-      setError('')
       
       const [coursesResponse, examsResponse, attemptsResponse, notificationsResponse] = await Promise.all([
         coursesApi.getStudentCourses(),
@@ -59,7 +57,7 @@ export default function StudentDashboard() {
       setAttempts(attemptsResponse.data)
       setNotifications(notificationsResponse.data)
     } catch (error: unknown) {
-      setError((error as any).response?.data?.message || 'Failed to fetch dashboard data')
+      console.error('Failed to fetch dashboard data:', error)
     } finally {
       setLoading(false)
     }
@@ -237,7 +235,7 @@ export default function StudentDashboard() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                     <h3 className="mt-2 text-sm font-medium text-gray-900">No notifications</h3>
-                    <p className="mt-1 text-sm text-gray-500">You're all caught up!</p>
+                    <p className="mt-1 text-sm text-gray-500">You&apos;re all caught up!</p>
                   </div>
                 ) : (
                   <div className="space-y-4">

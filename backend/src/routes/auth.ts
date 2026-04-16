@@ -25,7 +25,7 @@ router.post(
 
       try {
         const { email, password, rememberMe = false } = req.body
-        let user: any = null
+        let user: { id: string; name: string; email: string; password_hash: string; role: string; student_id?: string; created_at: string } | null = null
 
         // Database query with better error handling
         try {

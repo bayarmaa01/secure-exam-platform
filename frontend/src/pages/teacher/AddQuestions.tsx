@@ -394,6 +394,8 @@ export default function AddQuestions() {
           </div>
         </div>
       )}
+        </div>
+      </main>
 
       {/* Upload File Modal */}
       {showUploadModal && (
@@ -417,7 +419,7 @@ export default function AddQuestions() {
               <div className="mb-4">
                 <p className="text-sm text-gray-600">
                   <strong>JSON Format:</strong><br />
-                  [{&quot;question&quot;: &quot;...&quot;, &quot;type&quot;: &quot;mcq&quot;, &quot;options&quot;: [&quot;A&quot;, &quot;B&quot;], &quot;answer&quot;: &quot;A&quot;}]
+                  Use JSON array with question objects containing question, type, options, and answer fields
                 </p>
                 <p className="text-sm text-gray-600 mt-2">
                   <strong>CSV Format:</strong><br />
@@ -444,3 +446,8 @@ export default function AddQuestions() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}

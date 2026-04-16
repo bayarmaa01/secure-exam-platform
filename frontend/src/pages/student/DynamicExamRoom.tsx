@@ -17,6 +17,7 @@ interface Attempt {
   started_at: string
   status: string
   time_remaining?: number
+  duration_minutes: number
 }
 
 interface Exam {
@@ -38,30 +39,9 @@ export default function DynamicExamRoom() {
   const [submitting, setSubmitting] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState(0)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [error, setError] = useState('')
 
   // Initialize exam
-  useEffect(() => {
-    if (examId) {
-      initializeExam()
-    }
-  }, [examId, initializeExam])
-
-  // Timer countdown
-  useEffect(() => {
-    if (timeRemaining > 0 && attempt?.status === 'in_progress') {
-      const timer = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev <= 1) {
-            handleSubmitExam()
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-      return () => clearInterval(timer)
-    }
-  }, [timeRemaining, attempt?.status, handleSubmitExam])
-
   const initializeExam = useCallback(async () => {
     try {
       setLoading(true)
@@ -87,11 +67,17 @@ export default function DynamicExamRoom() {
       setExam(examResponse.data as Exam)
       setQuestions(questionsResponse.data as Question[])
     } catch (error: unknown) {
-      setError((error as any).data?.message || 'Failed to start exam')
+      setError((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to start exam')
     } finally {
       setLoading(false)
     }
   }, [examId])
+
+  useEffect(() => {
+    if (examId) {
+      initializeExam()
+    }
+  }, [examId, initializeExam])
 
   const handleAnswerChange = (questionId: string, answer: string) => {
     setAnswers(prev => ({
@@ -100,7 +86,7 @@ export default function DynamicExamRoom() {
     }))
   }
 
-  const submitAnswer = async (questionId: string) => {
+  const submitAnswer = useCallback(async (questionId: string) => {
     if (!attempt || !answers[questionId]) return
 
     try {
@@ -111,7 +97,7 @@ export default function DynamicExamRoom() {
     } catch (error: unknown) {
       console.error('Failed to submit answer:', error)
     }
-  }
+  }, [attempt, answers])
 
   const handleSubmitExam = useCallback(async () => {
     if (!attempt || submitting) return
@@ -129,11 +115,27 @@ export default function DynamicExamRoom() {
       
       navigate('/student/results')
     } catch (error: unknown) {
-      setError((error as any).response?.data?.message || 'Failed to submit exam')
+      setError((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to submit exam')
     } finally {
       setSubmitting(false)
     }
-  }, [attempt, submitting, answers, navigate])
+  }, [attempt, submitting, answers, navigate, submitAnswer])
+
+  // Timer countdown
+  useEffect(() => {
+    if (timeRemaining > 0 && attempt?.status === 'in_progress') {
+      const timer = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            handleSubmitExam()
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      return () => clearInterval(timer)
+    }
+  }, [timeRemaining, attempt?.status, handleSubmitExam])
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
