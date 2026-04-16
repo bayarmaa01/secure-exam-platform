@@ -375,10 +375,10 @@ router.post('/exams/:id/questions',
   auth,
   requireTeacher,
   [
-    body('questionText').notEmpty().trim(),
-    body('type').isIn(['mcq', 'text']),
+    body('question_text').notEmpty().trim(),
+    body('type').isIn(['mcq', 'written', 'coding']),
     body('options').optional().isArray(),
-    body('correctAnswer').notEmpty(),
+    body('correct_answer').notEmpty(),
     body('points').optional().isInt({ min: 1, max: 100 })
   ],
   async (req: AuthRequest, res) => {
@@ -389,7 +389,7 @@ router.post('/exams/:id/questions',
       }
 
       const examId = req.params.id
-      const { questionText, type, options, correctAnswer, points = 1 } = req.body
+      const { question_text, type, options, correct_answer, points = 1 } = req.body
 
       // Check ownership
       const examCheck = await pool.query(
@@ -407,7 +407,7 @@ router.post('/exams/:id/questions',
         `INSERT INTO questions (exam_id, question_text, options, correct_answer, type, points)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [examId, questionText, JSON.stringify(options), correctAnswer, type, points]
+        [examId, question_text, JSON.stringify(options), correct_answer, type, points]
       )
 
       res.status(201).json(r.rows[0])
