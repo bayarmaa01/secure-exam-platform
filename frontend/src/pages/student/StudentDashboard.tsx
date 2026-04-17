@@ -83,9 +83,9 @@ export default function StudentDashboard() {
       
       const [coursesResponse, examsResponse, attemptsResponse, notificationsResponse] = await Promise.all([
         coursesApi.getStudentCourses(),
-        api.get('/exams'),
-        api.get('/attempts'),
-        api.get('/notifications')
+        api.get('/student/exams'),
+        api.get('/results/student'),
+        api.get('/student/notifications')
       ])
       
       setCourses(coursesResponse)
