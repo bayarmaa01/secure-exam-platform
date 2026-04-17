@@ -7,9 +7,8 @@ import { Server as SocketIOServer } from 'socket.io'
 import { initDb } from './db'
 import { collectDefaultMetrics, register, Counter, Histogram, Gauge } from 'prom-client'
 import { authRoutes } from './routes/auth'
-import { examRoutes } from './routes/exams'
+import { examUnifiedRoutes } from './routes/exam-unified'
 import { adminRoutes } from './routes/admin'
-import { advancedExamRoutes } from './routes/advanced-exams'
 import { analyticsRoutes } from './routes/analytics'
 import { securityRoutes } from './routes/security'
 import { resultsRoutes } from './routes/results'
@@ -23,9 +22,12 @@ import { setIO } from './utils/socketHelper'
 import { teacherRoutes } from './routes/teacher'
 import { examSessionRoutes } from './routes/examSessions'
 import { studentRoutes } from './routes/student'
-import { warningRoutes } from './routes/warnings'
+import { warningsUnifiedRoutes } from './routes/warnings-unified'
 import { monitoringRoutes } from './routes/monitoring'
 import { aiProctoringRoutes } from './routes/ai-proctoring'
+import { attemptsApiRoutes } from './routes/attempts-api'
+import { analyticsApiRoutes } from './routes/analytics-api'
+import { startExamStatusUpdater } from './jobs/examStatusUpdater'
 
 // Prometheus metrics
 collectDefaultMetrics({ register })
@@ -44,20 +46,6 @@ const httpRequestTotal = new Counter({
   registers: [register]
 })
 
-const activeExamSessions = new Gauge({
-  name: 'exam_sessions_active',
-  help: 'Number of active exam sessions',
-  registers: [register]
-})
-
-const suspiciousEventsTotal = new Counter({
-  name: 'suspicious_events_total',
-  help: 'Total number of suspicious proctoring events',
-  labelNames: ['event_type'],
-  registers: [register]
-})
-
-// Proctoring metrics
 const warningsTotal = new Counter({
   name: 'warnings_total',
   help: 'Total warnings triggered during exams',
@@ -80,6 +68,33 @@ const faceNotDetectedTotal = new Counter({
 const examSubmissionsTotal = new Counter({
   name: 'exam_submissions_total',
   help: 'Total exam submissions',
+  labelNames: ['exam_id', 'status'],
+  registers: [register]
+})
+
+const suspiciousEventsTotal = new Counter({
+  name: 'suspicious_events_total',
+  help: 'Total number of suspicious proctoring events',
+  labelNames: ['event_type'],
+  registers: [register]
+})
+
+const cheatingDetectedTotal = new Counter({
+  name: 'cheating_detected_total',
+  help: 'Total number of cheating incidents detected',
+  labelNames: ['type'],
+  registers: [register]
+})
+
+const suspiciousStudentsTotal = new Gauge({
+  name: 'suspicious_students_total',
+  help: 'Number of students marked as suspicious',
+  registers: [register]
+})
+
+const averageScoreGauge = new Gauge({
+  name: 'average_exam_score',
+  help: 'Average score across all exams',
   registers: [register]
 })
 
@@ -159,9 +174,8 @@ app.use('/api', limiter)
 
 // Routes
 app.use('/api/auth', authRoutes)
-app.use('/api', examRoutes)
+app.use('/api', examUnifiedRoutes)
 app.use('/api/admin', adminRoutes)
-app.use('/api', advancedExamRoutes)
 app.use('/api', analyticsRoutes)
 app.use('/api', securityRoutes)
 app.use('/api/results', resultsRoutes)
@@ -173,9 +187,11 @@ app.use('/api', examSessionRoutes)
 app.use('/api', questionsRouter)
 app.use('/api', attemptsRouter)
 app.use('/api', seedRouter)
-app.use('/api', warningRoutes)
+app.use('/api', warningsUnifiedRoutes)
 app.use('/api', monitoringRoutes)
 app.use('/api/ai', aiProctoringRoutes)
+app.use('/api', attemptsApiRoutes)
+app.use('/api', analyticsApiRoutes)
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
@@ -245,6 +261,9 @@ async function start() {
     await initDb()
     console.log('Database connected')
 
+    // Start background jobs
+    startExamStatusUpdater()
+
     server.listen(PORT, () => {
       console.log(`Backend running on ${PORT}`)
       console.log(`WebSocket server running on ${PORT}`)
@@ -277,4 +296,10 @@ async function start() {
 start()
 
 // Export app and metrics for testing
+const activeExamSessions = new Gauge({
+  name: 'exam_sessions_active',
+  help: 'Number of active exam sessions',
+  registers: [register]
+})
+
 export { app, activeExamSessions, suspiciousEventsTotal }

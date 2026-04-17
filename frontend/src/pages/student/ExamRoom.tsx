@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import api from '../../api'
+import ExamApi from '../../services/examApi'
 
 interface Question {
   id: string
@@ -23,7 +23,7 @@ interface Exam {
 export default function ExamRoom() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  useAuth()
+  const { user } = useAuth()
   
   const [exam, setExam] = useState<Exam | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -47,17 +47,26 @@ export default function ExamRoom() {
     setSubmitting(true)
     
     try {
-      await api.post(`/exams/attempts/${attemptId}/submit`, {
-        answers,
-        cheatingWarnings
+      const result = await ExamApi.submitExam(id, {
+        attemptId,
+        answers: Object.entries(answers).map(([questionId, answer]) => ({
+          questionId,
+          answer: Array.isArray(answer) ? answer[0] : answer
+        }))
       })
       
-      navigate(`/results/${attemptId}`)
-    } catch (error) {
+      if (result.success) {
+        navigate(`/results/${attemptId}`)
+      } else {
+        alert(result.message || 'Failed to submit exam')
+      }
+    } catch (error: any) {
       console.error('Failed to submit exam:', error)
+      alert('Failed to submit exam. Please try again.')
+    } finally {
       setSubmitting(false)
     }
-  }, [attemptId, submitting, answers, cheatingWarnings, navigate])
+  }, [attemptId, submitting, answers, id, navigate])
 
   useEffect(() => {
     if (!id) return
@@ -98,34 +107,27 @@ export default function ExamRoom() {
 
   const loadExam = async () => {
     try {
-      const [examRes, questionsRes] = await Promise.all([
-        api.get(`/exams/${id}`),
-        api.get(`/exams/${id}/questions`)
-      ])
+      const response = await api.get(`/exams/${id}`)
+      const examData = response.data
       
-      const examData = examRes.data
       setExam(examData)
-      setQuestions(questionsRes.data)
-      
-      // Set exam end time for timer
-      if (examData.endTime) {
-        setExamEndTime(new Date(examData.endTime))
-        const timeUntilEnd = new Date(examData.endTime).getTime() - Date.now()
-        setTimeLeft(Math.max(0, Math.floor(timeUntilEnd / 1000)))
-      }
+      setQuestions(examData.questions || [])
       
       // Start exam attempt
-      const attemptRes = await api.post(`/exams/${id}/start`)
-      setAttemptId(attemptRes.data.attemptId)
-      setTimeLeft(examRes.data.durationMinutes * 60)
+      const attemptResult = await ExamApi.startExam(id)
       
-      // Start webcam monitoring
-      startWebcam()
+      if (attemptResult.success && attemptResult.data) {
+        setAttemptId(attemptResult.data.attemptId)
+        setTimeLeft(examData.durationMinutes * 60)
+        setExamEndTime(new Date(examData.endTime))
+      } else {
+        alert(attemptResult.message || 'Failed to start exam')
+      }
       
-    } catch (error) {
+      setLoading(false)
+    } catch (error: any) {
       console.error('Failed to load exam:', error)
-      navigate('/exams')
-    } finally {
+      alert('Failed to load exam. Please try again.')
       setLoading(false)
     }
   }
@@ -169,37 +171,10 @@ export default function ExamRoom() {
         console.log('Exited fullscreen - potential cheating')
         
         // Send warning to backend
-        if (attemptId) {
-          api.post('/warnings', {
-            exam_id: id,
-            type: 'fullscreen_exit',
-            message: 'Student exited fullscreen during exam'
-          }).catch(error => console.error('Failed to send warning:', error))
+        if (attemptId && user) {
+          await ExamApi.createWarning(user.id, id, 'fullscreen_exit', 'Student exited fullscreen during exam')
         }
       }
-    })
-    
-    // Prevent right-click
-    document.addEventListener('contextmenu', preventContextMenu)
-    
-    // Disable copy/paste
-    document.addEventListener('copy', preventCopyPaste)
-    document.addEventListener('paste', preventCopyPaste)
-    
-    // Disable keyboard shortcuts
-    document.addEventListener('keydown', handleKeyDown)
-    
-    // Auto-submit after 3 warnings
-    if (warningCount >= 3) {
-      submitExam()
-    }
-    
-    return () => {
-      document.removeEventListener('contextmenu', preventContextMenu)
-      document.removeEventListener('copy', preventCopyPaste)
-      document.removeEventListener('paste', preventCopyPaste)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      document.removeEventListener('keydown', handleKeyDown)
     }
   }
 

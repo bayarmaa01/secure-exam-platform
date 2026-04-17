@@ -97,6 +97,7 @@ async function ensureTablesExist(client: PoolClient) {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       exam_id UUID REFERENCES exams(id),
       user_id UUID REFERENCES users(id),
+      answers JSONB DEFAULT '{}'::jsonb,
       started_at TIMESTAMP DEFAULT NOW(),
       submitted_at TIMESTAMP,
       score DECIMAL(5,2),
@@ -178,6 +179,15 @@ async function ensureTablesExist(client: PoolClient) {
       read BOOLEAN DEFAULT false,
       data JSONB,
       created_at TIMESTAMP DEFAULT NOW()
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS warnings (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      exam_id UUID REFERENCES exams(id) ON DELETE CASCADE,
+      type VARCHAR(50) NOT NULL,
+      message TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
     )`
   ]
   
@@ -207,7 +217,10 @@ async function ensureTablesExist(client: PoolClient) {
     'CREATE INDEX IF NOT EXISTS idx_courses_teacher_id ON courses(teacher_id)',
     'CREATE INDEX IF NOT EXISTS idx_enrollments_course_id ON enrollments(course_id)',
     'CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id)',
-    'CREATE INDEX IF NOT EXISTS idx_exams_course_id ON exams(course_id)'
+    'CREATE INDEX IF NOT EXISTS idx_exams_course_id ON exams(course_id)',
+    'CREATE INDEX IF NOT EXISTS idx_warnings_user_id ON warnings(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_warnings_exam_id ON warnings(exam_id)',
+    'CREATE INDEX IF NOT EXISTS idx_warnings_created_at ON warnings(created_at)'
   ]
   
   for (const index of indexes) {
@@ -224,56 +237,17 @@ async function ensureTablesExist(client: PoolClient) {
 }
 
 async function runMigrations(client: PoolClient) {
-  console.log('Running database migrations...')
+  console.log('🔄 Running comprehensive migration system...')
   
-  // Add any missing columns to existing tables
-  const migrations = [
-    // Ensure enrollments table exists
-    `CREATE TABLE IF NOT EXISTS enrollments (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
-      student_id UUID REFERENCES users(id) ON DELETE CASCADE,
-      enrolled_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(course_id, student_id)
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_enrollments_course_id ON enrollments(course_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id)`,
-    // Users table migrations for password reset and registration
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_number VARCHAR(20) UNIQUE`,
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`,
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`,
-    // Refresh tokens table migration
-    `ALTER TABLE refresh_tokens DROP CONSTRAINT IF EXISTS refresh_tokens_user_id_fkey`,
-    `ALTER TABLE refresh_tokens ADD CONSTRAINT refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`,
-    // Exams table migrations for LMS integration
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES courses(id) ON DELETE CASCADE`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'mcq' CHECK (type IN ('mcq', 'written', 'coding', 'mixed', 'ai_proctored'))`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10) DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard'))`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS total_marks INT DEFAULT 100`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS passing_marks INT DEFAULT 50`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS fullscreen_required BOOLEAN DEFAULT false`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS tab_switch_detection BOOLEAN DEFAULT false`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS copy_paste_blocked BOOLEAN DEFAULT false`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS camera_required BOOLEAN DEFAULT false`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS face_detection_enabled BOOLEAN DEFAULT false`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS shuffle_questions BOOLEAN DEFAULT false`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS shuffle_options BOOLEAN DEFAULT false`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS assign_to_all BOOLEAN DEFAULT true`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS assigned_groups JSONB DEFAULT '[]'::jsonb`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'ongoing', 'completed'))`,
-    `ALTER TABLE exams ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`
-  ]
+  // Import and use simple migration system
+  const { initializeDatabase } = await import('./migrations/simple-migration')
   
-  for (const migration of migrations) {
-    try {
-      await client.query(migration)
-      console.log('Migration applied:', migration.split('ADD COLUMN IF NOT EXISTS')[1]?.trim() || migration)
-    } catch (error) {
-      // Ignore errors for columns that already exist
-      if (!error.message.includes('already exists') && !error.message.includes('duplicate column')) {
-        console.warn('Migration failed:', error.message)
-      }
-    }
+  try {
+    await initializeDatabase()
+    console.log('✅ Migration system initialized successfully')
+  } catch (error) {
+    console.error('❌ Migration system failed:', error)
+    throw error
   }
   
   // Create exam_user role if it doesn't exist

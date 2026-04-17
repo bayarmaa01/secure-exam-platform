@@ -61,18 +61,26 @@ router.post('/analyze-frame',
           [studentId, examId, analysisResult.violationType, analysisResult.message]
         )
 
-        // Check warning count
+        // Check warning count in last hour
         const warningCount = await pool.query(
           'SELECT COUNT(*) as count FROM warnings WHERE user_id = $1 AND exam_id = $2 AND created_at > NOW() - INTERVAL \'1 hour\'',
           [studentId, examId]
         )
 
+        // Check total warnings for this exam
+        const totalWarningsCount = await pool.query(
+          'SELECT COUNT(*) as total_count FROM warnings WHERE user_id = $1 AND exam_id = $2',
+          [studentId, examId]
+        )
+
         const count = parseInt(warningCount.rows[0].count)
+        const totalCount = parseInt(totalWarningsCount.rows[0].total_count)
         
+        // 3 warnings in 1 hour = suspicious
         if (count >= 3) {
-          // Auto-submit exam
+          // Mark as suspicious but don't auto-submit
           await pool.query(
-            'UPDATE exam_attempts SET status = \'completed\', submitted_at = NOW() WHERE id = $1',
+            'UPDATE exam_attempts SET risk_score = 80 WHERE id = $1',
             [attemptId]
           )
 
@@ -80,8 +88,58 @@ router.post('/analyze-frame',
             success: true,
             analysis: analysisResult,
             warningCount: count,
+            totalWarningCount: totalCount,
+            suspicious: true,
+            message: 'Marked as suspicious due to multiple violations'
+          })
+        }
+        
+        // 5 total warnings = cheating + auto-submit
+        if (totalCount >= 5) {
+          // Auto-submit exam
+          await pool.query(
+            'UPDATE exam_attempts SET status = \'completed\', submitted_at = NOW(), risk_score = 100 WHERE id = $1',
+            [attemptId]
+          )
+
+          // Calculate and save score
+          const scoreResult = await pool.query(
+            `SELECT 
+               SUM(points_earned) as total_earned,
+               SUM(q.points) as total_points
+             FROM answers a
+             JOIN questions q ON a.question_id = q.id
+             WHERE a.attempt_id = $1`,
+            [attemptId]
+          )
+
+          const scoreData = scoreResult.rows[0]
+          const totalPoints = scoreData.total_points || 0
+          const totalEarned = scoreData.total_earned || 0
+          const percentage = totalPoints > 0 ? (totalEarned / totalPoints) * 100 : 0
+
+          await pool.query(
+            `UPDATE exam_attempts 
+             SET score = $1, total_points = $2, percentage = $3
+             WHERE id = $4`,
+            [totalEarned, totalPoints, percentage, attemptId]
+          )
+
+          // Create result record
+          await pool.query(
+            `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [studentId, examId, attemptId, totalEarned, totalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
+          )
+
+          return res.json({
+            success: true,
+            analysis: analysisResult,
+            warningCount: count,
+            totalWarningCount: totalCount,
             autoSubmitted: true,
-            message: 'Exam auto-submitted due to multiple violations'
+            cheating: true,
+            message: 'Exam auto-submitted due to excessive violations (cheating detected)'
           })
         }
 
@@ -89,10 +147,12 @@ router.post('/analyze-frame',
           success: true,
           analysis: analysisResult,
           warningCount: count,
+          totalWarningCount: totalCount,
           warning: {
             type: analysisResult.violationType,
             message: analysisResult.message,
-            count
+            count,
+            totalCount
           }
         })
       }
@@ -191,7 +251,7 @@ async function analyzeFrame(frame: string, timestamp: number): Promise<{
   // Simulate face detection issues
   if (random < 0.1) { // 10% chance of no face detected
     riskScore = 80
-    violationType = 'no_face_detected'
+    violationType = 'no_face'
     message = 'No face detected in camera feed'
   } else if (random < 0.15) { // 5% chance of multiple faces
     riskScore = 90
@@ -201,13 +261,17 @@ async function analyzeFrame(frame: string, timestamp: number): Promise<{
     riskScore = 60
     violationType = 'looking_away'
     message = 'Student appears to be looking away from screen'
+  } else if (random < 0.25) { // 5% chance of talking
+    riskScore = 50
+    violationType = 'talking'
+    message = 'Talking detected during exam'
   }
 
   return {
     riskScore,
     violationType,
     message,
-    faceDetected: violationType !== 'no_face_detected',
+    faceDetected: violationType !== 'no_face',
     multipleFaces: violationType === 'multiple_faces',
     lookingAway: violationType === 'looking_away'
   }
