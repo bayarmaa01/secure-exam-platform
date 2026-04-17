@@ -14,7 +14,7 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
        FROM exams e
        JOIN enrollments en ON e.course_id = en.course_id
        JOIN courses c ON e.course_id = c.id
-       WHERE en.student_id = $1 AND e.status = 'published'
+       WHERE en.student_id = $1
        ORDER BY e.start_time ASC`,
       [req.user!.id]
     )
@@ -142,7 +142,7 @@ router.post('/exams',
   auth, 
   requireTeacher,
   [
-    body('title').notEmpty().trim(),
+    body('title').notEmpty().withMessage('Title is required'),
     body('description').optional().trim(),
     body('course_id').notEmpty().withMessage('Course ID is required'),
     body('type').optional().isIn(['mcq', 'written', 'coding', 'mixed', 'ai_proctored']),
@@ -150,7 +150,7 @@ router.post('/exams',
     body('difficulty').optional().isIn(['easy', 'medium', 'hard']),
     body('total_marks').optional().isInt({ min: 1 }),
     body('passing_marks').optional().isInt({ min: 1 }),
-    body('start_time').optional().isISO8601().toDate(),
+    body('start_time').isISO8601().toDate(),
     body('end_time').optional().isISO8601().toDate(),
     body('fullscreen_required').optional().isBoolean(),
     body('tab_switch_detection').optional().isBoolean(),
@@ -160,13 +160,10 @@ router.post('/exams',
     body('shuffle_questions').optional().isBoolean(),
     body('shuffle_options').optional().isBoolean(),
     body('assign_to_all').optional().isBoolean(),
-    body('assigned_groups').optional().isArray()
+    body('assigned_groups').optional().isArray(),
   ],
   async (req: AuthRequest, res) => {
     try {
-      console.log('POST /api/exams - Request body:', JSON.stringify(req.body, null, 2))
-      console.log('POST /api/exams - User:', JSON.stringify(req.user, null, 2))
-      
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
         console.error('POST /api/exams - Validation errors:', errors.array())
@@ -196,6 +193,16 @@ router.post('/exams',
         assign_to_all = true,
         assigned_groups = []
       } = req.body
+
+      // Validate course exists and belongs to teacher
+      const courseCheck = await pool.query(
+        'SELECT id FROM courses WHERE id = $1 AND teacher_id = $2',
+        [course_id, req.user!.id]
+      )
+
+      if (courseCheck.rows.length === 0) {
+        return res.status(400).json({ message: 'Invalid course ID or course does not belong to teacher' })
+      }
 
       // Calculate end_time if not provided
       let calculatedEndTime = end_time
@@ -272,7 +279,17 @@ router.post('/exams',
         console.error('Failed to send exam notifications:', notifError)
       }
       
-      res.status(201).json(r.rows[0])
+      const exam = r.rows[0]
+      res.status(201).json({
+        id: exam.id,
+        title: exam.title,
+        description: exam.description,
+        courseId: exam.course_id,
+        courseName: exam.course_name || 'Unknown Course',
+        durationMinutes: exam.duration_minutes,
+        questionCount: 0,
+        startTime: exam.start_time
+      })
     } catch (error) {
       console.error('POST /api/exams - Database error:', {
         message: error.message,
@@ -1019,9 +1036,9 @@ router.delete('/exams/:id', auth, requireTeacher, async (req: AuthRequest, res) 
     
     const examId = req.params.id
 
-    // Check if exam belongs to teacher and get exam details
+    // Check if exam belongs to teacher
     const examCheck = await client.query(
-      'SELECT teacher_id, title FROM exams WHERE id = $1',
+      'SELECT teacher_id FROM exams WHERE id = $1',
       [examId]
     )
 
@@ -1032,41 +1049,29 @@ router.delete('/exams/:id', auth, requireTeacher, async (req: AuthRequest, res) 
 
     if (examCheck.rows[0].teacher_id !== req.user!.id) {
       await client.query('ROLLBACK')
-      return res.status(403).json({ message: 'Not authorized to delete this exam' })
+      return res.status(403).json({ message: 'Access denied' })
     }
 
-    console.log(`Deleting exam: ${examCheck.rows[0].title} (${examId})`)
+    // Delete in correct order with proper cascade logic
+    await client.query(
+      `DELETE FROM answers
+       WHERE question_id IN (
+         SELECT id FROM questions WHERE exam_id = $1
+       )`,
+      [examId]
+    )
 
-    // Delete related records in correct order to avoid foreign key constraints
-    await client.query('DELETE FROM exam_violations WHERE exam_id = $1', [examId])
-    await client.query('DELETE FROM exam_sessions WHERE exam_id = $1', [examId])
-    await client.query('DELETE FROM exam_attempts WHERE exam_id = $1', [examId])
-    await client.query('DELETE FROM results WHERE exam_id = $1', [examId])
     await client.query('DELETE FROM questions WHERE exam_id = $1', [examId])
-    
-    // Delete the exam
-    const deleteResult = await client.query('DELETE FROM exams WHERE id = $1', [examId])
-    
-    if (deleteResult.rowCount === 0) {
-      await client.query('ROLLBACK')
-      return res.status(404).json({ message: 'Exam not found' })
-    }
-    
+    await client.query('DELETE FROM exam_attempts WHERE exam_id = $1', [examId])
+    await client.query('DELETE FROM exams WHERE id = $1', [examId])
+
     await client.query('COMMIT')
-    console.log(`Successfully deleted exam: ${examId}`)
+    
     res.json({ message: 'Exam deleted successfully' })
   } catch (error) {
     await client.query('ROLLBACK')
-    console.error('DELETE /api/exams/:id - Error:', {
-      message: error.message,
-      stack: error.stack,
-      examId: req.params.id,
-      userId: req.user?.id
-    })
-    res.status(500).json({ 
-      message: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    })
+    console.error('Delete exam error:', error)
+    res.status(500).json({ message: 'Internal server error' })
   } finally {
     client.release()
   }

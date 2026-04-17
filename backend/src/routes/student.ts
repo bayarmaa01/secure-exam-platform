@@ -30,14 +30,14 @@ router.get('/student/dashboard', auth, requireStudent, async (req: AuthRequest, 
 
     // Get available exams from enrolled courses with proper joins
     const examsResult = await pool.query(
-      `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.end_time, 
+      `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.end_time,
               e.status, e.created_at, e.course_id,
               c.name as course_name,
               (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
        FROM exams e
        JOIN courses c ON e.course_id = c.id
        JOIN enrollments en ON c.id = en.course_id
-       WHERE en.student_id = $1 AND e.status = 'published'
+       WHERE en.student_id = $1
        ORDER BY e.start_time ASC`,
       [studentId]
     )
@@ -142,14 +142,14 @@ router.get('/student/exams', auth, requireStudent, async (req: AuthRequest, res)
     const studentId = req.user!.id
     
     const result = await pool.query(
-      `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.end_time, 
+      `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.end_time,
               e.status, e.created_at, e.course_id,
               c.name as course_name,
               (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
        FROM exams e
        JOIN courses c ON e.course_id = c.id
        JOIN enrollments en ON c.id = en.course_id
-       WHERE en.student_id = $1 AND e.status = 'published'
+       WHERE en.student_id = $1
        ORDER BY e.start_time ASC`,
       [studentId]
     )

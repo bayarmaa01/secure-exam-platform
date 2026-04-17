@@ -131,4 +131,44 @@ router.get('/teacher/stats',
   }
 )
 
+// Teacher: Delete student
+router.delete('/students/:id',
+  auth,
+  requireTeacher,
+  async (req: AuthRequest, res) => {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      
+      const studentId = req.params.id
+
+      // Check if student exists
+      const studentCheck = await client.query(
+        'SELECT id FROM users WHERE id = $1 AND role = \'student\'',
+        [studentId]
+      )
+
+      if (studentCheck.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ message: 'Student not found' })
+      }
+
+      // Delete in correct order with proper cascade logic
+      await client.query('DELETE FROM enrollments WHERE user_id = $1', [studentId])
+      await client.query('DELETE FROM exam_attempts WHERE user_id = $1', [studentId])
+      await client.query('DELETE FROM users WHERE id = $1', [studentId])
+
+      await client.query('COMMIT')
+      
+      res.json({ message: 'Student deleted successfully' })
+    } catch (error) {
+      await client.query('ROLLBACK')
+      console.error('Delete student error:', error)
+      res.status(500).json({ message: 'Internal server error' })
+    } finally {
+      client.release()
+    }
+  }
+)
+
 export { router as teacherRoutes }
