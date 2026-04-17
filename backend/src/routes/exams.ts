@@ -9,10 +9,12 @@ const router = Router()
 router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
   try {
     const r = await pool.query(
-      `SELECT e.*
+      `SELECT e.*, c.name as course_name, c.description as course_description,
+              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
        FROM exams e
        JOIN enrollments en ON e.course_id = en.course_id
-       WHERE en.student_id = $1 AND e.status = 'published' AND e.start_time <= NOW()
+       JOIN courses c ON e.course_id = c.id
+       WHERE en.student_id = $1 AND e.status = 'published'
        ORDER BY e.start_time ASC`,
       [req.user!.id]
     )
@@ -22,7 +24,11 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
       description: row.description,
       durationMinutes: row.duration_minutes,
       startTime: row.start_time,
-      status: row.status
+      endTime: row.end_time,
+      status: row.status,
+      courseName: row.course_name,
+      courseDescription: row.course_description,
+      questionCount: parseInt(row.question_count) || 0
     })))
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' })

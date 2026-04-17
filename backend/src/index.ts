@@ -172,7 +172,7 @@ app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' })
 })
 
-const PORT = process.env.PORT || 4000
+const PORT = process.env.PORT || 4005
 
 // WebSocket connection handling
 io.on('connection', (socket) => {

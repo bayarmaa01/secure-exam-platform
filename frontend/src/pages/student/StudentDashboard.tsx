@@ -10,9 +10,11 @@ interface Exam {
   description: string
   durationMinutes: number
   startTime: string
+  endTime: string
   status: string
-  course_id: string
-  course_name?: string
+  courseName: string
+  courseDescription: string
+  questionCount: number
 }
 
 interface Attempt {
@@ -24,9 +26,11 @@ interface Attempt {
 
 interface Notification {
   id: string
+  title: string
   message: string
+  type: string
+  read: boolean
   created_at: string
-  is_read: boolean
 }
 
 export default function StudentDashboard() {
@@ -215,7 +219,7 @@ export default function StudentDashboard() {
                   <div className="ml-5 w-0 flex-1">
                     <dl>
                       <dt className="text-sm font-medium text-gray-500 truncate">Unread Notifications</dt>
-                      <dd className="text-lg font-medium text-gray-900">{notifications.filter(n => !n.is_read).length}</dd>
+                      <dd className="text-lg font-medium text-gray-900">{notifications.filter(n => !n.read).length}</dd>
                     </dl>
                   </div>
                 </div>
@@ -252,6 +256,57 @@ export default function StudentDashboard() {
 
           {/* Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Available Exams */}
+            <div className="bg-white shadow rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Available Exams</h3>
+                {exams.length === 0 ? (
+                  <div className="text-center py-8">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No available exams</h3>
+                    <p className="mt-1 text-sm text-gray-500">Check back later for new exams.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {exams.map((exam) => (
+                      <div key={exam.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="text-sm font-medium text-gray-900">{exam.title}</h4>
+                            <p className="text-sm text-gray-500 mt-1">{exam.description}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {exam.courseName}
+                              </span>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                {exam.questionCount} questions
+                              </span>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                {exam.durationMinutes} min
+                              </span>
+                            </div>
+                            <div className="mt-2 text-xs text-gray-500">
+                              <p>Start: {new Date(exam.startTime).toLocaleString()}</p>
+                              <p>End: {new Date(exam.endTime).toLocaleString()}</p>
+                            </div>
+                          </div>
+                          <div className="ml-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              exam.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {exam.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Enrolled Courses */}
             <div className="bg-white shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
@@ -274,7 +329,7 @@ export default function StudentDashboard() {
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-medium text-gray-900">
-                            {exams.filter(e => e.course_id === course.id).length} exams
+                            {exams.filter(e => e.courseName === course.name).length} exams
                           </div>
                         </div>
                       </div>
@@ -301,7 +356,7 @@ export default function StudentDashboard() {
                     {notifications.slice(0, 5).map((notification) => (
                       <div key={notification.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
                         <div className="flex-shrink-0">
-                          <div className={`w-2 h-2 rounded-full mt-2 ${notification.is_read ? 'bg-gray-300' : 'bg-blue-500'}`}></div>
+                          <div className={`w-2 h-2 rounded-full mt-2 ${notification.read ? 'bg-gray-300' : 'bg-blue-500'}`}></div>
                         </div>
                         <div className="flex-1">
                           <p className="text-sm text-gray-900">{notification.message}</p>
