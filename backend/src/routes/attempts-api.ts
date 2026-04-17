@@ -73,6 +73,11 @@ router.post('/attempts/start',
         status: exam.status
       })
 
+      // Allow draft exams for testing purposes
+      if (exam.status === 'draft') {
+        console.log(`ALLOWING DRAFT EXAM: Student ${studentId} starting draft exam ${examId}`)
+      }
+
       // Temporarily skip timing check to debug the 403 issue
       console.log(`TIMING CHECK: Skipping timing validation for debugging`)
       const now = new Date()
