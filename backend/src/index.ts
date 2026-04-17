@@ -258,15 +258,19 @@ setIO(io)
 // Start server only after DB is ready
 async function start() {
   try {
+    console.log('Initializing database connection...')
     await initDb()
-    console.log('Database connected')
+    console.log('Database connected successfully')
 
     // Start background jobs
+    console.log('Starting background jobs...')
     startExamStatusUpdater()
 
+    // Start HTTP server
     server.listen(PORT, () => {
-      console.log(`Backend running on ${PORT}`)
-      console.log(`WebSocket server running on ${PORT}`)
+      console.log(`Backend running on port ${PORT}`)
+      console.log(`WebSocket server running on port ${PORT}`)
+      console.log(`Health check available at http://localhost:${PORT}/health`)
     })
 
     // Handle server errors
