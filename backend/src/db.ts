@@ -228,6 +228,16 @@ async function runMigrations(client: PoolClient) {
   
   // Add any missing columns to existing tables
   const migrations = [
+    // Ensure enrollments table exists
+    `CREATE TABLE IF NOT EXISTS enrollments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+      student_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      enrolled_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(course_id, student_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_enrollments_course_id ON enrollments(course_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id)`,
     // Users table migrations for password reset and registration
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_number VARCHAR(20) UNIQUE`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`,
