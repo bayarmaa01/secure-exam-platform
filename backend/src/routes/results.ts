@@ -39,6 +39,7 @@ router.get('/student', auth, requireStudent, async (req: AuthRequest, res) => {
       percentage: parseFloat(row.percentage),
       status: row.status,
       createdAt: row.created_at,
+      submittedAt: row.submitted_at,
       exam: {
         title: row.exam_title,
         type: row.exam_type,
@@ -245,14 +246,16 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
     const r = await pool.query(`
       SELECT 
         u.name as student_name,
-        u.registration_number,
+        u.email as student_email,
         e.title as exam_title,
         a.score,
+        a.total_points,
+        a.percentage,
         a.submitted_at
-      FROM attempts a
-      JOIN users u ON u.id = a.user_id
+      FROM exam_attempts a
+      JOIN users u ON u.id = a.student_id
       JOIN exams e ON e.id = a.exam_id
-      WHERE e.teacher_id = $1
+      WHERE e.teacher_id = $1 AND a.status = 'completed'
       ORDER BY a.submitted_at DESC
     `, [teacherId])
 
