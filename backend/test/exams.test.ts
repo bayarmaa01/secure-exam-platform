@@ -115,8 +115,24 @@ describe('Exam Routes', () => {
         created_at: new Date().toISOString()
       };
 
+      // Mock course check query
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: [{ id: 1 }]
+      } as never);
+
+      // Mock exam creation query
       mockPoolQuery.mockResolvedValueOnce({
         rows: [mockCreatedExam]
+      } as never);
+
+      // Mock course name query
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: [{ name: 'Test Course' }]
+      } as never);
+
+      // Mock notification queries (optional)
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: []
       } as never);
 
       const response = await request(app)

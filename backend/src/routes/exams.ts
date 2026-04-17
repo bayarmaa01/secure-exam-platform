@@ -233,12 +233,12 @@ router.post('/exams',
         calculatedEndTime = new Date(Date.now() + duration_minutes * 60 * 1000)
       }
 
+      // Prepare values for insertion - matching actual database schema
       const values = [
-        title, description, course_id, type, duration_minutes, req.user!.id,
-        start_time || new Date(), calculatedEndTime, difficulty, total_marks, passing_marks,
-        false, fullscreen_required, tab_switch_detection, copy_paste_blocked,
-        camera_required, face_detection_enabled, shuffle_questions,
-        shuffle_options, assign_to_all, assigned_groups, 'draft'
+        title, description, 'mcq', duration_minutes, start_time, end_time,
+        'medium', 100, 50, false, course_id, req.user!.id,
+        false, false, false, false,
+        false, false, false, true, [], 'draft'
       ]
 
       // Generate placeholders dynamically to prevent mismatch
@@ -246,9 +246,9 @@ router.post('/exams',
 
       const query = `
         INSERT INTO exams (
-          title, description, course_id, type, duration_minutes, teacher_id, 
-          start_time, end_time, difficulty, total_marks, passing_marks,
-          is_published, fullscreen_required, tab_switch_detection, copy_paste_blocked,
+          title, description, type, duration_minutes, start_time, end_time,
+          difficulty, total_marks, passing_marks, is_published, course_id, teacher_id,
+          fullscreen_required, tab_switch_detection, copy_paste_blocked,
           camera_required, face_detection_enabled, shuffle_questions,
           shuffle_options, assign_to_all, assigned_groups, status
         ) VALUES (
