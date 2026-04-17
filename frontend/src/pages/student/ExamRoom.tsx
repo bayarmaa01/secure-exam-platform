@@ -38,6 +38,7 @@ export default function ExamRoom() {
   const [examEndTime, setExamEndTime] = useState<Date | null>(null)
   
   const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const timerRef = useRef<number | null>(null)
 
   const submitExam = useCallback(async () => {
@@ -124,6 +125,52 @@ export default function ExamRoom() {
     }
   }
 
+  const startWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      })
+
+      const video = videoRef.current
+      if (video) {
+        video.srcObject = stream
+        video.play()
+      }
+
+      // Setup canvas for frame capture
+      const canvas = canvasRef.current
+      if (!canvas) return
+      
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      // Capture frame every 5 seconds
+      setInterval(async () => {
+        if (ctx && video && video.readyState === 4) {
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0)
+
+          const frame = canvas.toDataURL('image/jpeg', 0.8)
+
+          // Send frame to AI for analysis
+          api.post('/api/ai/analyze-frame', {
+            frame,
+            timestamp: Date.now(),
+            sessionId: attemptId,
+            userId: user?.id,
+            examId: id
+          }).catch((error: unknown) => console.error('Failed to analyze frame:', error))
+        }
+      }, 5000)
+    } catch (error) {
+      console.error('Failed to start webcam:', error)
+    }
+  }
+
   const setupAntiCheating = useCallback(async () => {
     try {
       // Enable anti-cheating measures
@@ -139,28 +186,7 @@ export default function ExamRoom() {
     } catch (error) {
       console.error('Failed to setup proctoring:', error)
     }
-  }, [])
-
-  const startWebcam = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        }
-      })
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        setWebcamActive(true)
-      }
-
-      // Start capturing frames for AI analysis
-      startFrameCapture(stream)
-    } catch (error) {
-      console.error('Failed to start webcam:', error)
-    }
-  }
+  }, [handleFullscreenChange, handleKeyDown, handleVisibilityChange, startWebcam])
 
   const stopWebcam = () => {
     if (videoRef.current && videoRef.current.srcObject) {
@@ -171,35 +197,7 @@ export default function ExamRoom() {
     }
   }
 
-  const startFrameCapture = (stream: MediaStream) => {
-    const video = document.createElement('video')
-    video.srcObject = stream
-    video.play()
-
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-
-    // Capture frame every 5 seconds
-    setInterval(async () => {
-      if (ctx && video.readyState === 4) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        ctx?.drawImage(video, 0, 0)
-
-        const frame = canvas.toDataURL('image/jpeg', 0.8)
-
-        // Send frame to AI for analysis
-        api.post('/api/ai/analyze-frame', {
-          frame,
-          timestamp: Date.now(),
-          sessionId: attemptId,
-          userId: user?.id,
-          examId: id
-        }).catch((error: any) => console.error('Failed to analyze frame:', error))
-      }
-    }, 5000)
-  }
-
+  
   const handleAnswerChange = (questionId: string, answer: string | string[]) => {
     setAnswers(prev => ({
       ...prev,
@@ -207,33 +205,7 @@ export default function ExamRoom() {
     }))
   }
 
-  const currentQuestion = questions[currentQuestionIndex]
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div>
-      </div>
-    )
-  }
-
-  if (!exam || !currentQuestion) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Exam not found</h1>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // useEffect hooks
+  // useEffect hooks - must be called before any conditional returns
   useEffect(() => {
     if (!id) return
     
@@ -274,6 +246,32 @@ export default function ExamRoom() {
       }
     }
   }, [examEndTime, timeLeft, submitExam])
+
+  const currentQuestion = questions[currentQuestionIndex]
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div>
+      </div>
+    )
+  }
+
+  if (!exam || !currentQuestion) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Exam not found</h1>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

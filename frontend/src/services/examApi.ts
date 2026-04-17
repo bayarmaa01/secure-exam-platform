@@ -1,5 +1,13 @@
 import api from '../api'
 
+interface ErrorResponse {
+  response?: {
+    data?: {
+      message?: string
+    }
+  }
+}
+
 export interface Exam {
   id: string
   title: string
@@ -9,20 +17,15 @@ export interface Exam {
   endTime: string
   status: string
   courseName: string
-  courseDescription: string
   questionCount: number
 }
 
-export interface Attempt {
+export interface Question {
   id: string
-  examId: string
-  userId: string
-  status: string
-  startedAt: string
-  submittedAt?: string
-  score?: number
-  totalPoints?: number
-  percentage?: number
+  questionText: string
+  options: string[]
+  type: 'mcq' | 'text' | 'coding'
+  points: number
 }
 
 export interface Answer {
@@ -67,7 +70,7 @@ export interface WarningStats {
 
 class ExamApi {
   // Start exam attempt
-  async startExam(examId: string): Promise<{ success: boolean; data?: Attempt; message?: string }> {
+  async startExam(examId: string): Promise<{ success: boolean; data?: { attemptId: string; examId: string }; message?: string; error?: ErrorResponse }> {
     try {
       console.log(`Starting exam: ${examId}`)
       const response = await api.post(`/exams/${examId}/start`)
@@ -75,7 +78,8 @@ class ExamApi {
       return response.data
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const responseData = (error as any).response?.data
+      const errorResponse = error as ErrorResponse
+      const responseData = errorResponse.response?.data
       console.error('Failed to start exam:', responseData || errorMessage)
       return {
         success: false,
@@ -93,7 +97,8 @@ class ExamApi {
       return response.data
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const responseData = (error as any).response?.data
+      const errorResponse = error as ErrorResponse
+      const responseData = errorResponse.response?.data
       console.error('Failed to submit exam:', responseData || errorMessage)
       return {
         success: false,
@@ -111,7 +116,8 @@ class ExamApi {
       return response.data
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const responseData = (error as any).response?.data
+      const errorResponse = error as ErrorResponse
+      const responseData = errorResponse.response?.data
       console.error('Failed to get student results:', responseData || errorMessage)
       return {
         success: false,
@@ -129,7 +135,8 @@ class ExamApi {
       return response.data
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const responseData = (error as any).response?.data
+      const errorResponse = error as ErrorResponse
+      const responseData = errorResponse.response?.data
       console.error('Failed to fetch teacher results:', responseData || errorMessage)
       return {
         success: false,
@@ -152,7 +159,8 @@ class ExamApi {
       return response.data
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const responseData = (error as any).response?.data
+      const errorResponse = error as ErrorResponse
+      const responseData = errorResponse.response?.data
       console.error('Failed to create warning:', responseData || errorMessage)
       return {
         success: false,
@@ -174,7 +182,8 @@ class ExamApi {
       return response.data
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const responseData = (error as any).response?.data
+      const errorResponse = error as ErrorResponse
+      const responseData = errorResponse.response?.data
       console.error('Failed to fetch warnings:', responseData || errorMessage)
       return {
         success: false,
@@ -192,7 +201,8 @@ class ExamApi {
       return response.data
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const responseData = (error as any).response?.data
+      const errorResponse = error as ErrorResponse
+      const responseData = errorResponse.response?.data
       console.error('Failed to fetch warning stats:', responseData || errorMessage)
       return {
         success: false,
@@ -208,12 +218,15 @@ class ExamApi {
       const response = await api.get(`/exams/${examId}/status`)
       console.log('Exam status response:', response.data)
       return response.data
-    } catch (error: any) {
-      console.error('Failed to check exam status:', error.response?.data || error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorResponse = error as ErrorResponse
+      const responseData = errorResponse.response?.data
+      console.error('Failed to check exam status:', responseData || errorMessage)
       return {
         success: false,
         canReEnter: false,
-        message: error.response?.data?.message || 'Failed to check exam status'
+        message: responseData?.message || 'Failed to check exam status'
       }
     }
   }
