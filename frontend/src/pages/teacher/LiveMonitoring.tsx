@@ -71,7 +71,7 @@ export default function LiveMonitoring() {
   const fetchExamStats = useCallback(async () => {
     try {
       const response = await api.get('/teacher/exams')
-      const exams = response.data
+      const exams = Array.isArray(response.data) ? response.data : []
       
       const stats = exams.map((exam: Exam) => ({
         exam_id: exam.id,

@@ -68,16 +68,29 @@ export default function TeacherDashboard() {
     try {
       // Use the correct teacher stats API
       const [statsRes, examsRes, studentsRes] = await Promise.all([
-        api.get('/teacher/stats'),
-        api.get('/teacher/exams'),
-        api.get('/teacher/students')
+        api.get('/teacher/stats').catch(err => {
+          console.error('Stats API error:', err)
+          return { data: { totalExams: 0, ongoingExams: 0, totalQuestions: 0, totalStudents: 0 } }
+        }),
+        api.get('/teacher/exams').catch(err => {
+          console.error('Exams API error:', err)
+          return { data: [] }
+        }),
+        api.get('/teacher/students').catch(err => {
+          console.error('Students API error:', err)
+          return { data: [] }
+        })
       ])
       
       setStats(statsRes.data)
-      setExams(examsRes.data.slice(0, 5)) // Show only 5 recent exams
-      setStudents(studentsRes.data)
+      setExams(Array.isArray(examsRes.data) ? examsRes.data.slice(0, 5) : []) // Show only 5 recent exams
+      setStudents(Array.isArray(studentsRes.data) ? studentsRes.data : [])
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
+      // Set default values on error
+      setStats({ totalExams: 0, ongoingExams: 0, totalQuestions: 0, totalStudents: 0 })
+      setExams([])
+      setStudents([])
     } finally {
       setLoading(false)
     }

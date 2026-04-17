@@ -133,6 +133,52 @@ router.get('/teacher/stats',
   }
 )
 
+// Teacher: Get all exams for this teacher
+router.get('/teacher/exams',
+  auth,
+  requireTeacher,
+  async (req: AuthRequest, res) => {
+    try {
+      const teacherId = req.user!.id
+      
+      const result = await pool.query(
+        `SELECT e.*, 
+                c.name as course_name,
+                COUNT(q.id) as question_count,
+                COUNT(ea.id) as attempt_count
+         FROM exams e
+         LEFT JOIN courses c ON e.course_id = c.id
+         LEFT JOIN questions q ON e.id = q.exam_id
+         LEFT JOIN exam_attempts ea ON e.id = ea.exam_id
+         WHERE e.teacher_id = $1
+         GROUP BY e.id, c.name
+         ORDER BY e.created_at DESC`,
+        [teacherId]
+      )
+      
+      const exams = result.rows.map(row => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        durationMinutes: row.duration_minutes,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        status: row.status,
+        createdAt: row.created_at,
+        courseId: row.course_id,
+        courseName: row.course_name,
+        questionCount: parseInt(row.question_count),
+        attemptCount: parseInt(row.attempt_count)
+      }))
+      
+      res.json(exams)
+    } catch (error) {
+      console.error('GET /api/teacher/exams - Error:', error)
+      res.status(500).json({ message: 'Internal server error' })
+    }
+  }
+)
+
 // Teacher: Delete student
 router.delete('/students/:id',
   auth,
