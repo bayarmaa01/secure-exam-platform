@@ -28,7 +28,14 @@ export default function StudentMonitoringPanel() {
           api.get('/monitoring/sessions')
         ])
 
-        const activeSessions = attemptsRes.data.map((attempt: any) => {
+        const activeSessions = attemptsRes.data.map((attempt: {
+          id: string;
+          student: { id: string; name: string; email: string };
+          exam: { id: string; title: string };
+          warnings: Array<{ type: string; message: string; timestamp: string }>;
+          started_at: string;
+          submitted_at?: string;
+        }) => {
           const student = attempt.student
           const exam = attempt.exam
           const warnings = attempt.warnings || []

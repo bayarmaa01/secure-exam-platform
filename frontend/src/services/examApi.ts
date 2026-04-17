@@ -73,27 +73,31 @@ class ExamApi {
       const response = await api.post(`/exams/${examId}/start`)
       console.log('Start exam response:', response.data)
       return response.data
-    } catch (error: any) {
-      console.error('Failed to start exam:', error.response?.data || error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const responseData = (error as any).response?.data
+      console.error('Failed to start exam:', responseData || errorMessage)
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to start exam'
+        message: responseData?.message || 'Failed to start exam'
       }
     }
   }
 
   // Submit exam answers
-  async submitExam(examId: string, submission: ExamSubmission): Promise<{ success: boolean; data?: any; message?: string }> {
+  async submitExam(examId: string, submission: ExamSubmission): Promise<{ success: boolean; data?: ExamResult; message?: string }> {
     try {
       console.log(`Submitting exam: ${examId}`, submission)
       const response = await api.post(`/exams/${examId}/submit`, submission)
       console.log('Submit exam response:', response.data)
       return response.data
-    } catch (error: any) {
-      console.error('Failed to submit exam:', error.response?.data || error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const responseData = (error as any).response?.data
+      console.error('Failed to submit exam:', responseData || errorMessage)
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to submit exam'
+        message: responseData?.message || 'Failed to submit exam'
       }
     }
   }
@@ -105,27 +109,31 @@ class ExamApi {
       const response = await api.get('/student/results')
       console.log('Student results response:', response.data)
       return response.data
-    } catch (error: any) {
-      console.error('Failed to fetch student results:', error.response?.data || error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const responseData = (error as any).response?.data
+      console.error('Failed to get student results:', responseData || errorMessage)
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to fetch results'
+        message: responseData?.message || 'Failed to get results'
       }
     }
   }
 
   // Get teacher results
-  async getTeacherResults(): Promise<{ success: boolean; data?: any[]; message?: string }> {
+  async getTeacherResults(): Promise<{ success: boolean; data?: ExamResult[]; message?: string }> {
     try {
       console.log('Fetching teacher results')
       const response = await api.get('/teacher/results')
       console.log('Teacher results response:', response.data)
       return response.data
-    } catch (error: any) {
-      console.error('Failed to fetch teacher results:', error.response?.data || error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const responseData = (error as any).response?.data
+      console.error('Failed to fetch teacher results:', responseData || errorMessage)
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to fetch results'
+        message: responseData?.message || 'Failed to fetch results'
       }
     }
   }
@@ -142,11 +150,13 @@ class ExamApi {
       })
       console.log('Create warning response:', response.data)
       return response.data
-    } catch (error: any) {
-      console.error('Failed to create warning:', error.response?.data || error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const responseData = (error as any).response?.data
+      console.error('Failed to create warning:', responseData || errorMessage)
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to create warning'
+        message: responseData?.message || 'Failed to create warning'
       }
     }
   }
@@ -162,27 +172,31 @@ class ExamApi {
       const response = await api.get(`/warnings?${params.toString()}`)
       console.log('Warnings response:', response.data)
       return response.data
-    } catch (error: any) {
-      console.error('Failed to fetch warnings:', error.response?.data || error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const responseData = (error as any).response?.data
+      console.error('Failed to fetch warnings:', responseData || errorMessage)
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to fetch warnings'
+        message: responseData?.message || 'Failed to fetch warnings'
       }
     }
   }
 
   // Get warning statistics (teacher only)
-  async getWarningStats(): Promise<{ success: boolean; data?: any; message?: string }> {
+  async getWarningStats(): Promise<{ success: boolean; data?: WarningStats; message?: string }> {
     try {
       console.log('Fetching warning statistics')
       const response = await api.get('/warnings/stats')
       console.log('Warning stats response:', response.data)
       return response.data
-    } catch (error: any) {
-      console.error('Failed to fetch warning stats:', error.response?.data || error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const responseData = (error as any).response?.data
+      console.error('Failed to fetch warning stats:', responseData || errorMessage)
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to fetch warning stats'
+        message: responseData?.message || 'Failed to fetch warning stats'
       }
     }
   }

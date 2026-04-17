@@ -1,12 +1,13 @@
 import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
+import { Counter } from 'prom-client'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent } from '../middleware/auth'
 
 // Import Prometheus metrics (will be available via app.get('io'))
-let warningsTotal: any = null
-let tabSwitchTotal: any = null
-let faceNotDetectedTotal: any = null
+let warningsTotal: Counter<string> | null = null
+let tabSwitchTotal: Counter<string> | null = null
+let faceNotDetectedTotal: Counter<string> | null = null
 
 const router = Router()
 
@@ -31,9 +32,9 @@ router.post('/warnings',
 
       // Get Prometheus metrics from app
       const metrics = req.app.get('metrics') as {
-        warningsTotal?: { inc: (labels?: any) => void },
-        tabSwitchTotal?: { inc: (labels?: any) => void },
-        faceNotDetectedTotal?: { inc: (labels?: any) => void }
+        warningsTotal?: { inc: (labels?: Record<string, string>) => void },
+        tabSwitchTotal?: { inc: (labels?: Record<string, string>) => void },
+        faceNotDetectedTotal?: { inc: (labels?: Record<string, string>) => void }
       }
       
       if (metrics.warningsTotal) warningsTotal = metrics.warningsTotal

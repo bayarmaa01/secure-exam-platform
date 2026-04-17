@@ -43,7 +43,7 @@ export default function ResultsPage() {
       } else {
         setError(result.message || 'Failed to fetch results')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching results:', error)
       setError('Failed to load results. Please try again.')
     } finally {

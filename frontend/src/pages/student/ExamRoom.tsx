@@ -63,7 +63,7 @@ export default function ExamRoom() {
     if (!id) return
     
     loadExam()
-  }, [id])
+  }, [id, loadExam])
 
   useEffect(() => {
     if (!id) return
@@ -74,7 +74,7 @@ export default function ExamRoom() {
       if (timerRef.current) clearInterval(timerRef.current)
       stopWebcam()
     }
-  }, [id])
+  }, [id, setupAntiCheating])
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -100,7 +100,7 @@ export default function ExamRoom() {
     }
   }, [examEndTime, timeLeft, submitExam])
 
-  const loadExam = async () => {
+  const loadExam = useCallback(async () => {
     try {
       const response = await api.get(`/exams/${id}`)
       const examData = response.data
@@ -125,7 +125,7 @@ export default function ExamRoom() {
       console.error('Failed to load exam:', error)
       setLoading(false)
     }
-  }
+  }, [id])
 
   // Anti-cheating prevention functions
   const preventContextMenu = (e: MouseEvent) => e.preventDefault()
@@ -146,7 +146,7 @@ export default function ExamRoom() {
         examId: id,
         type: 'tab_switch',
         message: 'Student switched tabs during exam'
-      }).catch((error: any) => console.error('Failed to send warning:', error))
+      }).catch((error: unknown) => console.error('Failed to send warning:', error))
     }
   }
 
@@ -160,12 +160,12 @@ export default function ExamRoom() {
           examId: id,
           type: 'fullscreen_exit',
           message: 'Student exited fullscreen during exam'
-        }).catch((error: any) => console.error('Failed to send warning:', error))
+        }).catch((error: unknown) => console.error('Failed to send warning:', error))
       }
     }
   }
 
-  const setupAntiCheating = async () => {
+  const setupAntiCheating = useCallback(async () => {
     try {
       // Enable anti-cheating measures
       document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -180,7 +180,7 @@ export default function ExamRoom() {
     } catch (error) {
       console.error('Failed to setup proctoring:', error)
     }
-  }
+  }, [])
 
   const startWebcam = async () => {
     try {
