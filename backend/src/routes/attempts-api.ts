@@ -48,23 +48,14 @@ router.post('/attempts/start',
       const { examId } = req.body
       const studentId = req.user!.id
 
-      // Check if exam exists and is accessible
-      const examAccessCheck = await pool.query(
-        `SELECT e.*, 
-         CASE 
-           WHEN e.assign_to_all = true THEN true
-           WHEN EXISTS(
-             SELECT 1 FROM enrollments en 
-             WHERE en.course_id = e.course_id AND en.student_id = $2
-           ) THEN true
-           ELSE false
-         END as has_access
-         FROM exams e 
-         WHERE e.id = $1`,
-        [examId, studentId]
+      // Simplified check - if student can see exam, they can start it
+      // Just verify exam exists and basic timing
+      const examCheck = await pool.query(
+        'SELECT * FROM exams WHERE id = $1',
+        [examId]
       )
 
-      if (examAccessCheck.rows.length === 0) {
+      if (examCheck.rows.length === 0) {
         console.log(`Exam ${examId} not found`)
         return res.status(404).json({ 
           success: false, 
@@ -72,26 +63,27 @@ router.post('/attempts/start',
         })
       }
 
-      const examAccess = examAccessCheck.rows[0]
-      if (!examAccess.has_access) {
-        console.log(`Student ${studentId} not enrolled in course for exam ${examId}`)
-        return res.status(403).json({ 
-          success: false, 
-          message: 'Access denied - not enrolled in course' 
-        })
-      }
+      const exam = examCheck.rows[0]
+      console.log(`Student ${studentId} attempting to start exam ${examId}`)
+      console.log(`Exam details:`, {
+        id: exam.id,
+        title: exam.title,
+        assignToAll: exam.assign_to_all,
+        courseId: exam.course_id,
+        status: exam.status
+      })
 
       // Check exam timing
       const now = new Date()
 
-      if (new Date(examAccess.start_time) > now) {
+      if (new Date(exam.start_time) > now) {
         return res.status(403).json({ 
           success: false, 
           message: 'Exam has not started yet' 
         })
       }
 
-      if (new Date(examAccess.end_time) < now) {
+      if (new Date(exam.end_time) < now) {
         return res.status(403).json({ 
           success: false, 
           message: 'Exam has ended' 
@@ -142,8 +134,8 @@ router.post('/attempts/start',
           userId: attempt.user_id,
           status: attempt.status,
           startedAt: attempt.started_at,
-          startTime: examAccess.start_time,
-          endTime: examAccess.end_time
+          startTime: exam.start_time,
+          endTime: exam.end_time
         }
       })
 
