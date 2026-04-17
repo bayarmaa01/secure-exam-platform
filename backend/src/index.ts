@@ -46,58 +46,6 @@ const httpRequestTotal = new Counter({
   registers: [register]
 })
 
-const warningsTotal = new Counter({
-  name: 'warnings_total',
-  help: 'Total warnings triggered during exams',
-  labelNames: ['warning_type'],
-  registers: [register]
-})
-
-const tabSwitchTotal = new Counter({
-  name: 'tab_switch_total',
-  help: 'Total tab switches detected',
-  registers: [register]
-})
-
-const faceNotDetectedTotal = new Counter({
-  name: 'face_not_detected_total',
-  help: 'Total face detection failures',
-  registers: [register]
-})
-
-const examSubmissionsTotal = new Counter({
-  name: 'exam_submissions_total',
-  help: 'Total exam submissions',
-  labelNames: ['exam_id', 'status'],
-  registers: [register]
-})
-
-const suspiciousEventsTotal = new Counter({
-  name: 'suspicious_events_total',
-  help: 'Total number of suspicious proctoring events',
-  labelNames: ['event_type'],
-  registers: [register]
-})
-
-const cheatingDetectedTotal = new Counter({
-  name: 'cheating_detected_total',
-  help: 'Total number of cheating incidents detected',
-  labelNames: ['type'],
-  registers: [register]
-})
-
-const suspiciousStudentsTotal = new Gauge({
-  name: 'suspicious_students_total',
-  help: 'Number of students marked as suspicious',
-  registers: [register]
-})
-
-const averageScoreGauge = new Gauge({
-  name: 'average_exam_score',
-  help: 'Average score across all exams',
-  registers: [register]
-})
-
 const app = express()
 const server = createServer(app)
 const io = new SocketIOServer(server, {

@@ -1,4 +1,3 @@
-import { Pool, PoolClient } from 'pg'
 import { pool } from '../db'
 
 // Simple migration system without TypeScript export issues

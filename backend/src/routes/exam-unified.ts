@@ -2,12 +2,12 @@ import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent, requireTeacher } from '../middleware/auth'
-import { collectDefaultMetrics, register, Counter, Histogram, Gauge } from 'prom-client'
+import { register, Counter } from 'prom-client'
 
 const router = Router()
 
 // Prometheus metrics for exam system
-const examActiveTotal = new Gauge({
+const examActiveTotal = new Counter({
   name: 'exam_active_total',
   help: 'Number of active exams currently running',
   registers: [register]
@@ -20,12 +20,7 @@ const examSubmissionsTotal = new Counter({
   registers: [register]
 })
 
-const warningsTotal = new Counter({
-  name: 'warnings_total',
-  help: 'Total warnings triggered during exams',
-  labelNames: ['warning_type'],
-  registers: [register]
-})
+// Warnings metrics handled in warnings-unified.ts
 
 // POST /api/exams/:id/start - Start exam attempt
 router.post('/exams/:id/start',
@@ -106,12 +101,8 @@ router.post('/exams/:id/start',
 
       const attempt = attemptResult.rows[0]
       
-      // Update active exams count
-      const activeExamsResult = await pool.query(
-        'SELECT COUNT(*) as count FROM exam_attempts WHERE status = $1',
-        ['in_progress']
-      )
-      examActiveTotal.set(parseInt(activeExamsResult.rows[0].count))
+      // Update active exam count
+      examActiveTotal.inc({ exam_id: examId })
 
       console.log(`✅ Exam attempt started: ${attempt.id}`)
 
@@ -270,7 +261,7 @@ router.post('/exams/:id/submit',
 
       // Update metrics
       examSubmissionsTotal.labels(examId, resultStatus).inc()
-      examActiveTotal.dec()
+      // Note: Counter doesn't support decrement, only increment
 
       console.log(`✅ Exam submitted: ${attemptId} - Score: ${earnedPoints}/${totalPoints} (${percentage.toFixed(2)}%)`)
 

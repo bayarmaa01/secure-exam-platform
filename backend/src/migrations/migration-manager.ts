@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg'
-import { pool } from '../db'
+// Migration manager for database schema
 
 interface Migration {
   id: string

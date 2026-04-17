@@ -570,7 +570,6 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
       return res.status(404).json({ message: 'Exam not found' })
     }
 
-    const exam = examCheck.rows[0]
     // REMOVE is_published check - any exam is available to enrolled students
     
     // Check if student is enrolled in the course

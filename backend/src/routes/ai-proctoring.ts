@@ -232,7 +232,7 @@ router.post('/cheating-alert',
 )
 
 // Helper function to analyze frame (simulated AI analysis)
-async function analyzeFrame(frame: string, timestamp: number): Promise<{
+async function analyzeFrame(_frame: string, _timestamp: number): Promise<{
   riskScore: number
   violationType?: string
   message?: string
