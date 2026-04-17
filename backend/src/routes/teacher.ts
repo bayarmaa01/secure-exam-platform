@@ -16,7 +16,14 @@ router.get('/teacher/students',
          WHERE role = 'student' 
          ORDER BY created_at DESC`
       )
-      res.json(r.rows)
+      res.json(r.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        registrationNumber: row.registration_number,
+        studentId: row.student_id,
+        createdAt: row.created_at
+      })))
     } catch (error) {
       console.error('GET /api/teacher/students - Error:', error)
       res.status(500).json({ message: 'Internal server error' })
@@ -80,14 +87,14 @@ router.get('/teacher/stats',
       
       // Get published exams
       const publishedExamsResult = await pool.query(
-        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1 AND is_published = true',
+        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1 AND status = \'published\'',
         [teacherId]
       )
       
       // Get ongoing exams
       const ongoingExamsResult = await pool.query(
-        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1 AND status = $2 AND start_time <= NOW() AND end_time > NOW()',
-        [teacherId, 'published']
+        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1 AND status = \'published\' AND start_time <= NOW() AND end_time > NOW()',
+        [teacherId]
       )
       
       // Get total questions

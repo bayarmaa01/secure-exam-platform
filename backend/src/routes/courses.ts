@@ -290,7 +290,31 @@ router.post('/courses/:courseId/enroll',
         [courseId, studentUuid]
       )
 
-      res.status(201).json({ message: 'Student enrolled successfully' })
+      // Verify enrollment and return updated course data
+      const updatedCourseResult = await pool.query(
+        `SELECT c.*, 
+                COUNT(DISTINCT en.student_id) as student_count,
+                COUNT(DISTINCT e.id) as exam_count
+         FROM courses c
+         LEFT JOIN enrollments en ON c.id = en.course_id
+         LEFT JOIN exams e ON c.id = e.course_id
+         WHERE c.id = $1
+         GROUP BY c.id`,
+        [courseId]
+      )
+
+      const updatedCourse = updatedCourseResult.rows[0]
+      res.status(201).json({ 
+        message: 'Student enrolled successfully',
+        course: {
+          id: updatedCourse.id,
+          name: updatedCourse.name,
+          description: updatedCourse.description,
+          studentCount: parseInt(updatedCourse.student_count) || 0,
+          examCount: parseInt(updatedCourse.exam_count) || 0,
+          createdAt: updatedCourse.created_at
+        }
+      })
     } catch (error) {
       console.error('POST /api/courses/:courseId/enroll - Error:', error)
       

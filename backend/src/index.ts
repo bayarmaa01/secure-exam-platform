@@ -22,6 +22,7 @@ import { websocketConnections } from './metrics/examMetrics'
 import { setIO } from './utils/socketHelper'
 import { teacherRoutes } from './routes/teacher'
 import { examSessionRoutes } from './routes/examSessions'
+import { studentRoutes } from './routes/student'
 
 // Prometheus metrics
 collectDefaultMetrics({ register })
@@ -138,6 +139,7 @@ app.use('/api/results', resultsRoutes)
 app.use('/api', notificationRoutes)
 app.use('/api', coursesRouter)
 app.use('/api', teacherRoutes)
+app.use('/api', studentRoutes)
 app.use('/api', examSessionRoutes)
 app.use('/api', questionsRouter)
 app.use('/api', attemptsRouter)

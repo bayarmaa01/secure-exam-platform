@@ -68,10 +68,11 @@ router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res)
       description: row.description,
       durationMinutes: row.duration_minutes,
       startTime: row.start_time,
+      endTime: row.end_time,
       status: row.status,
       createdAt: row.created_at,
       courseId: row.course_id,
-      courseName: row.course_name,
+      courseName: row.course_name || 'Unknown Course',
       questionCount: parseInt(row.question_count) || 0
     }))
     
@@ -291,6 +292,102 @@ router.post('/exams',
         details: 'Failed to create exam in database',
         timestamp: new Date().toISOString()
       })
+    }
+  }
+)
+
+// Teacher: Publish exam
+router.patch('/exams/:id/publish', 
+  auth, 
+  requireTeacher,
+  async (req: AuthRequest, res) => {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      
+      const examId = req.params.id
+
+      // Check if exam belongs to teacher
+      const examCheck = await client.query(
+        'SELECT teacher_id, title, course_id, status FROM exams WHERE id = $1',
+        [examId]
+      )
+
+      if (examCheck.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ message: 'Exam not found' })
+      }
+
+      if (examCheck.rows[0].teacher_id !== req.user!.id) {
+        await client.query('ROLLBACK')
+        return res.status(403).json({ message: 'Access denied' })
+      }
+
+      // Update exam status to published
+      const updateResult = await client.query(
+        `UPDATE exams 
+         SET status = 'published', is_published = true, updated_at = NOW() 
+         WHERE id = $1 
+         RETURNING *`,
+        [examId]
+      )
+
+      const exam = updateResult.rows[0]
+      
+      // Create notifications for all enrolled students
+      try {
+        const studentsResult = await client.query(
+          `SELECT u.id as user_id, u.name
+           FROM users u
+           JOIN enrollments en ON u.id = en.student_id
+           WHERE en.course_id = $1 AND u.role = 'student'`,
+          [exam.course_id]
+        )
+
+        if (studentsResult.rows.length > 0) {
+          for (const student of studentsResult.rows) {
+            await client.query(
+              `INSERT INTO notifications (user_id, title, message, type, data, created_at)
+               VALUES ($1, $2, $3, 'exam_published', $4, NOW())`,
+              [
+                student.user_id, 
+                'Exam Published', 
+                `Exam "${exam.title}" has been published and is now available.`,
+                JSON.stringify({
+                  exam_id: exam.id,
+                  exam_title: exam.title,
+                  course_id: exam.course_id
+                })
+              ]
+            )
+          }
+        }
+      } catch (notifError) {
+        console.error('Failed to send exam notifications:', notifError)
+      }
+
+      await client.query('COMMIT')
+
+      // Return standardized exam response
+      res.json({
+        id: exam.id,
+        title: exam.title,
+        description: exam.description,
+        durationMinutes: exam.duration_minutes,
+        startTime: exam.start_time,
+        endTime: exam.end_time,
+        status: exam.status,
+        courseId: exam.course_id,
+        courseName: examCheck.rows[0].course_name || 'Unknown Course',
+        questionCount: 0, // Will be populated by frontend if needed
+        createdAt: exam.created_at
+      })
+    } catch (error) {
+      await client.query('ROLLBACK')
+      console.error('Publish exam error:', error)
+      res.status(500).json({ message: 'Internal server error' })
+    } finally {
+      client.release()
     }
   }
 )
