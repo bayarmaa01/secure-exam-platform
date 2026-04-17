@@ -70,7 +70,7 @@ export default function ExamRoom() {
       setQuestions(examData.questions || [])
 
       // Start exam attempt
-      const attemptResponse = await api.post(`/exams/attempts/start`, {
+      const attemptResponse = await api.post(`/attempts/start`, {
         examId: id
       })
 
