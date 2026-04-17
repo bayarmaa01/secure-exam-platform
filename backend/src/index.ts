@@ -25,6 +25,7 @@ import { examSessionRoutes } from './routes/examSessions'
 import { studentRoutes } from './routes/student'
 import { warningRoutes } from './routes/warnings'
 import { monitoringRoutes } from './routes/monitoring'
+import { aiProctoringRoutes } from './routes/ai-proctoring'
 
 // Prometheus metrics
 collectDefaultMetrics({ register })
@@ -174,6 +175,7 @@ app.use('/api', attemptsRouter)
 app.use('/api', seedRouter)
 app.use('/api', warningRoutes)
 app.use('/api', monitoringRoutes)
+app.use('/api/ai', aiProctoringRoutes)
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))

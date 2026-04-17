@@ -26,7 +26,7 @@ export default function StudentResults() {
   const fetchResults = async () => {
     try {
       const response = await api.get('/results/student')
-      setAttempts(response.data)
+      setAttempts(response.data.data || response.data)
     } catch (error) {
       console.error('Failed to fetch results:', error)
     } finally {

@@ -34,12 +34,16 @@ router.get('/student', auth, requireStudent, async (req: AuthRequest, res) => {
 
     const results = r.rows.map(row => ({
       id: row.id,
+      examTitle: row.exam_title,
       score: parseFloat(row.score),
       totalPoints: parseFloat(row.total_points),
       percentage: parseFloat(row.percentage),
       status: row.status,
-      createdAt: row.created_at,
       submittedAt: row.submitted_at,
+      cheatingScore: null, // TODO: Calculate from proctoring logs
+      startedAt: row.created_at,
+      timeTakenMinutes: row.submitted_at ? Math.round((new Date(row.submitted_at).getTime() - new Date(row.created_at).getTime()) / 60000) : null,
+      durationMinutes: 0, // Will be set from exam data if needed
       exam: {
         title: row.exam_title,
         type: row.exam_type,
@@ -52,7 +56,7 @@ router.get('/student', auth, requireStudent, async (req: AuthRequest, res) => {
 
     res.json({
       success: true,
-      results,
+      data: results,
       total: results.length,
       averageScore: results.length > 0 ? results.reduce((sum, r) => sum + r.percentage, 0) / results.length : 0
     })

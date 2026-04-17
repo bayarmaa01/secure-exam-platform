@@ -90,7 +90,7 @@ export default function StudentDashboard() {
       
       setCourses(coursesResponse)
       setExams(examsResponse.data)
-      setAttempts(attemptsResponse.data)
+      setAttempts(attemptsResponse.data.data || attemptsResponse.data)
       setNotifications(notificationsResponse.data)
     } catch (error: unknown) {
       console.error('Failed to fetch dashboard data:', error)

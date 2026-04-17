@@ -26,9 +26,9 @@ router.post('/exams/:examId/start',
         return res.status(403).json({ message: 'Access denied - not enrolled in course' })
       }
 
-      // Check exam details (PUBLISH LOGIC REMOVED)
+      // Check exam details with completion status
       const examCheck = await pool.query(
-        'SELECT start_time, end_time FROM exams WHERE id = $1',
+        'SELECT start_time, end_time, status FROM exams WHERE id = $1',
         [examId]
       )
 
@@ -47,14 +47,19 @@ router.post('/exams/:examId/start',
         return res.status(403).json({ message: 'Exam has ended' })
       }
 
-      // Check if student already has an active attempt
+      // Check if student already has any attempt (completed or in_progress)
       const existingAttempt = await pool.query(
-        'SELECT id FROM exam_attempts WHERE exam_id = $1 AND user_id = $2 AND status = $3',
-        [examId, studentId, 'in_progress']
+        'SELECT id, status FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
+        [examId, studentId]
       )
 
       if (existingAttempt.rows.length > 0) {
-        return res.status(400).json({ message: 'You already have an active attempt' })
+        const attempt = existingAttempt.rows[0]
+        if (attempt.status === 'in_progress') {
+          return res.status(400).json({ message: 'You already have an active attempt' })
+        } else if (attempt.status === 'completed' || attempt.status === 'submitted') {
+          return res.status(403).json({ message: 'You have already completed this exam' })
+        }
       }
 
       // Create new attempt
@@ -260,6 +265,54 @@ router.get('/attempts/:attemptId',
       }
 
       const attempt = attemptCheck.rows[0]
+
+      // Auto-submit if exam time has expired and attempt is still in progress
+      if (attempt.status === 'in_progress' && new Date(attempt.end_time) < new Date()) {
+        await pool.query(
+          `UPDATE exam_attempts 
+           SET submitted_at = NOW(), 
+               status = 'completed'
+           WHERE id = $1`,
+          [attemptId]
+        )
+
+        // Calculate and save score
+        const scoreResult = await pool.query(
+          `SELECT 
+             SUM(points_earned) as total_earned,
+             SUM(q.points) as total_points
+           FROM answers a
+           JOIN questions q ON a.question_id = q.id
+           WHERE a.attempt_id = $1`,
+          [attemptId]
+        )
+
+        const scoreData = scoreResult.rows[0]
+        const totalPoints = scoreData.total_points || 0
+        const totalEarned = scoreData.total_earned || 0
+        const percentage = totalPoints > 0 ? (totalEarned / totalPoints) * 100 : 0
+
+        await pool.query(
+          `UPDATE exam_attempts 
+           SET score = $1, total_points = $2, percentage = $3
+           WHERE id = $4`,
+          [totalEarned, totalPoints, percentage, attemptId]
+        )
+
+        // Create result record
+        await pool.query(
+          `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [studentId, attempt.exam_id, attemptId, totalEarned, totalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
+        )
+
+        return res.json({
+          ...attempt,
+          status: 'completed',
+          autoSubmitted: true,
+          message: 'Exam auto-submitted due to time expiration'
+        })
+      }
 
       // Get answers with questions
       const answersResult = await pool.query(

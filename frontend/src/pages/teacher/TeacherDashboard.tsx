@@ -19,9 +19,9 @@ interface Exam {
 
 interface Stats {
   totalExams: number
-  publishedExams: number
-  totalAttempts: number
-  activeStudents: number
+  ongoingExams: number
+  totalQuestions: number
+  totalStudents: number
 }
 
 interface Student {
@@ -38,9 +38,9 @@ export default function TeacherDashboard() {
   const [students, setStudents] = useState<Student[]>([])
   const [stats, setStats] = useState<Stats>({
     totalExams: 0,
-    publishedExams: 0,
-    totalAttempts: 0,
-    activeStudents: 0
+    ongoingExams: 0,
+    totalQuestions: 0,
+    totalStudents: 0
   })
   const [loading, setLoading] = useState(true)
 
@@ -66,29 +66,16 @@ export default function TeacherDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [examsRes, studentsRes] = await Promise.all([
+      // Use the correct teacher stats API
+      const [statsRes, examsRes, studentsRes] = await Promise.all([
+        api.get('/teacher/stats'),
         api.get('/teacher/exams'),
         api.get('/teacher/students')
       ])
       
+      setStats(statsRes.data)
       setExams(examsRes.data.slice(0, 5)) // Show only 5 recent exams
       setStudents(studentsRes.data)
-      
-      // Calculate stats
-      const totalExams = examsRes.data.length
-      const publishedExams = examsRes.data.filter((exam: Exam) => exam.status === 'published').length
-      
-      // Get attempts data for stats
-      const attemptsRes = await api.get('/teacher/results')
-      const totalAttempts = attemptsRes.data.length
-      const activeStudents = new Set(attemptsRes.data.map((attempt: { studentId: string }) => attempt.studentId)).size
-      
-      setStats({
-        totalExams,
-        publishedExams,
-        totalAttempts,
-        activeStudents
-      })
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
@@ -260,8 +247,8 @@ export default function TeacherDashboard() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Published</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.publishedExams}</dd>
+                      <dt className="text-sm font-medium text-gray-500 truncate">Ongoing Exams</dt>
+                      <dd className="text-lg font-medium text-gray-900">{stats.ongoingExams}</dd>
                     </dl>
                   </div>
                 </div>
@@ -280,8 +267,8 @@ export default function TeacherDashboard() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Total Attempts</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.totalAttempts}</dd>
+                      <dt className="text-sm font-medium text-gray-500 truncate">Total Questions</dt>
+                      <dd className="text-lg font-medium text-gray-900">{stats.totalQuestions}</dd>
                     </dl>
                   </div>
                 </div>
@@ -300,8 +287,8 @@ export default function TeacherDashboard() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Active Students</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.activeStudents}</dd>
+                      <dt className="text-sm font-medium text-gray-500 truncate">Total Students</dt>
+                      <dd className="text-lg font-medium text-gray-900">{stats.totalStudents}</dd>
                     </dl>
                   </div>
                 </div>

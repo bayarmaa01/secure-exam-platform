@@ -146,7 +146,8 @@ router.get('/student/exams', auth, requireStudent, async (req: AuthRequest, res)
     
     // EXACT QUERY AS SPECIFIED IN REQUIREMENTS
     const result = await pool.query(
-      `SELECT e.*, c.name as course_name
+      `SELECT e.*, c.name as course_name,
+              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
        FROM exams e
        JOIN enrollments en ON en.course_id = e.course_id
        JOIN courses c ON c.id = e.course_id
@@ -181,7 +182,7 @@ router.get('/student/exams', auth, requireStudent, async (req: AuthRequest, res)
       status: exam.status,
       courseId: exam.course_id,
       courseName: exam.course_name || 'Unknown Course',
-      questionCount: 0 // Will be calculated if needed
+      questionCount: parseInt(exam.question_count) || 0
     }))
     
     console.log('Mapped results being sent to frontend:', JSON.stringify(mappedResults, null, 2))
