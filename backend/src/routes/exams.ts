@@ -50,7 +50,7 @@ router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res)
        ORDER BY e.created_at DESC`)
     
     const r = await pool.query(
-      `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.status, e.created_at, e.course_id,
+      `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.end_time, e.status, e.created_at, e.course_id,
               c.name as course_name,
               (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
        FROM exams e

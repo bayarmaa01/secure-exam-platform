@@ -85,15 +85,15 @@ router.get('/teacher/stats',
         [teacherId]
       )
       
-      // Get published exams
+      // Get total exams (all exams)
       const publishedExamsResult = await pool.query(
-        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1 AND status = \'published\'',
+        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1',
         [teacherId]
       )
       
-      // Get ongoing exams
+      // Get ongoing exams (all exams)
       const ongoingExamsResult = await pool.query(
-        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1 AND status = \'published\' AND start_time <= NOW() AND end_time > NOW()',
+        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1',
         [teacherId]
       )
       

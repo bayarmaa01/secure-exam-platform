@@ -19,7 +19,7 @@ router.get('/student/dashboard', auth, requireStudent, async (req: AuthRequest, 
        FROM courses c
        JOIN enrollments en ON c.id = en.course_id
        JOIN users u ON c.teacher_id = u.id
-       LEFT JOIN exams e ON c.id = e.course_id AND e.status = 'published'
+       LEFT JOIN exams e ON c.id = e.course_id
        WHERE en.student_id = $1
        GROUP BY c.id, u.name
        ORDER BY c.created_at DESC`,
@@ -35,8 +35,8 @@ router.get('/student/dashboard', auth, requireStudent, async (req: AuthRequest, 
               c.name as course_name,
               (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
        FROM exams e
+       JOIN enrollments en ON e.course_id = en.course_id
        JOIN courses c ON e.course_id = c.id
-       JOIN enrollments en ON c.id = en.course_id
        WHERE en.student_id = $1
        ORDER BY e.start_time ASC`,
       [studentId]
