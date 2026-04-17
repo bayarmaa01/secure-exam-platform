@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import ExamApi from '../../services/examApi'
+import api from '../../api'
 
 interface Question {
   id: string
@@ -24,10 +24,10 @@ export default function ExamRoom() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  
+
   const [exam, setExam] = useState<Exam | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
-  const [currentQuestionIndex] = useState(0)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [attemptId, setAttemptId] = useState<string | null>(null)
@@ -38,48 +38,43 @@ export default function ExamRoom() {
   const [examEndTime, setExamEndTime] = useState<Date | null>(null)
   
   const videoRef = useRef<HTMLVideoElement>(null)
-  const intervalRef = useRef<number | null>(null)
   const timerRef = useRef<number | null>(null)
 
   const submitExam = useCallback(async () => {
     if (!attemptId || submitting) return
     
     setSubmitting(true)
-    
+
     try {
-      const result = await ExamApi.submitExam(id, {
-        attemptId,
-        answers: Object.entries(answers).map(([questionId, answer]) => ({
-          questionId,
-          answer: Array.isArray(answer) ? answer[0] : answer
-        }))
+      const response = await api.post(`/exams/attempts/${attemptId}/submit`, {
+        answers,
+        cheatingWarnings
       })
       
-      if (result.success) {
-        navigate(`/results/${attemptId}`)
-      } else {
-        alert(result.message || 'Failed to submit exam')
-      }
-    } catch (error: any) {
+      console.log('Exam submitted:', response.data)
+      navigate(`/results/${attemptId}`)
+    } catch (error) {
       console.error('Failed to submit exam:', error)
-      alert('Failed to submit exam. Please try again.')
-    } finally {
       setSubmitting(false)
     }
-  }, [attemptId, submitting, answers, id, navigate])
+  }, [attemptId, submitting, answers, cheatingWarnings, navigate])
 
   useEffect(() => {
     if (!id) return
     
     loadExam()
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return
+
     setupAntiCheating()
     
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      if (timerRef.current) clearTimeout(timerRef.current)
+      if (timerRef.current) clearInterval(timerRef.current)
       stopWebcam()
     }
-  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id])
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -93,7 +88,7 @@ export default function ExamRoom() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [timeLeft, attemptId, submitExam]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [timeLeft, attemptId, submitExam])
 
   // Auto-submit when exam time ends
   useEffect(() => {
@@ -103,31 +98,31 @@ export default function ExamRoom() {
         submitExam()
       }
     }
-  }, [examEndTime, timeLeft, submitExam]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [examEndTime, timeLeft, submitExam])
 
   const loadExam = async () => {
     try {
       const response = await api.get(`/exams/${id}`)
       const examData = response.data
-      
+      console.log('Exam data loaded:', examData)
+
       setExam(examData)
       setQuestions(examData.questions || [])
-      
+
       // Start exam attempt
-      const attemptResult = await ExamApi.startExam(id)
-      
-      if (attemptResult.success && attemptResult.data) {
-        setAttemptId(attemptResult.data.attemptId)
+      const attemptResponse = await api.post(`/exams/attempts/start`, {
+        examId: id
+      })
+
+      if (attemptResponse.data.success) {
+        setAttemptId(attemptResponse.data.attemptId)
         setTimeLeft(examData.durationMinutes * 60)
         setExamEndTime(new Date(examData.endTime))
-      } else {
-        alert(attemptResult.message || 'Failed to start exam')
       }
-      
+
       setLoading(false)
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to load exam:', error)
-      alert('Failed to load exam. Please try again.')
       setLoading(false)
     }
   }
@@ -142,60 +137,69 @@ export default function ExamRoom() {
     }
   }
 
-  const setupAntiCheating = () => {
-    let warningCount = 0
-    
-    // Tab switching detection
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        warningCount++
-        setCheatingWarnings(warningCount)
-        console.log('Tab switched - potential cheating')
-        
-        // Send warning to backend
-        if (attemptId) {
-          api.post('/warnings', {
-            exam_id: id,
-            type: 'tab_switch',
-            message: 'Student switched tabs during exam'
-          }).catch(error => console.error('Failed to send warning:', error))
-        }
+  const handleVisibilityChange = () => {
+    if (document.hidden && attemptId) {
+      // Tab switch detected
+      setCheatingWarnings(prev => prev + 1)
+      api.post('/api/warnings', {
+        userId: user?.id,
+        examId: id,
+        type: 'tab_switch',
+        message: 'Student switched tabs during exam'
+      }).catch((error: any) => console.error('Failed to send warning:', error))
+    }
+  }
+
+  const handleFullscreenChange = () => {
+    if (!document.fullscreenElement) {
+      // Exited fullscreen
+      if (attemptId) {
+        setCheatingWarnings(prev => prev + 1)
+        api.post('/api/warnings', {
+          userId: user?.id,
+          examId: id,
+          type: 'fullscreen_exit',
+          message: 'Student exited fullscreen during exam'
+        }).catch((error: any) => console.error('Failed to send warning:', error))
       }
     }
-    
-    // Fullscreen detection
-    document.addEventListener('fullscreenchange', () => {
-      if (!document.fullscreenElement) {
-        warningCount++
-        setCheatingWarnings(warningCount)
-        console.log('Exited fullscreen - potential cheating')
-        
-        // Send warning to backend
-        if (attemptId && user) {
-          await ExamApi.createWarning(user.id, id, 'fullscreen_exit', 'Student exited fullscreen during exam')
-        }
-      }
+  }
+
+  const setupAntiCheating = async () => {
+    try {
+      // Enable anti-cheating measures
+      document.addEventListener('fullscreenchange', handleFullscreenChange)
+      document.addEventListener('keydown', handleKeyDown)
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      document.addEventListener('contextmenu', preventContextMenu)
+      document.addEventListener('copy', preventCopyPaste)
+      document.addEventListener('paste', preventCopyPaste)
+
+      // Start webcam for proctoring
+      await startWebcam()
+    } catch (error) {
+      console.error('Failed to setup proctoring:', error)
     }
   }
 
   const startWebcam = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
           width: { ideal: 640 },
           height: { ideal: 480 }
-        } 
+        }
       })
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         setWebcamActive(true)
-        startFrameCapture()
       }
+
+      // Start capturing frames for AI analysis
+      startFrameCapture(stream)
     } catch (error) {
-      console.error('Webcam access denied:', error)
-      setCheatingWarnings(prev => prev + 1)
-      sendCheatingAlert('Webcam access denied')
+      console.error('Failed to start webcam:', error)
     }
   }
 
@@ -208,223 +212,187 @@ export default function ExamRoom() {
     }
   }
 
-  const captureAndSendFrame = async () => {
-    if (!videoRef.current) return
-    
+  const startFrameCapture = (stream: MediaStream) => {
+    const video = document.createElement('video')
+    video.srcObject = stream
+    video.play()
+
     const canvas = document.createElement('canvas')
-    canvas.width = 640
-    canvas.height = 480
     const ctx = canvas.getContext('2d')
-    
-    if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, 640, 480)
-      const imageData = canvas.toDataURL('image/jpeg', 0.8)
-      
-      try {
-        await api.post('/ai/analyze-frame', {
-          attemptId,
-          frame: imageData,
-          timestamp: Date.now()
-        })
-      } catch (error) {
-        console.error('Failed to send frame:', error)
-      }
-    }
-  }
 
-  const sendCheatingAlert = async (reason: string) => {
-    if (!attemptId) return
-    
-    try {
-      await api.post('/ai/cheating-alert', {
-        attemptId,
-        reason,
-        timestamp: Date.now()
-      })
-    } catch (error) {
-      console.error('Failed to send cheating alert:', error)
-    }
-  }
+    // Capture frame every 5 seconds
+    setInterval(async () => {
+      if (ctx && video.readyState === 4) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        ctx?.drawImage(video, 0, 0)
 
-  const startFrameCapture = () => {
-    if (!webcamActive) return
-    
-    intervalRef.current = setInterval(() => {
-      if (videoRef.current && attemptId) {
-        captureAndSendFrame()
+        const frame = canvas.toDataURL('image/jpeg', 0.8)
+
+        // Send frame to AI for analysis
+        api.post('/api/ai/analyze-frame', {
+          frame,
+          timestamp: Date.now(),
+          sessionId: attemptId,
+          userId: user?.id,
+          examId: id
+        }).catch((error: any) => console.error('Failed to analyze frame:', error))
       }
-    }, 5000) // Send frame every 5 seconds
+    }, 5000)
   }
 
   const handleAnswerChange = (questionId: string, answer: string | string[]) => {
-    setAnswers(prev => ({ ...prev, [questionId]: answer }))
-    
-    // Auto-save answer
-    if (attemptId) {
-      api.post(`/exams/attempts/${attemptId}/answers`, {
-        questionId,
-        answer
-      }).catch(error => console.error('Failed to save answer:', error))
-    }
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }))
   }
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`
-  }
+  const currentQuestion = questions[currentQuestionIndex]
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading exam...</p>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div>
       </div>
     )
   }
 
-  if (!exam) {
+  if (!exam || !currentQuestion) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Exam not found</h2>
+          <h1 className="text-2xl font-bold text-gray-900">Exam not found</h1>
           <button
-            onClick={() => navigate('/exams')}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            onClick={() => navigate('/dashboard')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
-            Back to Exams
+            Back to Dashboard
           </button>
         </div>
       </div>
     )
   }
 
-  const currentQuestion = questions[currentQuestionIndex]
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100
-
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-bold text-gray-900">{exam.title}</h1>
-              <span className="text-sm text-gray-500">
-                Question {currentQuestionIndex + 1} of {questions.length}
-              </span>
+          <div className="flex justify-between items-center py-4">
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">{exam.title}</h1>
+              <p className="text-sm text-gray-500">Question {currentQuestionIndex + 1} of {questions.length}</p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className={`text-lg font-mono ${
-                timeLeft < 300 ? 'text-red-600' : 'text-gray-900'
-              }`}>
-                {formatTime(timeLeft)}
+              <div className="text-sm">
+                <span className="font-medium text-gray-900">Time Left:</span>
+                <span className="ml-2 text-red-600 font-bold">
+                  {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                </span>
               </div>
-              <button
-                onClick={submitExam}
-                disabled={submitting}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-              >
-                {submitting ? 'Submitting...' : 'Submit Exam'}
-              </button>
-            </div>
-          </div>
-          
-          {/* Progress Bar */}
-          <div className="h-2 bg-gray-200">
-            <div 
-              className="h-full bg-blue-600 transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 flex">
-        <div className="flex-1 p-6">
-          <div className="max-w-4xl mx-auto">
-            {currentQuestion && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="mb-6">
-                  <span className="inline-block px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full mb-4">
-                    {currentQuestion.points} points
-                  </span>
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                    {currentQuestion.text}
-                  </h2>
-                </div>
-
-                {currentQuestion.type === 'mcq' ? (
-                  <div className="space-y-3">
-                    {currentQuestion.options.map((option, index) => (
-                      <label
-                        key={index}
-                        className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                      >
-                        <input
-                          type="radio"
-                          name={`question-${currentQuestion.id}`}
-                          value={option}
-                          checked={answers[currentQuestion.id] === option}
-                          onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-                          className="mr-3"
-                        />
-                        <span className="text-gray-700">{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <textarea
-                    value={answers[currentQuestion.id] as string || ''}
-                    onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-                    className="w-full p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    rows={4}
-                    placeholder="Type your answer here..."
-                  />
-                )}
+              <div className="text-sm">
+                <span className="font-medium text-gray-900">Warnings:</span>
+                <span className="ml-2 text-yellow-600 font-bold">{cheatingWarnings}</span>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Webcam Monitoring */}
-        <div className="w-96 p-4">
-          <div className="bg-white rounded-lg shadow-lg p-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Proctoring Active</h3>
-            <div className="flex items-center justify-center">
-              {webcamActive ? (
-                <div className="text-green-600">● Camera Active</div>
-              ) : (
-                <div className="text-red-600">● Camera Inactive</div>
+              {webcamActive && (
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
               )}
             </div>
-            {cheatingWarnings > 0 && (
-              <div className="mt-4 p-3 bg-yellow-100 border border border-yellow-400 rounded">
-                <div className="text-yellow-800 font-medium">
-                  ⚠️ Warnings: {cheatingWarnings}
-                </div>
-                <div className="text-sm text-yellow-700">
-                  {cheatingWarnings >= 3 ? 'Exam will be auto-submitted' : 'Continue monitoring'}
-                </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="bg-white rounded-lg shadow p-6">
+          {/* Question */}
+          <div className="mb-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">
+              {currentQuestion.text}
+            </h2>
+
+            {/* MCQ Options */}
+            {currentQuestion.type === 'mcq' && (
+              <div className="space-y-3">
+                {currentQuestion.options?.map((option, index) => (
+                  <label key={index} className="flex items-center space-x-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`question-${currentQuestion.id}`}
+                      value={option}
+                      checked={answers[currentQuestion.id] === option}
+                      onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <span className="text-gray-700">{option}</span>
+                  </label>
+                ))}
               </div>
             )}
+
+            {/* Text Answer */}
+            {currentQuestion.type === 'text' && (
+              <textarea
+                value={answers[currentQuestion.id] as string || ''}
+                onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your answer here..."
+              />
+            )}
           </div>
-          <video
-            ref={videoRef}
-            className="w-full h-48 bg-black rounded"
-            autoPlay
-            muted
-          />
+
+          {/* Navigation */}
+          <div className="flex justify-between items-center">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              Exit Exam
+            </button>
+
+            <div className="space-x-4">
+              {currentQuestionIndex > 0 && (
+                <button
+                  onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                  Previous
+                </button>
+              )}
+
+              {currentQuestionIndex < questions.length - 1 && (
+                <button
+                  onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Next
+                </button>
+              )}
+
+              {currentQuestionIndex === questions.length - 1 && (
+                <button
+                  onClick={submitExam}
+                  disabled={submitting}
+                  className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Exam'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-      </main>
+      </div>
+
+      {/* Hidden video element for webcam */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="hidden"
+      />
     </div>
   )
 }
