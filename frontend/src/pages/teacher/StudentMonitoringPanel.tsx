@@ -28,23 +28,13 @@ export default function StudentMonitoringPanel() {
           api.get('/monitoring/sessions')
         ])
 
-        const warnings = warningsRes.data.map((warning: any) => ({
-          id: warning.id,
-          studentName: warning.student_name,
-          examTitle: warning.exam_title,
-          type: warning.type,
-          message: warning.message,
-          timestamp: warning.created_at,
-          status: 'active'
-        }))
-
         const activeSessions = attemptsRes.data.map((attempt: any) => {
           const student = attempt.student
           const exam = attempt.exam
           const warnings = attempt.warnings || []
           
           // Determine status based on warnings and activity
-          let status: 'safe'
+          let status: 'safe' | 'suspicious' | 'cheating' = 'safe'
           if (warnings.length >= 3) {
             status = 'cheating'
           } else if (warnings.length >= 1) {

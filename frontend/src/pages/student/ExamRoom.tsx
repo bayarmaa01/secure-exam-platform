@@ -27,7 +27,7 @@ export default function ExamRoom() {
   
   const [exam, setExam] = useState<Exam | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [currentQuestionIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [attemptId, setAttemptId] = useState<string | null>(null)
