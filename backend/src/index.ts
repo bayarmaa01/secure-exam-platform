@@ -123,6 +123,7 @@ app.use('/api', limiter)
 
 // Routes
 app.use('/api/auth', authRoutes)
+app.use('/api', attemptsApiRoutes)
 app.use('/api', examUnifiedRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api', analyticsRoutes)
@@ -140,7 +141,6 @@ app.use('/api', seedRouter)
 app.use('/api', warningsUnifiedRoutes)
 app.use('/api', monitoringRoutes)
 app.use('/api/ai', aiProctoringRoutes)
-app.use('/api', attemptsApiRoutes)
 app.use('/api', analyticsApiRoutes)
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
