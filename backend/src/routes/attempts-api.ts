@@ -98,15 +98,35 @@ router.post('/attempts/start',
             attemptId: attempt.id
           })
         } else if (attempt.status === 'submitted' || attempt.status === 'graded') {
-          return res.status(403).json({ 
-            success: false, 
-            message: 'You have already completed this exam' 
-          })
-        }
-      }
+          // Allow retaking exams - create new attempt
+          console.log(`Student ${studentId} retaking exam ${examId} - previous attempt was ${attempt.status}`)
+          
+          // Create new attempt
+          const attemptResult = await pool.query(
+            `INSERT INTO exam_attempts (exam_id, user_id, status) 
+             VALUES ($1, $2, 'in_progress') 
+             RETURNING *`,
+            [examId, studentId]
+          )
+          
+          const newAttempt = attemptResult.rows[0]
+          
+          // Record metrics
+          attemptsTotal.labels('started', examId).inc()
+          console.log(`Attempt started: ${newAttempt.id} for user ${studentId}`)
 
-      // Create new attempt
-      const attemptResult = await pool.query(
+          res.status(201).json({
+            success: true,
+            data: {
+              attemptId: newAttempt.id,
+              examId: newAttempt.exam_id,
+              userId: newAttempt.user_id,
+              status: newAttempt.status,
+              startedAt: newAttempt.started_at,
+              startTime: exam.start_time,
+              endTime: exam.end_time
+            }
+          })
         `INSERT INTO exam_attempts (exam_id, user_id, status) 
          VALUES ($1, $2, 'in_progress') 
          RETURNING *`,
