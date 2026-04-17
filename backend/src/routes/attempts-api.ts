@@ -127,30 +127,62 @@ router.post('/attempts/start',
               endTime: exam.end_time
             }
           })
-        `INSERT INTO exam_attempts (exam_id, user_id, status) 
-         VALUES ($1, $2, 'in_progress') 
-         RETURNING *`,
-        [examId, studentId]
-      )
+        } else {
+          // Create new attempt
+          const attemptResult = await pool.query(
+            `INSERT INTO exam_attempts (exam_id, user_id, status) 
+             VALUES ($1, $2, 'in_progress') 
+             RETURNING *`,
+            [examId, studentId]
+          )
+          
+          const attempt = attemptResult.rows[0]
+          
+          // Record metrics
+          attemptsTotal.labels('started', examId).inc()
+          console.log(`Attempt started: ${attempt.id} for user ${studentId}`)
 
-      const attempt = attemptResult.rows[0]
-      
-      // Record metrics
-      attemptsTotal.labels('started', examId).inc()
-      console.log(`Attempt started: ${attempt.id} for user ${studentId}`)
-
-      res.json({
-        success: true,
-        data: {
-          attemptId: attempt.id,
-          examId: attempt.exam_id,
-          userId: attempt.user_id,
-          status: attempt.status,
-          startedAt: attempt.started_at,
-          startTime: exam.start_time,
-          endTime: exam.end_time
+          res.json({
+            success: true,
+            data: {
+              attemptId: attempt.id,
+              examId: attempt.exam_id,
+              userId: attempt.user_id,
+              status: attempt.status,
+              startedAt: attempt.started_at,
+              startTime: exam.start_time,
+              endTime: exam.end_time
+            }
+          })
         }
-      })
+      } else {
+        // Create new attempt
+        const attemptResult = await pool.query(
+          `INSERT INTO exam_attempts (exam_id, user_id, status) 
+           VALUES ($1, $2, 'in_progress') 
+           RETURNING *`,
+          [examId, studentId]
+        )
+        
+        const attempt = attemptResult.rows[0]
+        
+        // Record metrics
+        attemptsTotal.labels('started', examId).inc()
+        console.log(`Attempt started: ${attempt.id} for user ${studentId}`)
+
+        res.json({
+          success: true,
+          data: {
+            attemptId: attempt.id,
+            examId: attempt.exam_id,
+            userId: attempt.user_id,
+            status: attempt.status,
+            startedAt: attempt.started_at,
+            startTime: exam.start_time,
+            endTime: exam.end_time
+          }
+        })
+      }
 
     } catch (error) {
       console.error(`[${new Date().toISOString()}] POST /api/attempts/start - Error:`, error)
