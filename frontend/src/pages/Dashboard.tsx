@@ -48,7 +48,7 @@ export default function Dashboard() {
                   <h2 className="font-semibold">{exam.title}</h2>
                   <p className="text-slate-400 text-sm">{exam.description}</p>
                   <p className="text-slate-500 text-xs mt-1">
-                    Duration: {exam.durationMinutes} min | Scheduled: {new Date(exam.scheduledAt).toLocaleString()}
+                    Duration: {exam.durationMinutes} min | Scheduled: {new Date(exam.startTime).toLocaleString()}
                   </p>
                 </div>
                 <Link
