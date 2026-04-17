@@ -72,7 +72,7 @@ router.get('/monitoring/sessions',
         examTitle: session.exam_title,
         examId: session.exam_id,
         status: session.status,
-        startedAt: session.started_at
+        startedAt: session.started_at,
         duration: Math.floor((Date.now() - new Date(session.started_at).getTime()) / 60000)
       }))
 
