@@ -26,9 +26,9 @@ router.post('/exams/:examId/start',
         return res.status(403).json({ message: 'Access denied - not enrolled in course' })
       }
 
-      // Check if exam is published and available
+      // Check exam details (PUBLISH LOGIC REMOVED)
       const examCheck = await pool.query(
-        'SELECT status, start_time, end_time FROM exams WHERE id = $1',
+        'SELECT start_time, end_time FROM exams WHERE id = $1',
         [examId]
       )
 
@@ -38,10 +38,6 @@ router.post('/exams/:examId/start',
 
       const exam = examCheck.rows[0]
       const now = new Date()
-
-      if (exam.status !== 'published') {
-        return res.status(403).json({ message: 'Exam is not available' })
-      }
 
       if (new Date(exam.start_time) > now) {
         return res.status(403).json({ message: 'Exam has not started yet' })

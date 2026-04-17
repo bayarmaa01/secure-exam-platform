@@ -247,7 +247,7 @@ router.get('/exams/advanced', auth, async (req: AuthRequest, res) => {
       whereClause += ` AND e.teacher_id = $${paramIndex++}`
       params.push(req.user!.id)
     } else if (req.user!.role === 'student') {
-      whereClause += ` AND e.status = 'published' AND e.start_time <= NOW() AND e.end_time >= NOW()`
+      whereClause += ` AND e.start_time <= NOW() AND e.end_time >= NOW()`
     }
 
     const r = await pool.query(
@@ -300,9 +300,16 @@ router.get('/exams/:id/advanced', auth, async (req: AuthRequest, res) => {
     const exam = r.rows[0]
     if (!exam) return res.status(404).json({ message: 'Exam not found' })
 
-    // Check permissions
-    if (req.user!.role === 'student' && exam.status !== 'published') {
-      return res.status(403).json({ message: 'Exam not available' })
+    // Check permissions (PUBLISH LOGIC REMOVED)
+    if (req.user!.role === 'student') {
+      // Check if student is enrolled in the course
+      const enrollmentCheck = await pool.query(
+        'SELECT 1 FROM enrollments WHERE course_id = $1 AND student_id = $2',
+        [exam.course_id, req.user!.id]
+      )
+      if (enrollmentCheck.rows.length === 0) {
+        return res.status(403).json({ message: 'Not enrolled in this exam course' })
+      }
     }
     if (req.user!.role === 'teacher' && exam.teacher_id !== req.user!.id) {
       return res.status(403).json({ message: 'Access denied' })
@@ -367,53 +374,6 @@ router.get('/exams/:id/advanced', auth, async (req: AuthRequest, res) => {
   }
 })
 
-// Publish exam with notifications
-router.post('/exams/:id/publish',
-  auth,
-  requireTeacher,
-  async (req: AuthRequest, res) => {
-    try {
-      const examId = req.params.id
-
-      // Check ownership
-      const examCheck = await pool.query(
-        'SELECT teacher_id, status FROM exams WHERE id = $1',
-        [examId]
-      )
-      if (examCheck.rows.length === 0) {
-        return res.status(404).json({ message: 'Exam not found' })
-      }
-      if (examCheck.rows[0].teacher_id !== req.user!.id) {
-        return res.status(403).json({ message: 'Access denied' })
-      }
-      if (examCheck.rows[0].status === 'published') {
-        return res.status(400).json({ message: 'Exam already published' })
-      }
-
-      // Check if exam has questions
-      const questionsCheck = await pool.query(
-        'SELECT COUNT(*) as count FROM questions WHERE exam_id = $1',
-        [examId]
-      )
-      if (parseInt(questionsCheck.rows[0].count) === 0) {
-        return res.status(400).json({ message: 'Cannot publish exam without questions' })
-      }
-
-      // Publish exam
-      await pool.query(
-        'UPDATE exams SET status = $1, is_published = true, updated_at = NOW() WHERE id = $2',
-        ['published', examId]
-      )
-
-      // Send notifications (will be implemented with Socket.io)
-      // TODO: Send real-time notifications to all students
-
-      res.json({ message: 'Exam published successfully' })
-    } catch (error) {
-      console.error('Publish exam error:', error)
-      res.status(500).json({ message: 'Internal server error' })
-    }
-  }
-)
+// PUBLISH ENDPOINT REMOVED - Exams are visible immediately after creation
 
 export { router as advancedExamRoutes }

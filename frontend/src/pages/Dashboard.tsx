@@ -20,7 +20,7 @@ export default function Dashboard() {
     }
   }, [user])
 
-  const available = exams.filter((e) => e.status === 'published')
+  const available = exams // Show all exams to enrolled students
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">

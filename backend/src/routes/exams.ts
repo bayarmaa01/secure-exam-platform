@@ -317,15 +317,25 @@ router.post('/exams',
       console.log('=== END NOTIFICATION DEBUG ===')
       
       const exam = r.rows[0]
+      
+      // Get course name for response
+      const courseResult = await pool.query(
+        'SELECT name FROM courses WHERE id = $1',
+        [exam.course_id]
+      )
+      const courseName = courseResult.rows[0]?.name || 'Unknown Course'
+      
       res.status(201).json({
         id: exam.id,
         title: exam.title,
         description: exam.description,
         courseId: exam.course_id,
-        courseName: exam.course_name || 'Unknown Course',
+        courseName: courseName,
         durationMinutes: exam.duration_minutes,
         questionCount: 0,
-        startTime: exam.start_time
+        startTime: exam.start_time,
+        endTime: exam.end_time,
+        status: exam.status
       })
     } catch (error) {
       console.error('POST /api/exams - Database error:', {
@@ -350,101 +360,7 @@ router.post('/exams',
   }
 )
 
-// Teacher: Publish exam
-router.patch('/exams/:id/publish', 
-  auth, 
-  requireTeacher,
-  async (req: AuthRequest, res) => {
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      
-      const examId = req.params.id
-
-      // Check if exam belongs to teacher
-      const examCheck = await client.query(
-        'SELECT teacher_id, title, course_id, status FROM exams WHERE id = $1',
-        [examId]
-      )
-
-      if (examCheck.rows.length === 0) {
-        await client.query('ROLLBACK')
-        return res.status(404).json({ message: 'Exam not found' })
-      }
-
-      if (examCheck.rows[0].teacher_id !== req.user!.id) {
-        await client.query('ROLLBACK')
-        return res.status(403).json({ message: 'Access denied' })
-      }
-
-      // Update exam status to published
-      const updateResult = await client.query(
-        `UPDATE exams 
-         SET status = 'published', is_published = true, updated_at = NOW() 
-         WHERE id = $1 
-         RETURNING *`,
-        [examId]
-      )
-
-      const exam = updateResult.rows[0]
-      
-      // Create notifications for all enrolled students
-      try {
-        const studentsResult = await client.query(
-          `SELECT u.id as user_id, u.name
-           FROM users u
-           JOIN enrollments en ON u.id = en.student_id
-           WHERE en.course_id = $1 AND u.role = 'student'`,
-          [exam.course_id]
-        )
-
-        if (studentsResult.rows.length > 0) {
-          for (const student of studentsResult.rows) {
-            await client.query(
-              `INSERT INTO notifications (user_id, title, message, type, data, created_at)
-               VALUES ($1, $2, $3, 'exam_published', $4, NOW())`,
-              [
-                student.user_id, 
-                'Exam Published', 
-                `Exam "${exam.title}" has been published and is now available.`,
-                JSON.stringify({
-                  exam_id: exam.id,
-                  exam_title: exam.title,
-                  course_id: exam.course_id
-                })
-              ]
-            )
-          }
-        }
-      } catch (notifError) {
-        console.error('Failed to send exam notifications:', notifError)
-      }
-
-      await client.query('COMMIT')
-
-      // Return standardized exam response
-      res.json({
-        id: exam.id,
-        title: exam.title,
-        description: exam.description,
-        durationMinutes: exam.duration_minutes,
-        startTime: exam.start_time,
-        endTime: exam.end_time,
-        status: exam.status,
-        courseId: exam.course_id,
-        courseName: examCheck.rows[0].course_name || 'Unknown Course',
-        questionCount: 0, // Will be populated by frontend if needed
-        createdAt: exam.created_at
-      })
-    } catch (error) {
-      await client.query('ROLLBACK')
-      console.error('Publish exam error:', error)
-      res.status(500).json({ message: 'Internal server error' })
-    } finally {
-      client.release()
-    }
-  }
-)
+// PUBLISH LOGIC REMOVED - Exams are visible immediately after creation
 
 // Teacher: Update exam
 router.put('/exams/:id', 
@@ -938,6 +854,7 @@ router.get('/teacher/students', auth, requireTeacher, async (req: AuthRequest, r
       email: row.email,
       name: row.name,
       registrationNumber: row.registration_number,
+      studentId: row.registration_number || 'N/A', // Use registration_number as primary
       createdAt: row.created_at
     })))
   } catch (error) {
@@ -1080,17 +997,21 @@ router.post('/student/submit', auth, requireStudent, [
   }
 })
 
-// Teacher: Delete exam
+// Teacher: Delete exam (REQUIREMENT SPECIFIC)
 router.delete('/exams/:id', auth, requireTeacher, async (req: AuthRequest, res) => {
   const client = await pool.connect()
   try {
+    console.log('=== DELETE EXAM DEBUG ===')
+    console.log('Exam ID:', req.params.id)
+    console.log('User ID:', req.user!.id)
+    
     await client.query('BEGIN')
     
     const examId = req.params.id
 
     // Check if exam belongs to teacher
     const examCheck = await client.query(
-      'SELECT teacher_id FROM exams WHERE id = $1',
+      'SELECT teacher_id, title FROM exams WHERE id = $1',
       [examId]
     )
 
@@ -1104,26 +1025,22 @@ router.delete('/exams/:id', auth, requireTeacher, async (req: AuthRequest, res) 
       return res.status(403).json({ message: 'Access denied' })
     }
 
-    // Delete in correct order with proper cascade logic
-    await client.query(
-      `DELETE FROM answers
-       WHERE question_id IN (
-         SELECT id FROM questions WHERE exam_id = $1
-       )`,
-      [examId]
-    )
+    console.log('Deleting exam:', examCheck.rows[0].title)
 
+    // EXACT REQUIREMENT: Simplified transaction
     await client.query('DELETE FROM questions WHERE exam_id = $1', [examId])
-    await client.query('DELETE FROM exam_attempts WHERE exam_id = $1', [examId])
     await client.query('DELETE FROM exams WHERE id = $1', [examId])
 
     await client.query('COMMIT')
+    
+    console.log('Exam deleted successfully')
+    console.log('=== END DELETE EXAM DEBUG ===')
     
     res.json({ message: 'Exam deleted successfully' })
   } catch (error) {
     await client.query('ROLLBACK')
     console.error('Delete exam error:', error)
-    res.status(500).json({ message: 'Internal server error' })
+    res.status(500).json({ message: 'Internal server error', error: error.message })
   } finally {
     client.release()
   }

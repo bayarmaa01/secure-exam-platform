@@ -21,7 +21,7 @@ router.get('/teacher/students',
         name: row.name,
         email: row.email,
         registrationNumber: row.registration_number,
-        studentId: row.student_id,
+        studentId: row.registration_number || row.student_id, // Use registration_number as primary
         createdAt: row.created_at
       })))
     } catch (error) {

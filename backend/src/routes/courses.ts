@@ -290,6 +290,17 @@ router.post('/courses/:courseId/enroll',
         [courseId, studentUuid]
       )
 
+      // Create notification for enrolled student
+      await pool.query(
+        `INSERT INTO notifications (user_id, title, message, type, created_at)
+         VALUES ($1, $2, $3, 'enrollment', NOW())`,
+        [
+          studentUuid,
+          'Course Enrollment',
+          `You have been enrolled in course: ${courseCheck.rows[0].name}`
+        ]
+      )
+
       // Verify enrollment and return updated course data
       const updatedCourseResult = await pool.query(
         `SELECT c.*, 
