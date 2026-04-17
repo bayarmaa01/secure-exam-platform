@@ -130,11 +130,18 @@ export default function ExamRoom() {
     }
   }
 
+  // Anti-cheating prevention functions
+  const preventContextMenu = (e: MouseEvent) => e.preventDefault()
+  const preventCopyPaste = (e: ClipboardEvent) => e.preventDefault()
+  const handleKeyDown = (e: KeyboardEvent) => {
+    // Disable Ctrl+C, Ctrl+V, Ctrl+X
+    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
+      e.preventDefault()
+    }
+  }
+
   const setupAntiCheating = () => {
     let warningCount = 0
-    
-    // Prevent right click
-    const preventContextMenu = (e: MouseEvent) => e.preventDefault()
     
     // Tab switching detection
     const handleVisibilityChange = () => {
@@ -152,7 +159,7 @@ export default function ExamRoom() {
           }).catch(error => console.error('Failed to send warning:', error))
         }
       }
-    })
+    }
     
     // Fullscreen detection
     document.addEventListener('fullscreenchange', () => {
@@ -173,63 +180,24 @@ export default function ExamRoom() {
     })
     
     // Prevent right-click
-    document.addEventListener('contextmenu', e => e.preventDefault())
+    document.addEventListener('contextmenu', preventContextMenu)
     
     // Disable copy/paste
-    document.addEventListener('copy', e => {
-      e.preventDefault()
-      warningCount++
-      setCheatingWarnings(warningCount)
-      
-      if (attemptId) {
-        api.post('/warnings', {
-          exam_id: id,
-          type: 'copy_attempt',
-          message: 'Student attempted to copy content during exam'
-        }).catch(error => console.error('Failed to send warning:', error))
-      }
-    })
-    
-    document.addEventListener('paste', e => {
-      e.preventDefault()
-      warningCount++
-      setCheatingWarnings(warningCount)
-      
-      if (attemptId) {
-        api.post('/warnings', {
-          exam_id: id,
-          type: 'paste_attempt',
-          message: 'Student attempted to paste content during exam'
-        }).catch(error => console.error('Failed to send warning:', error))
-      }
-    })
+    document.addEventListener('copy', preventCopyPaste)
+    document.addEventListener('paste', preventCopyPaste)
     
     // Disable keyboard shortcuts
-    document.addEventListener('keydown', e => {
-      // Disable Ctrl+C, Ctrl+V, Ctrl+X
-      if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
-        e.preventDefault()
-        warningCount++
-        setCheatingWarnings(warningCount)
-        
-        if (attemptId) {
-          api.post('/warnings', {
-            exam_id: id,
-            type: 'keyboard_shortcut',
-            message: `Student used keyboard shortcut: ${e.key}`
-          }).catch(error => console.error('Failed to send warning:', error))
-        }
-      }
-    })
+    document.addEventListener('keydown', handleKeyDown)
     
     // Auto-submit after 3 warnings
     if (warningCount >= 3) {
       submitExam()
+    }
+    
     return () => {
       document.removeEventListener('contextmenu', preventContextMenu)
       document.removeEventListener('copy', preventCopyPaste)
       document.removeEventListener('paste', preventCopyPaste)
-      document.removeEventListener('cut', preventCopyPaste)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       document.removeEventListener('keydown', handleKeyDown)
     }
@@ -324,6 +292,16 @@ export default function ExamRoom() {
       })
     } catch (error) {
       console.error('Failed to send cheating alert:', error)
+    }
+  }
+
+  // Anti-cheating prevention functions
+  const preventContextMenu = (e: MouseEvent) => e.preventDefault()
+  const preventCopyPaste = (e: ClipboardEvent) => e.preventDefault()
+  const handleKeyDown = (e: KeyboardEvent) => {
+    // Disable Ctrl+C, Ctrl+V, Ctrl+X
+    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
+      e.preventDefault()
     }
   }
 
