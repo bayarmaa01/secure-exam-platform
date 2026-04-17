@@ -17,6 +17,7 @@ router.get('/student', auth, requireStudent, async (req: AuthRequest, res) => {
         r.percentage,
         r.status,
         r.created_at,
+        a.submitted_at,
         e.title as exam_title,
         e.type as exam_type,
         e.difficulty,
@@ -24,6 +25,7 @@ router.get('/student', auth, requireStudent, async (req: AuthRequest, res) => {
         e.end_time,
         t.name as teacher_name
       FROM results r
+      JOIN exam_attempts a ON r.attempt_id = a.id
       JOIN exams e ON r.exam_id = e.id
       JOIN users t ON e.teacher_id = t.id
       WHERE r.student_id = $1
@@ -242,23 +244,17 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
     
     const r = await pool.query(`
       SELECT 
-        r.id,
-        r.score,
-        r.total_points,
-        r.percentage,
-        r.status,
-        r.created_at,
         u.name as student_name,
-        u.email as student_email,
-        u.student_id as student_roll_number,
-        ea.started_at as attempt_started_at,
-        ea.submitted_at as attempt_submitted_at
-      FROM results r
-      JOIN users u ON r.student_id = u.id
-      LEFT JOIN exam_attempts ea ON r.exam_id = ea.exam_id AND ea.user_id = r.student_id
-      WHERE r.exam_id = $1
-      ORDER BY r.percentage DESC, r.created_at ASC
-    `, [examId])
+        u.registration_number,
+        e.title as exam_title,
+        a.score,
+        a.submitted_at
+      FROM attempts a
+      JOIN users u ON u.id = a.user_id
+      JOIN exams e ON e.id = a.exam_id
+      WHERE e.teacher_id = $1
+      ORDER BY a.submitted_at DESC
+    `, [teacherId])
 
     const results = r.rows.map(row => ({
       id: row.id,

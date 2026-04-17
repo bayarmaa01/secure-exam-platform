@@ -23,6 +23,8 @@ import { setIO } from './utils/socketHelper'
 import { teacherRoutes } from './routes/teacher'
 import { examSessionRoutes } from './routes/examSessions'
 import { studentRoutes } from './routes/student'
+import { warningRoutes } from './routes/warnings'
+import { monitoringRoutes } from './routes/monitoring'
 
 // Prometheus metrics
 collectDefaultMetrics({ register })
@@ -51,6 +53,32 @@ const suspiciousEventsTotal = new Counter({
   name: 'suspicious_events_total',
   help: 'Total number of suspicious proctoring events',
   labelNames: ['event_type'],
+  registers: [register]
+})
+
+// Proctoring metrics
+const warningsTotal = new Counter({
+  name: 'warnings_total',
+  help: 'Total warnings triggered during exams',
+  labelNames: ['warning_type'],
+  registers: [register]
+})
+
+const tabSwitchTotal = new Counter({
+  name: 'tab_switch_total',
+  help: 'Total tab switches detected',
+  registers: [register]
+})
+
+const faceNotDetectedTotal = new Counter({
+  name: 'face_not_detected_total',
+  help: 'Total face detection failures',
+  registers: [register]
+})
+
+const examSubmissionsTotal = new Counter({
+  name: 'exam_submissions_total',
+  help: 'Total exam submissions',
   registers: [register]
 })
 
@@ -144,6 +172,8 @@ app.use('/api', examSessionRoutes)
 app.use('/api', questionsRouter)
 app.use('/api', attemptsRouter)
 app.use('/api', seedRouter)
+app.use('/api', warningRoutes)
+app.use('/api', monitoringRoutes)
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))

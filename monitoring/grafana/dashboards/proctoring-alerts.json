@@ -1,0 +1,59 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": false,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        }
+      },
+      "gridPos": {
+        "h": 0,
+        "v": 6,
+        "w": 12
+      },
+      "id": "suspicious-activity",
+      "targets": [
+        {
+          "expr": "rate(suspicious_events_total[5m])",
+          "legendFormat": "Suspicious Events/min",
+          "refId": "F"
+        }
+      ],
+      "title": "Suspicious Activity Rate",
+      "type": "stat"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 37,
+  "version": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Proctoring Alerts",
+  "uid": "proctoring-alerts"
+}

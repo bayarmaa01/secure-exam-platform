@@ -35,6 +35,7 @@ export default function ExamRoom() {
   const [submitting, setSubmitting] = useState(false)
   const [webcamActive, setWebcamActive] = useState(false)
   const [cheatingWarnings, setCheatingWarnings] = useState(0)
+  const [examEndTime, setExamEndTime] = useState<Date | null>(null)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const intervalRef = useRef<number | null>(null)
@@ -85,6 +86,16 @@ export default function ExamRoom() {
     }
   }, [timeLeft, attemptId, submitExam]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-submit when exam time ends
+  useEffect(() => {
+    if (examEndTime && timeLeft > 0) {
+      const timeUntilEnd = examEndTime.getTime() - Date.now()
+      if (timeUntilEnd <= 0) {
+        submitExam()
+      }
+    }
+  }, [examEndTime, timeLeft, submitExam]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadExam = async () => {
     try {
       const [examRes, questionsRes] = await Promise.all([
@@ -92,8 +103,16 @@ export default function ExamRoom() {
         api.get(`/exams/${id}/questions`)
       ])
       
-      setExam(examRes.data)
+      const examData = examRes.data
+      setExam(examData)
       setQuestions(questionsRes.data)
+      
+      // Set exam end time for timer
+      if (examData.endTime) {
+        setExamEndTime(new Date(examData.endTime))
+        const timeUntilEnd = new Date(examData.endTime).getTime() - Date.now()
+        setTimeLeft(Math.max(0, Math.floor(timeUntilEnd / 1000)))
+      }
       
       // Start exam attempt
       const attemptRes = await api.post(`/exams/${id}/start`)
@@ -112,36 +131,100 @@ export default function ExamRoom() {
   }
 
   const setupAntiCheating = () => {
+    let warningCount = 0
+    
     // Prevent right click
     const preventContextMenu = (e: MouseEvent) => e.preventDefault()
-    document.addEventListener('contextmenu', preventContextMenu)
     
-    // Prevent copy/paste
-    const preventCopyPaste = (e: ClipboardEvent) => e.preventDefault()
-    document.addEventListener('copy', preventCopyPaste)
-    document.addEventListener('paste', preventCopyPaste)
-    document.addEventListener('cut', preventCopyPaste)
-    
-    // Detect tab switching
+    // Tab switching detection
     const handleVisibilityChange = () => {
-      if (document.hidden && attemptId) {
-        setCheatingWarnings(prev => prev + 1)
-        sendCheatingAlert('Tab switching detected')
+      if (document.hidden) {
+        warningCount++
+        setCheatingWarnings(warningCount)
+        console.log('Tab switched - potential cheating')
+        
+        // Send warning to backend
+        if (attemptId) {
+          api.post('/warnings', {
+            exam_id: id,
+            type: 'tab_switch',
+            message: 'Student switched tabs during exam'
+          }).catch(error => console.error('Failed to send warning:', error))
+        }
       }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    })
     
-    // Detect keyboard shortcuts
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent Alt+Tab, Ctrl+Tab, F11, etc.
-      if (e.altKey || e.key === 'F11' || (e.ctrlKey && e.key === 'Tab')) {
+    // Fullscreen detection
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        warningCount++
+        setCheatingWarnings(warningCount)
+        console.log('Exited fullscreen - potential cheating')
+        
+        // Send warning to backend
+        if (attemptId) {
+          api.post('/warnings', {
+            exam_id: id,
+            type: 'fullscreen_exit',
+            message: 'Student exited fullscreen during exam'
+          }).catch(error => console.error('Failed to send warning:', error))
+        }
+      }
+    })
+    
+    // Prevent right-click
+    document.addEventListener('contextmenu', e => e.preventDefault())
+    
+    // Disable copy/paste
+    document.addEventListener('copy', e => {
+      e.preventDefault()
+      warningCount++
+      setCheatingWarnings(warningCount)
+      
+      if (attemptId) {
+        api.post('/warnings', {
+          exam_id: id,
+          type: 'copy_attempt',
+          message: 'Student attempted to copy content during exam'
+        }).catch(error => console.error('Failed to send warning:', error))
+      }
+    })
+    
+    document.addEventListener('paste', e => {
+      e.preventDefault()
+      warningCount++
+      setCheatingWarnings(warningCount)
+      
+      if (attemptId) {
+        api.post('/warnings', {
+          exam_id: id,
+          type: 'paste_attempt',
+          message: 'Student attempted to paste content during exam'
+        }).catch(error => console.error('Failed to send warning:', error))
+      }
+    })
+    
+    // Disable keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      // Disable Ctrl+C, Ctrl+V, Ctrl+X
+      if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
         e.preventDefault()
-        setCheatingWarnings(prev => prev + 1)
-        sendCheatingAlert('Keyboard shortcut detected')
+        warningCount++
+        setCheatingWarnings(warningCount)
+        
+        if (attemptId) {
+          api.post('/warnings', {
+            exam_id: id,
+            type: 'keyboard_shortcut',
+            message: `Student used keyboard shortcut: ${e.key}`
+          }).catch(error => console.error('Failed to send warning:', error))
+        }
       }
-    }
-    document.addEventListener('keydown', handleKeyDown)
+    })
     
+    // Auto-submit after 3 warnings
+    if (warningCount >= 3) {
+      submitExam()
     return () => {
       document.removeEventListener('contextmenu', preventContextMenu)
       document.removeEventListener('copy', preventCopyPaste)
@@ -179,6 +262,20 @@ export default function ExamRoom() {
       stream.getTracks().forEach(track => track.stop())
       videoRef.current.srcObject = null
       setWebcamActive(false)
+    }
+  }
+
+  const sendCheatingAlert = async (reason: string) => {
+    if (!attemptId) return
+    
+    try {
+      await api.post('/ai/cheating-alert', {
+        attemptId,
+        reason,
+        timestamp: Date.now()
+      })
+    } catch (error) {
+      console.error('Failed to send cheating alert:', error)
     }
   }
 

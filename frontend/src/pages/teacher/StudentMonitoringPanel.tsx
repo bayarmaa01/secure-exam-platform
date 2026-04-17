@@ -1,0 +1,150 @@
+import { useState, useEffect } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
+import api from '../../api'
+
+interface StudentSession {
+  id: string
+  studentName: string
+  examTitle: string
+  status: 'safe' | 'suspicious' | 'cheating'
+  warningCount: number
+  lastActivity: string
+  duration: number
+  currentAction?: string
+}
+
+export default function StudentMonitoringPanel() {
+  const { user } = useAuth()
+  const [sessions, setSessions] = useState<StudentSession[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user || user.role !== 'teacher') return
+
+    const fetchMonitoringData = async () => {
+      try {
+        const [warningsRes, attemptsRes] = await Promise.all([
+          api.get('/monitoring/warnings'),
+          api.get('/monitoring/sessions')
+        ])
+
+        const warnings = warningsRes.data.map((warning: any) => ({
+          id: warning.id,
+          studentName: warning.student_name,
+          examTitle: warning.exam_title,
+          type: warning.type,
+          message: warning.message,
+          timestamp: warning.created_at,
+          status: 'active'
+        }))
+
+        const activeSessions = attemptsRes.data.map((attempt: any) => {
+          const student = attempt.student
+          const exam = attempt.exam
+          const warnings = attempt.warnings || []
+          
+          // Determine status based on warnings and activity
+          let status: 'safe'
+          if (warnings.length >= 3) {
+            status = 'cheating'
+          } else if (warnings.length >= 1) {
+            status = 'suspicious'
+          }
+
+          return {
+            id: attempt.id,
+            studentName: student.name,
+            examTitle: exam.title,
+            status,
+            warningCount: warnings.length,
+            lastActivity: attempt.last_activity || 'Started exam',
+            duration: Math.floor((Date.now() - new Date(attempt.started_at).getTime()) / 60000)
+          }
+        })
+
+        setSessions(activeSessions)
+      } catch (error) {
+        console.error('Failed to fetch monitoring data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchMonitoringData()
+    const interval = setInterval(fetchMonitoringData, 10000) // Refresh every 10 seconds
+
+    return (
+      <div className="min-h-screen bg-gray-100 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold text-gray-900">Student Monitoring Panel</h1>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <span className="inline-flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                  Real-time monitoring active
+                </span>
+                <span className="text-gray-400">• Auto-refresh every 10 seconds</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sessions.map((session) => (
+              <div
+                key={session.id}
+                className={`border rounded-lg p-4 ${getStatusColor(session.status)} border-opacity-50`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center">
+                    <span className={`text-lg font-medium ${getStatusColor(session.status)}`}>
+                      {session.studentName}
+                    </span>
+                    <span className="ml-2 text-sm text-gray-500">
+                      {session.examTitle}
+                    </span>
+                  </div>
+                  <div className={`flex items-center space-x-2 ${getStatusColor(session.status)}`}>
+                    <span className="text-2xl">{getStatusIcon(session.status)}</span>
+                    <span className="ml-2 text-sm font-medium">
+                      {session.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-sm text-gray-600 mb-2">
+                  <div className="flex justify-between">
+                    <span>Warnings: {session.warningCount}</span>
+                    <span>Duration: {Math.floor(session.duration / 60)}m</span>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-500">
+                  Last activity: {session.lastActivity}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'safe': return 'text-green-600'
+    case 'suspicious': return 'text-yellow-600'
+    case 'cheating': return 'text-red-600'
+    default: return 'text-gray-600'
+  }
+}
+
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case 'safe': return '✓'
+    case 'suspicious': return '⚠'
+    case 'cheating': return '⛔'
+    default: return '?'
+  }
+}

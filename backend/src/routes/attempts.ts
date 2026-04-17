@@ -198,7 +198,7 @@ router.post('/attempts/:attemptId/submit',
              score = $1,
              total_points = $2,
              percentage = $3,
-             status = 'submitted'
+             status = 'completed'
          WHERE id = $4`,
         [totalEarned, totalPoints, percentage, attemptId]
       )
@@ -207,9 +207,17 @@ router.post('/attempts/:attemptId/submit',
       await pool.query(
         `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [studentId, attempt.exam_id, attemptId, totalEarned, totalPoints, percentage, 
-         percentage >= 50 ? 'passed' : 'failed']
+        [studentId, attempt.exam_id, attemptId, totalEarned, totalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
       )
+
+      // Increment exam submissions metric
+      const metrics = req.app.get('metrics') as {
+        examSubmissionsTotal?: { inc: () => void }
+      }
+      
+      if (metrics.examSubmissionsTotal) {
+        metrics.examSubmissionsTotal.inc()
+      }
 
       res.json({ 
         message: 'Exam submitted successfully',
@@ -235,7 +243,12 @@ router.get('/attempts/:attemptId',
 
       // Verify attempt belongs to student
       const attemptCheck = await pool.query(
-        `SELECT a.*, e.title as exam_title, e.duration_minutes
+        `SELECT a.*, e.title as exam_title, e.duration_minutes, e.start_time, e.end_time,
+                CASE
+                  WHEN a.status = 'completed' THEN 'completed'
+                  WHEN NOW() BETWEEN e.start_time AND e.end_time THEN 'ongoing'
+                  ELSE 'upcoming'
+                END as exam_status
          FROM exam_attempts a
          JOIN exams e ON a.exam_id = e.id
          WHERE a.id = $1 AND a.user_id = $2`,
