@@ -5,23 +5,42 @@ export interface Exam {
   title: string
   description: string
   durationMinutes: number
-  scheduledAt: string
+  startTime: string
+  endTime: string
   status: 'draft' | 'published' | 'ongoing' | 'completed'
+  courseName: string
+  courseId: string
+  questionCount: number
   createdAt: string
 }
 
 export interface CreateExamRequest {
   title: string
   description?: string
-  durationMinutes: number
-  scheduledAt: string
+  course_id: string
+  type?: string
+  duration_minutes: number
+  start_time: string
+  end_time?: string
+  difficulty?: string
+  total_marks?: number
+  passing_marks?: number
+  fullscreen_required?: boolean
+  tab_switch_detection?: boolean
+  copy_paste_blocked?: boolean
+  camera_required?: boolean
+  face_detection_enabled?: boolean
+  shuffle_questions?: boolean
+  shuffle_options?: boolean
+  assign_to_all?: boolean
+  assigned_groups?: string[]
 }
 
 export interface Student {
   id: string
   email: string
   name: string
-  studentId?: string
+  registration_number?: string
   createdAt: string
 }
 
@@ -47,7 +66,7 @@ export interface SubmitExamRequest {
 export const examService = {
   // Student routes
   getAvailableExams: async (): Promise<Exam[]> => {
-    const response = await api.get<Exam[]>('/exams')
+    const response = await api.get<Exam[]>('/student/exams')
     return response.data
   },
 
@@ -63,7 +82,7 @@ export const examService = {
   },
 
   createExam: async (data: CreateExamRequest): Promise<Exam> => {
-    const response = await api.post<Exam>('/teacher/exams', data)
+    const response = await api.post<Exam>('/exams', data)
     return response.data
   },
 
@@ -81,5 +100,9 @@ export const examService = {
   getExamById: async (id: string): Promise<Exam> => {
     const response = await api.get<Exam>(`/exams/${id}`)
     return response.data
+  },
+
+  deleteExam: async (id: string): Promise<void> => {
+    await api.delete(`/exams/${id}`)
   }
 }

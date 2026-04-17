@@ -78,26 +78,26 @@ router.get('/teacher/stats',
   async (req: AuthRequest, res) => {
     try {
       const teacherId = req.user!.id
+      console.log('=== TEACHER STATS DEBUG ===')
+      console.log('Teacher ID:', teacherId)
       
-      // Get total exams
+      // Total Exams
       const totalExamsResult = await pool.query(
         'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1',
         [teacherId]
       )
       
-      // Get total exams (all exams)
-      const publishedExamsResult = await pool.query(
-        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1',
-        [teacherId]
-      )
-      
-      // Get ongoing exams (all exams)
+      // Ongoing Exams (exams that are currently running)
       const ongoingExamsResult = await pool.query(
-        'SELECT COUNT(*) as count FROM exams WHERE teacher_id = $1',
+        `SELECT COUNT(*) as count 
+         FROM exams 
+         WHERE teacher_id = $1 
+         AND start_time <= NOW() 
+         AND end_time >= NOW()`,
         [teacherId]
       )
       
-      // Get total questions
+      // Total Questions (from teacher's exams)
       const totalQuestionsResult = await pool.query(
         `SELECT COUNT(*) as count 
          FROM questions q 
@@ -106,7 +106,7 @@ router.get('/teacher/stats',
         [teacherId]
       )
       
-      // Get total students in teacher's courses
+      // Total Students in teacher's courses
       const totalStudentsResult = await pool.query(
         `SELECT COUNT(DISTINCT en.student_id) as count 
          FROM enrollments en 
@@ -117,11 +117,13 @@ router.get('/teacher/stats',
       
       const stats = {
         totalExams: parseInt(totalExamsResult.rows[0].count),
-        publishedExams: parseInt(publishedExamsResult.rows[0].count),
         ongoingExams: parseInt(ongoingExamsResult.rows[0].count),
         totalQuestions: parseInt(totalQuestionsResult.rows[0].count),
         totalStudents: parseInt(totalStudentsResult.rows[0].count)
       }
+      
+      console.log('Stats calculated:', JSON.stringify(stats, null, 2))
+      console.log('=== END TEACHER STATS DEBUG ===')
       
       res.json(stats)
     } catch (error) {

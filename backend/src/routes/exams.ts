@@ -8,6 +8,9 @@ const router = Router()
 // Student: Get available exams from enrolled courses
 router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
   try {
+    console.log('=== STUDENT EXAMS DEBUG ===')
+    console.log('User ID:', req.user!.id)
+    
     const r = await pool.query(
       `SELECT e.*, c.name as course_name, c.description as course_description,
               (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
@@ -15,10 +18,14 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
        JOIN enrollments en ON e.course_id = en.course_id
        JOIN courses c ON e.course_id = c.id
        WHERE en.student_id = $1
-       ORDER BY e.start_time ASC`,
+       ORDER BY e.created_at DESC`,
       [req.user!.id]
     )
-    res.json(r.rows.map((row) => ({
+    
+    console.log('Raw student exams results:', JSON.stringify(r.rows, null, 2))
+    console.log('Number of exams found:', r.rows.length)
+    
+    const mappedResults = r.rows.map((row) => ({
       id: row.id,
       title: row.title,
       description: row.description,
@@ -29,8 +36,14 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
       courseName: row.course_name,
       courseDescription: row.course_description,
       questionCount: parseInt(row.question_count) || 0
-    })))
+    }))
+    
+    console.log('Mapped results being sent to frontend:', JSON.stringify(mappedResults, null, 2))
+    console.log('=== END STUDENT EXAMS DEBUG ===')
+    
+    res.json(mappedResults)
   } catch (error) {
+    console.error('Student exams error:', error)
     res.status(500).json({ message: 'Internal server error' })
   }
 })
@@ -114,9 +127,16 @@ router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
     const row = r.rows[0]
     if (!row) return res.status(404).json({ message: 'Exam not found' })
     
-    // Check permissions
-    if (req.user!.role === 'student' && row.status !== 'published') {
-      return res.status(403).json({ message: 'Exam not available' })
+    // Check permissions - REMOVE is_published dependency
+    if (req.user!.role === 'student') {
+      // Students can access any exam they're enrolled in
+      const enrollmentCheck = await pool.query(
+        'SELECT 1 FROM enrollments en JOIN exams e ON e.course_id = en.course_id WHERE e.id = $1 AND en.student_id = $2',
+        [req.params.id, req.user!.id]
+      )
+      if (enrollmentCheck.rows.length === 0) {
+        return res.status(403).json({ message: 'Exam not available or not enrolled' })
+      }
     }
     if (req.user!.role === 'teacher' && row.teacher_id !== req.user!.id) {
       return res.status(403).json({ message: 'Access denied' })
@@ -243,21 +263,31 @@ router.post('/exams',
 
       console.log('POST /api/exams - Success:', JSON.stringify(r.rows[0], null, 2))
       
-      // Send notification to students
+      // Send notification to students - IMPROVED AUTO NOTIFICATION SYSTEM
       try {
-        // Get all students enrolled in the course
+        console.log('=== NOTIFICATION DEBUG ===')
+        const newExam = r.rows[0]
+        console.log('Creating notifications for exam:', newExam.title)
+        console.log('Course ID:', newExam.course_id)
+        
+        // Get all students enrolled in course with course name
         const studentsResult = await pool.query(
-          `SELECT u.id as user_id
+          `SELECT u.id as user_id, u.name, c.name as course_name
            FROM users u
            JOIN enrollments en ON u.id = en.student_id
+           JOIN courses c ON c.id = en.course_id
            WHERE en.course_id = $1 AND u.role = 'student'`,
-          [r.rows[0].course_id]
+          [newExam.course_id]
         )
+
+        console.log('Found enrolled students:', studentsResult.rows.length)
+        console.log('Students:', JSON.stringify(studentsResult.rows, null, 2))
 
         // Create notifications for each student
         if (studentsResult.rows.length > 0) {
-          const exam = r.rows[0]
-          const examTitle = exam.title || 'New Exam'
+          const examTitle = newExam.title || 'New Exam'
+          const courseName = studentsResult.rows[0]?.course_name || 'Course'
+          
           for (const student of studentsResult.rows) {
             await pool.query(
               `INSERT INTO notifications (user_id, title, message, type, data, created_at)
@@ -265,19 +295,26 @@ router.post('/exams',
               [
                 student.user_id, 
                 'New Exam Available', 
-                `New exam "${examTitle}" is now available in your course.`,
+                `New exam "${examTitle}" has been added to course "${courseName}" and is now available.`,
                 JSON.stringify({
-                  exam_id: exam.id,
-                  exam_title: exam.title,
-                  course_id: exam.course_id
+                  exam_id: newExam.id,
+                  exam_title: newExam.title,
+                  course_id: newExam.course_id,
+                  course_name: courseName
                 })
               ]
             )
+            console.log(`Notification created for student ${student.name} (${student.user_id})`)
           }
+          
+          console.log(`Successfully created ${studentsResult.rows.length} notifications`)
+        } else {
+          console.log('No enrolled students found for this course')
         }
       } catch (notifError) {
         console.error('Failed to send exam notifications:', notifError)
       }
+      console.log('=== END NOTIFICATION DEBUG ===')
       
       const exam = r.rows[0]
       res.status(201).json({
@@ -503,9 +540,16 @@ router.get('/exams/:id/questions', auth, async (req: AuthRequest, res) => {
 
     const exam = examCheck.rows[0]
 
-    // Permission checks
-    if (req.user!.role === 'student' && exam.status !== 'published') {
-      return res.status(403).json({ message: 'Exam not available' })
+    // Permission checks - REMOVE is_published dependency
+    if (req.user!.role === 'student') {
+      // Students can access questions for any exam they're enrolled in
+      const enrollmentCheck = await pool.query(
+        'SELECT 1 FROM enrollments en JOIN exams e ON e.course_id = en.course_id WHERE e.id = $1 AND en.student_id = $2',
+        [examId, req.user!.id]
+      )
+      if (enrollmentCheck.rows.length === 0) {
+        return res.status(403).json({ message: 'Exam not available or not enrolled' })
+      }
     }
     if (req.user!.role === 'teacher' && exam.teacher_id !== req.user!.id) {
       return res.status(403).json({ message: 'Access denied' })
@@ -611,8 +655,15 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
     }
 
     const exam = examCheck.rows[0]
-    if (exam.status !== 'published') {
-      return res.status(403).json({ message: 'Exam not available' })
+    // REMOVE is_published check - any exam is available to enrolled students
+    
+    // Check if student is enrolled in the course
+    const enrollmentCheck = await pool.query(
+      'SELECT 1 FROM enrollments en WHERE en.course_id = (SELECT course_id FROM exams WHERE id = $1) AND en.student_id = $2',
+      [examId, userId]
+    )
+    if (enrollmentCheck.rows.length === 0) {
+      return res.status(403).json({ message: 'Not enrolled in this exam course' })
     }
 
     // Check if already attempted
@@ -877,7 +928,7 @@ router.get('/exams/attempts/:attemptId', auth, async (req: AuthRequest, res) => 
 router.get('/teacher/students', auth, requireTeacher, async (req: AuthRequest, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, email, name, student_id, created_at
+      `SELECT id, email, name, registration_number, created_at
        FROM users 
        WHERE role = 'student'
        ORDER BY created_at DESC`
@@ -886,10 +937,11 @@ router.get('/teacher/students', auth, requireTeacher, async (req: AuthRequest, r
       id: row.id,
       email: row.email,
       name: row.name,
-      studentId: row.student_id,
+      registrationNumber: row.registration_number,
       createdAt: row.created_at
     })))
   } catch (error) {
+    console.error('Teacher students error:', error)
     res.status(500).json({ message: 'Internal server error' })
   }
 })
