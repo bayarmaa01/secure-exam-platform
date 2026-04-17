@@ -59,47 +59,6 @@ export default function ExamRoom() {
     }
   }, [attemptId, submitting, answers, cheatingWarnings, navigate])
 
-  useEffect(() => {
-    if (!id) return
-    
-    loadExam()
-  }, [id, loadExam])
-
-  useEffect(() => {
-    if (!id) return
-
-    setupAntiCheating()
-    
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-      stopWebcam()
-    }
-  }, [id, setupAntiCheating])
-
-  useEffect(() => {
-    if (timeLeft > 0) {
-      timerRef.current = setTimeout(() => {
-        setTimeLeft(timeLeft - 1)
-      }, 1000)
-    } else if (timeLeft === 0 && attemptId) {
-      submitExam()
-    }
-    
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [timeLeft, attemptId, submitExam])
-
-  // Auto-submit when exam time ends
-  useEffect(() => {
-    if (examEndTime && timeLeft > 0) {
-      const timeUntilEnd = examEndTime.getTime() - Date.now()
-      if (timeUntilEnd <= 0) {
-        submitExam()
-      }
-    }
-  }, [examEndTime, timeLeft, submitExam])
-
   const loadExam = useCallback(async () => {
     try {
       const response = await api.get(`/exams/${id}`)
@@ -273,6 +232,48 @@ export default function ExamRoom() {
       </div>
     )
   }
+
+  // useEffect hooks
+  useEffect(() => {
+    if (!id) return
+    
+    loadExam()
+  }, [id, loadExam])
+
+  useEffect(() => {
+    if (!id) return
+
+    setupAntiCheating()
+    
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+      stopWebcam()
+    }
+  }, [id, setupAntiCheating])
+
+  useEffect(() => {
+    if (timeLeft > 0) {
+      timerRef.current = setTimeout(() => {
+        setTimeLeft(timeLeft - 1)
+      }, 1000)
+    } else if (timeLeft === 0 && attemptId) {
+      submitExam()
+    }
+    
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [timeLeft, attemptId, submitExam])
+
+  // Auto-submit when exam time ends
+  useEffect(() => {
+    if (examEndTime && timeLeft > 0) {
+      const timeUntilEnd = examEndTime.getTime() - Date.now()
+      if (timeUntilEnd <= 0) {
+        submitExam()
+      }
+    }
+  }, [examEndTime, timeLeft, submitExam])
 
   return (
     <div className="min-h-screen bg-gray-50">

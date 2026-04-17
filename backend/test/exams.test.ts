@@ -130,7 +130,11 @@ describe('Exam Routes', () => {
         rows: [{ name: 'Test Course' }]
       } as never);
 
-      // Mock notification queries (optional)
+      // Mock notification queries (optional) - multiple queries for notifications
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: []
+      } as never);
+      
       mockPoolQuery.mockResolvedValueOnce({
         rows: []
       } as never);

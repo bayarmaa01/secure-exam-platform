@@ -32,9 +32,9 @@ router.post('/warnings',
 
       // Get Prometheus metrics from app
       const metrics = req.app.get('metrics') as {
-        warningsTotal?: { inc: (labels?: Record<string, string>) => void },
-        tabSwitchTotal?: { inc: (labels?: Record<string, string>) => void },
-        faceNotDetectedTotal?: { inc: (labels?: Record<string, string>) => void }
+        warningsTotal?: Counter<string>,
+        tabSwitchTotal?: Counter<string>,
+        faceNotDetectedTotal?: Counter<string>
       }
       
       if (metrics.warningsTotal) warningsTotal = metrics.warningsTotal

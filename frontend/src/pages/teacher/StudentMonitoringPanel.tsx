@@ -35,6 +35,7 @@ export default function StudentMonitoringPanel() {
           warnings: Array<{ type: string; message: string; timestamp: string }>;
           started_at: string;
           submitted_at?: string;
+          last_activity: string;
         }) => {
           const student = attempt.student
           const exam = attempt.exam
