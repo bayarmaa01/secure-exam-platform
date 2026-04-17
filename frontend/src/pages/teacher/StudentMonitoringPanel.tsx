@@ -23,7 +23,7 @@ export default function StudentMonitoringPanel() {
 
     const fetchMonitoringData = async () => {
       try {
-        const [warningsRes, attemptsRes] = await Promise.all([
+        const [, attemptsRes] = await Promise.all([
           api.get('/monitoring/warnings'),
           api.get('/monitoring/sessions')
         ])
