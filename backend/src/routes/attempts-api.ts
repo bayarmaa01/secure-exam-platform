@@ -65,6 +65,8 @@ router.post('/attempts/start',
 
       const exam = examCheck.rows[0]
       console.log(`Student ${studentId} attempting to start exam ${examId}`)
+      console.log(`DEBUG: Authorization header present: ${req.headers.authorization ? 'YES' : 'NO'}`)
+      console.log(`DEBUG: User from auth middleware:`, req.user)
       console.log(`Exam details:`, {
         id: exam.id,
         title: exam.title,
