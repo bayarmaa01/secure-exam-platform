@@ -254,4 +254,4 @@ const activeExamSessions = new Gauge({
   registers: [register]
 })
 
-export { app, activeExamSessions, suspiciousEventsTotal }
+export { app, activeExamSessions }

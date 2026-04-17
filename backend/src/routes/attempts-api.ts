@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
-import { Counter } from 'prom-client'
+import { Counter, Histogram } from 'prom-client'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent } from '../middleware/auth'
 
