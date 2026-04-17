@@ -1001,6 +1001,8 @@ router.delete('/exams/:id', auth, requireTeacher, async (req: AuthRequest, res) 
     console.log('Deleting exam:', examCheck.rows[0].title)
 
     // EXACT REQUIREMENT: Simplified transaction
+    await client.query('DELETE FROM analytics WHERE exam_id = $1', [examId])
+    await client.query('DELETE FROM results WHERE exam_id = $1', [examId])
     await client.query('DELETE FROM exam_attempts WHERE exam_id = $1', [examId])
     await client.query('DELETE FROM questions WHERE exam_id = $1', [examId])
     await client.query('DELETE FROM exams WHERE id = $1', [examId])

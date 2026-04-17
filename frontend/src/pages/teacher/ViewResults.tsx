@@ -30,11 +30,11 @@ export default function ViewResults() {
         return { data: [] }
       })
       const examsData = Array.isArray(response.data) ? response.data : response.data?.data || []
-      // Filter only completed exams
-      const completedExams = examsData.filter((exam: Exam) => 
-        exam.status === 'completed' || exam.status === 'published'
+      // Show all exams that can have results (not draft)
+      const availableExams = examsData.filter((exam: Exam) => 
+        exam.status !== 'draft'
       )
-      setExams(completedExams)
+      setExams(availableExams)
     } catch (error) {
       console.error('Failed to fetch completed exams:', error)
       setExams([])
@@ -50,7 +50,7 @@ export default function ViewResults() {
           <div className="flex justify-between items-center h-16">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Exam Results</h1>
-              <p className="text-sm text-gray-600">View completed exams and student performance</p>
+              <p className="text-sm text-gray-600">View available exams and student performance</p>
             </div>
             <Link
               to="/teacher/dashboard"
@@ -68,23 +68,23 @@ export default function ViewResults() {
             <div className="px-4 py-5 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg leading-6 font-medium text-gray-900">
-                  Completed Exams ({exams.length})
+                  Available Exams ({exams.length})
                 </h3>
               </div>
               
               {loading ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-600">Loading completed exams...</p>
+                  <p className="mt-4 text-gray-600">Loading available exams...</p>
                 </div>
               ) : exams.length === 0 ? (
                 <div className="text-center py-12">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h12a2 2 0 012-2v-6a2 2 0 00-2-2H4a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No completed exams</h3>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No available exams</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Exams will appear here once they are completed by students.
+                    Exams will appear here once they are published or completed.
                   </p>
                 </div>
               ) : (
