@@ -7,9 +7,17 @@ interface Exam {
   title: string
   description: string
   durationMinutes: number
-  scheduledAt: string
+  startTime?: string
+  endTime?: string
+  start_time?: string
+  end_time?: string
+  scheduledAt?: string
   status: string
   createdAt: string
+  courseId?: string
+  courseName?: string
+  questionCount?: number
+  attemptCount?: number
 }
 
 export default function ManageExams() {
@@ -23,9 +31,11 @@ export default function ManageExams() {
   const fetchExams = async () => {
     try {
       const response = await api.get('/teacher/exams')
-      setExams(response.data)
+      const examsData = Array.isArray(response.data) ? response.data : response.data?.data || []
+      setExams(examsData)
     } catch (error) {
       console.error('Failed to fetch exams:', error)
+      setExams([])
     } finally {
       setLoading(false)
     }
@@ -70,10 +80,32 @@ export default function ManageExams() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-medium text-gray-900">{exam.title}</h4>
-                        <p className="text-sm text-gray-600 mt-1">{exam.description}</p>
+                        <p className="text-sm text-gray-600 mt-1">{exam.description || 'No description'}</p>
                         <div className="flex items-center space-x-4 mt-2">
-                          <span className="text-sm text-gray-500">{exam.durationMinutes} minutes</span>
-                          <span className="text-sm text-gray-500">{exam.status}</span>
+                          <span className="text-sm text-gray-500">
+                            {exam.courseName || 'Unknown Course'}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            Duration: {exam.durationMinutes || 0} min
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            Questions: {exam.questionCount || 0}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            Attempts: {exam.attemptCount || 0}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            Start: {exam.startTime ? new Date(exam.startTime).toLocaleDateString() : 'Not set'}
+                          </span>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            exam.status === 'published' ? 'bg-green-100 text-green-800' :
+                            exam.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                            exam.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
+                            exam.status === 'completed' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {exam.status}
+                          </span>
                         </div>
                       </div>
                       <Link

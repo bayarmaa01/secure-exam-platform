@@ -16,6 +16,7 @@ import { notificationRoutes } from './routes/notifications'
 import coursesRouter from './routes/courses'
 import questionsRouter from './routes/questions'
 import attemptsRouter from './routes/attempts'
+import { examRoutes } from './routes/exams'
 import seedRouter from './routes/seed'
 import { websocketConnections } from './metrics/examMetrics'
 import { setIO } from './utils/socketHelper'
@@ -132,6 +133,7 @@ app.use('/api', coursesRouter)
 app.use('/api', teacherRoutes)
 app.use('/api', studentRoutes)
 app.use('/api', examSessionRoutes)
+app.use('/api', examRoutes)
 app.use('/api', questionsRouter)
 app.use('/api', attemptsRouter)
 app.use('/api', seedRouter)

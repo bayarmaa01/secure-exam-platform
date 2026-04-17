@@ -138,12 +138,12 @@ export default function Students() {
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
                           <span className="text-blue-600 text-xs font-medium">
-                            {student.registration_number ? student.registration_number.slice(-3) : 'N/A'}
+                            {student.registration_number || student.student_id || 'N/A'}
                           </span>
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {student.registration_number || 'N/A'}
+                            {student.registration_number || student.student_id || 'N/A'}
                           </div>
                         </div>
                       </div>
@@ -245,7 +245,7 @@ export default function Students() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Student IDs</p>
               <p className="text-2xl font-bold text-gray-900">
-                {students.filter(s => s.student_id && s.student_id.trim() !== '').length}
+                {students.filter(s => (s.registration_number || s.student_id) && (s.registration_number || s.student_id).trim() !== '').length}
               </p>
             </div>
           </div>
