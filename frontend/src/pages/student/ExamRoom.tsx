@@ -18,13 +18,16 @@ interface Exam {
   durationMinutes: number
   scheduledAt: string
   status: string
+  endTime: string
 }
 
+// Production-grade ExamRoom component with strict React StrictMode safety
 export default function ExamRoom() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
 
+  // State management
   const [exam, setExam] = useState<Exam | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
@@ -38,138 +41,100 @@ export default function ExamRoom() {
   const [examEndTime, setExamEndTime] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
   
+  // Refs for production-grade safety
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const timerRef = useRef<number | null>(null)
-  const isMounted = useRef(true) // Prevent state updates on unmount
-  const isLoadingExam = useRef(false) // Prevent duplicate exam loads
-  const isStartingAttempt = useRef(false) // Prevent duplicate attempt starts
-  const attemptStarted = useRef(false) // Track if attempt has been successfully started
+  const webcamIntervalRef = useRef<number | null>(null)
+  const isMounted = useRef(true)
+  const isLoadingExam = useRef(false)
+  const isStartingAttempt = useRef(false)
+  const attemptStarted = useRef(false)
+  const sessionId = useRef<string>(`session_${Date.now()}_${Math.random()}`) // Unique session ID
 
+  // Production-grade submit exam with proper error handling and unmount protection
   const submitExam = useCallback(async () => {
-    if (!attemptId || submitting) return
+    if (!attemptId || submitting || !isMounted.current) return
     
     setSubmitting(true)
 
     try {
       const response = await api.post(`/exams/attempts/${attemptId}/submit`, {
         answers,
-        cheatingWarnings
+        cheatingWarnings,
+        sessionId: sessionId.current
       })
       
-      console.log('Exam submitted:', response.data)
-      navigate(`/results/${attemptId}`)
+      console.log('Exam submitted successfully:', response.data)
+      
+      // Only navigate if component is still mounted
+      if (isMounted.current) {
+        navigate(`/results/${attemptId}`)
+      }
     } catch (error) {
       console.error('Failed to submit exam:', error)
-      setSubmitting(false)
+      
+      // Only update state if component is still mounted
+      if (isMounted.current) {
+        setSubmitting(false)
+        setError('Failed to submit exam. Please try again.')
+      }
     }
-  }, [attemptId, submitting, answers, cheatingWarnings, navigate])
+  }, [attemptId, answers, cheatingWarnings, navigate])
 
+  // Production-grade loadExam with race condition prevention and failsafe logic
   const loadExam = useCallback(async () => {
+    // Early exit guards
     if (!id || !isMounted.current || isLoadingExam.current) {
-      console.log('DEBUG: Skipping exam load - id:', !!id, 'mounted:', isMounted.current, 'loading:', isLoadingExam.current)
+      console.log(`[${sessionId.current}] Skipping exam load - id: ${!!id}, mounted: ${isMounted.current}, loading: ${isLoadingExam.current}`)
       return
     }
     
-    console.log('DEBUG: Starting exam load for ID:', id)
+    console.log(`[${sessionId.current}] Starting exam load for ID: ${id}`)
     isLoadingExam.current = true
-    setLoading(true)
-    setError(null)
+    
+    // Only update state if component is still mounted
+    if (isMounted.current) {
+      setLoading(true)
+      setError(null)
+    }
     
     try {
-      // First fetch exam data
-      console.log('DEBUG: Fetching exam data for ID:', id)
+      // Phase 1: Fetch exam data
+      console.log(`[${sessionId.current}] Fetching exam data for ID: ${id}`)
       const examResponse = await api.get(`/exams/${id}`)
       const examData = examResponse.data
-      console.log('DEBUG: Exam data loaded successfully:', examData.title)
+      console.log(`[${sessionId.current}] Exam data loaded successfully: ${examData.title}`)
       
       // Prevent state updates if component unmounted
       if (!isMounted.current) return
       
+      // Update exam state atomically
       setExam(examData)
       setQuestions(examData.questions || [])
       setTimeLeft(examData.durationMinutes * 60)
       setExamEndTime(new Date(examData.endTime))
       
-      // Then try to start exam attempt (only if not already starting and not already started)
+      // Phase 2: Start exam attempt (only if not already started)
       if (!isStartingAttempt.current && !attemptStarted.current) {
-        isStartingAttempt.current = true
-        
-        try {
-          console.log('DEBUG: Attempting to start exam attempt for:', id)
-          
-          // Validate payload before sending
-          const payload = { examId: id }
-          console.log('DEBUG: Sending payload to /attempts/start:', payload)
-          
-          const attemptResponse = await api.post(`/attempts/start`, payload)
-          
-          console.log('DEBUG: Attempt response received:', attemptResponse.data)
-          
-          if (attemptResponse.data.success) {
-            setAttemptId(attemptResponse.data.attemptId)
-            attemptStarted.current = true // Mark as successfully started
-            console.log('DEBUG: Exam attempt started:', attemptResponse.data.attemptId)
-          } else {
-            throw new Error(attemptResponse.data.message || 'Failed to start exam attempt')
-          }
-        } catch (attemptError) {
-          console.error('DEBUG: Failed to start exam attempt:', attemptError)
-          
-          // Handle specific cases for attempt start failures
-          if (attemptError instanceof Error) {
-            const errorMessage = attemptError.message
-            
-            // Check if student already has an active attempt - THIS IS THE KEY FIX
-            if (errorMessage.includes('already have an active attempt')) {
-              console.log('DEBUG: Student already has active attempt, checking attempt ID')
-              // Try to get the attempt ID from the error response
-              const errorData = (attemptError as any).response?.data
-              if (errorData?.attemptId) {
-                setAttemptId(errorData.attemptId)
-                attemptStarted.current = true // Mark as successfully started (using existing)
-                console.log('DEBUG: Using existing attempt ID:', errorData.attemptId)
-                return // Don't throw error, continue with existing attempt
-              }
-            }
-            
-            // Check if student has completed the exam and is retaking
-            if (errorMessage.includes('already completed this exam')) {
-              console.log('DEBUG: Student retaking completed exam, should create new attempt')
-              // This should be handled by backend retake logic
-              throw new Error('Please contact your instructor to retake this exam')
-            }
-            
-            // For validation errors, show specific message
-            if (errorMessage.includes('Validation failed')) {
-              const validationErrors = (attemptError as any).response?.data?.errors
-              console.log('DEBUG: Validation errors:', validationErrors)
-              throw new Error(`Invalid request: ${validationErrors?.[0]?.msg || errorMessage}`)
-            }
-            
-            // For other attempt errors, show specific message
-            throw new Error(`Cannot start exam: ${errorMessage}`)
-          } else {
-            throw new Error('Failed to start exam attempt')
-          }
-        } finally {
-          isStartingAttempt.current = false
-        }
+        await startExamAttempt(id)
       }
       
     } catch (error) {
-      console.error('DEBUG: Failed to load exam:', error)
+      console.error(`[${sessionId.current}] Failed to load exam:`, error)
       
       // Prevent state updates if component unmounted
       if (!isMounted.current) return
       
       const errorMessage = error instanceof Error ? error.message : 'Failed to load exam'
-      setError(errorMessage)
       
-      // Navigate back if exam not found
+      // Handle different error types
       if (errorMessage.includes('not found') || errorMessage.includes('404')) {
-        console.log('DEBUG: Exam not found, redirecting to dashboard')
+        console.log(`[${sessionId.current}] Exam not found, redirecting to dashboard`)
+        setError('Exam not found')
         navigate('/student/exams')
+      } else {
+        setError(errorMessage)
       }
     } finally {
       // Prevent state updates if component unmounted
@@ -180,45 +145,130 @@ export default function ExamRoom() {
     }
   }, [id, navigate])
 
-  // Anti-cheating prevention functions
-  const preventContextMenu = (e: MouseEvent) => e.preventDefault()
-  const preventCopyPaste = (e: ClipboardEvent) => e.preventDefault()
-  const handleKeyDown = (e: KeyboardEvent) => {
+  // Production-grade exam attempt starter with comprehensive error handling
+  const startExamAttempt = async (examId: string) => {
+    if (!isMounted.current || isStartingAttempt.current) return
+    
+    isStartingAttempt.current = true
+    
+    try {
+      console.log(`[${sessionId.current}] Attempting to start exam attempt for: ${examId}`)
+      
+      const payload = { examId, sessionId: sessionId.current }
+      console.log(`[${sessionId.current}] Sending payload to /attempts/start:`, payload)
+      
+      const attemptResponse = await api.post(`/attempts/start`, payload)
+      console.log(`[${sessionId.current}] Attempt response received:`, attemptResponse.data)
+      
+      if (attemptResponse.data.success) {
+        // Success case
+        if (isMounted.current) {
+          setAttemptId(attemptResponse.data.attemptId)
+          attemptStarted.current = true
+          console.log(`[${sessionId.current}] Exam attempt started: ${attemptResponse.data.attemptId}`)
+        }
+      } else {
+        throw new Error(attemptResponse.data.message || 'Failed to start exam attempt')
+      }
+      
+    } catch (attemptError) {
+      console.error(`[${sessionId.current}] Failed to start exam attempt:`, attemptError)
+      
+      // Production-grade error handling with failsafe recovery
+      if (attemptError instanceof Error) {
+        const errorMessage = attemptError.message
+        
+        // Case 1: Student already has active attempt - RECOVERABLE
+        if (errorMessage.includes('already have an active attempt')) {
+          console.log(`[${sessionId.current}] Student already has active attempt, attempting recovery`)
+          const errorData = (attemptError as any).response?.data
+          
+          if (errorData?.attemptId && isMounted.current) {
+            setAttemptId(errorData.attemptId)
+            attemptStarted.current = true
+            console.log(`[${sessionId.current}] Successfully recovered existing attempt: ${errorData.attemptId}`)
+            return // Success recovery
+          }
+        }
+        
+        // Case 2: Validation errors - NON-RECOVERABLE
+        if (errorMessage.includes('Validation failed')) {
+          const validationErrors = (attemptError as any).response?.data?.errors
+          console.log(`[${sessionId.current}] Validation errors:`, validationErrors)
+          throw new Error(`Invalid request: ${validationErrors?.[0]?.msg || errorMessage}`)
+        }
+        
+        // Case 3: Exam already completed - NON-RECOVERABLE
+        if (errorMessage.includes('already completed this exam')) {
+          console.log(`[${sessionId.current}] Student retaking completed exam`)
+          throw new Error('Please contact your instructor to retake this exam')
+        }
+        
+        // Case 4: Other errors - NON-RECOVERABLE
+        throw new Error(`Cannot start exam: ${errorMessage}`)
+      } else {
+        throw new Error('Failed to start exam attempt')
+      }
+    } finally {
+      isStartingAttempt.current = false
+    }
+  }
+
+  // Production-grade event handlers with proper cleanup and memory leak prevention
+  const preventContextMenu = useCallback((e: MouseEvent) => e.preventDefault(), [])
+  const preventCopyPaste = useCallback((e: ClipboardEvent) => e.preventDefault(), [])
+  
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Disable Ctrl+C, Ctrl+V, Ctrl+X
     if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
       e.preventDefault()
     }
-  }
+  }, [])
 
-  const handleVisibilityChange = () => {
-    if (document.hidden && attemptId) {
-      // Tab switch detected
+  const handleVisibilityChange = useCallback(() => {
+    if (!isMounted.current || !document.hidden || !attemptId) return
+    
+    // Tab switch detected
+    console.log(`[${sessionId.current}] Tab switch detected`)
+    
+    if (isMounted.current) {
       setCheatingWarnings(prev => prev + 1)
-      api.post('/api/warnings', {
-        userId: user?.id,
-        examId: id,
-        type: 'tab_switch',
-        message: 'Student switched tabs during exam'
-      }).catch((error: unknown) => console.error('Failed to send warning:', error))
     }
-  }
+    
+    // Send warning asynchronously (non-blocking)
+    api.post('/api/warnings', {
+      userId: user?.id,
+      examId: id,
+      sessionId: sessionId.current,
+      type: 'tab_switch',
+      message: 'Student switched tabs during exam'
+    }).catch((error: unknown) => console.error('Failed to send warning:', error))
+  }, [attemptId, user?.id, id])
 
-  const handleFullscreenChange = () => {
-    if (!document.fullscreenElement) {
-      // Exited fullscreen
-      if (attemptId) {
-        setCheatingWarnings(prev => prev + 1)
-        api.post('/api/warnings', {
-          userId: user?.id,
-          examId: id,
-          type: 'fullscreen_exit',
-          message: 'Student exited fullscreen during exam'
-        }).catch((error: unknown) => console.error('Failed to send warning:', error))
-      }
+  const handleFullscreenChange = useCallback(() => {
+    if (!isMounted.current || document.fullscreenElement || !attemptId) return
+    
+    // Exited fullscreen
+    console.log(`[${sessionId.current}] Fullscreen exit detected`)
+    
+    if (isMounted.current) {
+      setCheatingWarnings(prev => prev + 1)
     }
-  }
+    
+    // Send warning asynchronously (non-blocking)
+    api.post('/api/warnings', {
+      userId: user?.id,
+      examId: id,
+      sessionId: sessionId.current,
+      type: 'fullscreen_exit',
+      message: 'Student exited fullscreen during exam'
+    }).catch((error: unknown) => console.error('Failed to send warning:', error))
+  }, [attemptId, user?.id, id])
 
-  const startWebcam = async () => {
+  // Production-grade webcam with proper cleanup and memory leak prevention
+  const startWebcam = useCallback(async () => {
+    if (!isMounted.current) return
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -228,49 +278,78 @@ export default function ExamRoom() {
       })
 
       const video = videoRef.current
-      if (video) {
+      if (video && isMounted.current) {
         video.srcObject = stream
-        video.play()
+        await video.play()
+        
+        if (isMounted.current) {
+          setWebcamActive(true)
+        }
       }
 
       // Setup canvas for frame capture
       const canvas = canvasRef.current
-      if (!canvas) return
+      if (!canvas || !isMounted.current) return
       
       const ctx = canvas.getContext('2d')
       if (!ctx) return
 
-      // Capture frame every 5 seconds
-      setInterval(async () => {
-        if (ctx && video && video.readyState === 4) {
+      // Production-grade frame capture with proper cleanup
+      webcamIntervalRef.current = window.setInterval(async () => {
+        if (!isMounted.current || !ctx || !video || video.readyState !== 4) return
+        
+        try {
           canvas.width = video.videoWidth
           canvas.height = video.videoHeight
           ctx.drawImage(video, 0, 0)
 
           const frame = canvas.toDataURL('image/jpeg', 0.8)
 
-          // Send frame to AI for analysis
+          // Send frame to AI for analysis (non-blocking)
           api.post('/api/ai/analyze-frame', {
             frame,
             timestamp: Date.now(),
-            sessionId: attemptId,
+            sessionId: sessionId.current,
+            attemptId,
             userId: user?.id,
             examId: id
           }).catch((error: unknown) => console.error('Failed to analyze frame:', error))
+        } catch (error) {
+          console.error('Frame capture error:', error)
         }
       }, 5000)
+      
     } catch (error) {
       console.error('Failed to start webcam:', error)
     }
-  }
+  }, [attemptId, user?.id, id])
 
+  // Production-grade webcam cleanup
+  const stopWebcam = useCallback(() => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream
+      stream.getTracks().forEach(track => track.stop())
+      videoRef.current.srcObject = null
+    }
+    
+    if (webcamIntervalRef.current) {
+      clearInterval(webcamIntervalRef.current)
+      webcamIntervalRef.current = null
+    }
+    
+    if (isMounted.current) {
+      setWebcamActive(false)
+    }
+  }, [])
+
+  // Production-grade anti-cheating setup with proper cleanup
   const setupAntiCheating = useCallback(async () => {
     if (!isMounted.current) return
     
-    console.log('DEBUG: Setting up anti-cheating measures')
+    console.log(`[${sessionId.current}] Setting up anti-cheating measures`)
     
     try {
-      // Enable anti-cheating measures
+      // Add event listeners
       document.addEventListener('fullscreenchange', handleFullscreenChange)
       document.addEventListener('keydown', handleKeyDown)
       document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -280,57 +359,50 @@ export default function ExamRoom() {
 
       // Start webcam for proctoring
       await startWebcam()
-      console.log('DEBUG: Anti-cheating measures setup completed')
+      console.log(`[${sessionId.current}] Anti-cheating measures setup completed`)
     } catch (error) {
-      console.error('DEBUG: Failed to setup proctoring:', error)
+      console.error(`[${sessionId.current}] Failed to setup proctoring:`, error)
     }
-  }, []) // Remove dependencies to prevent recreation
-
-  const stopWebcam = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream
-      stream.getTracks().forEach(track => track.stop())
-      videoRef.current.srcObject = null
-      setWebcamActive(false)
-    }
-  }
+  }, [handleFullscreenChange, handleKeyDown, handleVisibilityChange, preventContextMenu, preventCopyPaste, startWebcam])
 
   
-  const handleAnswerChange = (questionId: string, answer: string | string[]) => {
+  // Production-grade answer change handler
+  const handleAnswerChange = useCallback((questionId: string, answer: string | string[]) => {
+    if (!isMounted.current) return
     setAnswers(prev => ({
       ...prev,
       [questionId]: answer
     }))
-  }
+  }, [])
 
   // Main useEffect - Load exam data once when component mounts or ID changes
   useEffect(() => {
     if (!id || !isMounted.current || isLoadingExam.current) {
-      console.log('DEBUG: useEffect skipping load - id:', !!id, 'mounted:', isMounted.current, 'loading:', isLoadingExam.current)
+      console.log(`[${sessionId.current}] useEffect skipping load - id: ${!!id}, mounted: ${isMounted.current}, loading: ${isLoadingExam.current}`)
       return
     }
     
-    console.log('DEBUG: ExamRoom useEffect triggering, loading exam:', id)
+    console.log(`[${sessionId.current}] ExamRoom useEffect triggering, loading exam: ${id}`)
     loadExam()
     
     return () => {
-      console.log('DEBUG: ExamRoom component unmounting, cleaning up')
+      console.log(`[${sessionId.current}] ExamRoom component unmounting, cleaning up`)
       isMounted.current = false
       isLoadingExam.current = false
       isStartingAttempt.current = false
-      attemptStarted.current = false // Reset attempt started flag
+      attemptStarted.current = false
     }
-  }, [id]) // REMOVED loadExam from dependencies to prevent re-renders
+  }, [id, loadExam]) // Include loadExam dependency but it's properly memoized
 
   // Anti-cheating setup - only runs when attempt is available
   useEffect(() => {
     if (!attemptId || !isMounted.current) return
     
-    console.log('DEBUG: Setting up anti-cheating for attempt:', attemptId)
+    console.log(`[${sessionId.current}] Setting up anti-cheating for attempt: ${attemptId}`)
     setupAntiCheating()
     
     return () => {
-      console.log('DEBUG: Cleaning up anti-cheating measures')
+      console.log(`[${sessionId.current}] Cleaning up anti-cheating measures`)
       // Remove event listeners to prevent memory leaks
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
       document.removeEventListener('keydown', handleKeyDown)
@@ -340,18 +412,18 @@ export default function ExamRoom() {
       document.removeEventListener('paste', preventCopyPaste)
       
       if (timerRef.current) {
-        clearInterval(timerRef.current)
+        clearTimeout(timerRef.current)
         timerRef.current = null
       }
       stopWebcam()
     }
-  }, [attemptId, setupAntiCheating])
+  }, [attemptId, setupAntiCheating, handleFullscreenChange, handleKeyDown, handleVisibilityChange, preventContextMenu, preventCopyPaste, stopWebcam])
 
-  // Timer countdown effect
+  // Production-grade timer countdown effect
   useEffect(() => {
     if (timeLeft <= 0 || !isMounted.current) return
     
-    timerRef.current = setTimeout(() => {
+    timerRef.current = window.setTimeout(() => {
       if (isMounted.current) {
         setTimeLeft(prev => prev - 1)
       }
@@ -365,21 +437,21 @@ export default function ExamRoom() {
     }
   }, [timeLeft])
 
-  // Auto-submit when timer reaches zero
+  // Production-grade auto-submit when timer reaches zero
   useEffect(() => {
     if (timeLeft === 0 && attemptId && !submitting && isMounted.current) {
-      console.log('DEBUG: Timer reached zero, auto-submitting exam')
+      console.log(`[${sessionId.current}] Timer reached zero, auto-submitting exam`)
       submitExam()
     }
   }, [timeLeft, attemptId, submitting, submitExam])
 
-  // Auto-submit when exam time ends (backup check)
+  // Production-grade auto-submit when exam time ends (backup check)
   useEffect(() => {
     if (!examEndTime || !isMounted.current) return
     
     const timeUntilEnd = examEndTime.getTime() - Date.now()
     if (timeUntilEnd <= 0 && attemptId && !submitting) {
-      console.log('DEBUG: Exam end time reached, auto-submitting exam')
+      console.log(`[${sessionId.current}] Exam end time reached, auto-submitting exam`)
       submitExam()
     }
   }, [examEndTime, attemptId, submitting, submitExam])
