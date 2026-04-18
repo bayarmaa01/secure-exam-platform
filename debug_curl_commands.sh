@@ -3,24 +3,34 @@
 # DEBUG CURL COMMANDS FOR SECURE EXAM PLATFORM
 # Use these to isolate the 400 Bad Request issue
 
-# STEP 1: Get Access Token (Login as student)
-echo "=== STEP 1: Login to get access token ==="
-curl -X POST http://localhost:4005/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "student@example.com",
-    "password": "password123"
-  }' | jq -r '.accessToken'
+# STEP 1: Get Access Token from Browser
+echo "=== STEP 1: Get access token from browser ==="
+echo "Open browser console and run:"
+echo "localStorage.getItem('accessToken')"
+echo ""
+echo "Then set the token below:"
+echo "ACCESS_TOKEN=\"paste_token_here\""
 
 # STEP 2: Test POST /api/attempts/start with token
 echo "=== STEP 2: Test exam attempt start ==="
 ACCESS_TOKEN="YOUR_ACCESS_TOKEN_HERE"
 
+# Test with valid token
 curl -X POST http://localhost:4005/api/attempts/start \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d '{
     "examId": "7b68f85b-6b6a-4ef9-87de-8d3e5714f0bf"
+  }' \
+  -v
+
+echo ""
+echo "=== STEP 3: Test with invalid examId (should return 400) ==="
+curl -X POST http://localhost:4005/api/attempts/start \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -d '{
+    "examId": ""
   }' \
   -v
 

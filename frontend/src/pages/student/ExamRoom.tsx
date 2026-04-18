@@ -44,6 +44,7 @@ export default function ExamRoom() {
   const isMounted = useRef(true) // Prevent state updates on unmount
   const isLoadingExam = useRef(false) // Prevent duplicate exam loads
   const isStartingAttempt = useRef(false) // Prevent duplicate attempt starts
+  const attemptStarted = useRef(false) // Track if attempt has been successfully started
 
   const submitExam = useCallback(async () => {
     if (!attemptId || submitting) return
@@ -90,8 +91,8 @@ export default function ExamRoom() {
       setTimeLeft(examData.durationMinutes * 60)
       setExamEndTime(new Date(examData.endTime))
       
-      // Then try to start exam attempt (only if not already starting)
-      if (!isStartingAttempt.current) {
+      // Then try to start exam attempt (only if not already starting and not already started)
+      if (!isStartingAttempt.current && !attemptStarted.current) {
         isStartingAttempt.current = true
         
         try {
@@ -107,6 +108,7 @@ export default function ExamRoom() {
           
           if (attemptResponse.data.success) {
             setAttemptId(attemptResponse.data.attemptId)
+            attemptStarted.current = true // Mark as successfully started
             console.log('DEBUG: Exam attempt started:', attemptResponse.data.attemptId)
           } else {
             throw new Error(attemptResponse.data.message || 'Failed to start exam attempt')
@@ -118,13 +120,14 @@ export default function ExamRoom() {
           if (attemptError instanceof Error) {
             const errorMessage = attemptError.message
             
-            // Check if student already has an active attempt
+            // Check if student already has an active attempt - THIS IS THE KEY FIX
             if (errorMessage.includes('already have an active attempt')) {
               console.log('DEBUG: Student already has active attempt, checking attempt ID')
               // Try to get the attempt ID from the error response
               const errorData = (attemptError as any).response?.data
               if (errorData?.attemptId) {
                 setAttemptId(errorData.attemptId)
+                attemptStarted.current = true // Mark as successfully started (using existing)
                 console.log('DEBUG: Using existing attempt ID:', errorData.attemptId)
                 return // Don't throw error, continue with existing attempt
               }
@@ -315,8 +318,9 @@ export default function ExamRoom() {
       isMounted.current = false
       isLoadingExam.current = false
       isStartingAttempt.current = false
+      attemptStarted.current = false // Reset attempt started flag
     }
-  }, [id, loadExam])
+  }, [id]) // REMOVED loadExam from dependencies to prevent re-renders
 
   // Anti-cheating setup - only runs when attempt is available
   useEffect(() => {
