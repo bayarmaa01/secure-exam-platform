@@ -933,6 +933,646 @@ spec:
 - System deployments
 ```
 
+## 3. System Use Cases
+
+### Figure 3.1 – System Use Case Diagram
+
+```mermaid
+graph TD
+    %% User Roles
+    Student[Student User]
+    Teacher[Teacher User]
+    Admin[Administrator]
+    
+    %% Authentication Use Cases
+    UC1[User Registration]
+    UC2[User Login]
+    UC3[Password Reset]
+    UC4[Logout]
+    
+    %% Student Use Cases
+    UC5[View Available Exams]
+    UC6[Start Exam Attempt]
+    UC7[Submit Exam Answers]
+    UC8[View Results]
+    UC9[View Progress Dashboard]
+    UC10[Receive Notifications]
+    
+    %% Teacher Use Cases
+    UC11[Create Exam]
+    UC12[Edit Exam]
+    UC13[Publish Exam]
+    UC14[Manage Questions]
+    UC15[View Student Performance]
+    UC16[Generate Reports]
+    UC17[Monitor Active Exams]
+    
+    %% Admin Use Cases
+    UC18[User Management]
+    UC19[System Configuration]
+    UC20[View System Analytics]
+    UC21[Backup & Recovery]
+    UC22[Security Monitoring]
+    
+    %% AI Proctoring Use Cases
+    UC23[Face Detection]
+    UC24[Risk Scoring]
+    UC25[Alert Generation]
+    UC26[Audit Trail Management]
+    
+    %% Connections
+    Student --> UC1
+    Student --> UC2
+    Student --> UC3
+    Student --> UC4
+    Student --> UC5
+    Student --> UC6
+    Student --> UC7
+    Student --> UC8
+    Student --> UC9
+    Student --> UC10
+    
+    Teacher --> UC1
+    Teacher --> UC2
+    Teacher --> UC3
+    Teacher --> UC4
+    Teacher --> UC11
+    Teacher --> UC12
+    Teacher --> UC13
+    Teacher --> UC14
+    Teacher --> UC15
+    Teacher --> UC16
+    Teacher --> UC17
+    
+    Admin --> UC1
+    Admin --> UC2
+    Admin --> UC3
+    Admin --> UC4
+    Admin --> UC18
+    Admin --> UC19
+    Admin --> UC20
+    Admin --> UC21
+    Admin --> UC22
+    
+    UC23 --> UC24
+    UC24 --> UC25
+    UC25 --> UC26
+    
+    %% System Boundaries
+    subgraph "AI Proctoring System"
+        UC23
+        UC24
+        UC25
+        UC26
+    end
+    
+    subgraph "Core Examination System"
+        UC5
+        UC6
+        UC7
+        UC8
+        UC11
+        UC12
+        UC13
+        UC14
+        UC15
+        UC16
+        UC17
+    end
+    
+    subgraph "User Management System"
+        UC1
+        UC2
+        UC3
+        UC4
+        UC18
+    end
+    
+    subgraph "Administrative System"
+        UC19
+        UC20
+        UC21
+        UC22
+    end
+```
+
+**Explanation:**
+The System Use Case Diagram illustrates all major user interactions with the Secure Exam Platform. The diagram is organized by user roles (Student, Teacher, Admin) and shows how each role interacts with different system functionalities. The AI Proctoring System operates as a separate subsystem that monitors exam sessions in real-time. This diagram helps stakeholders understand the complete scope of system capabilities and user journeys.
+
+## 4. System Architecture
+
+### Figure 4.1 – High-Level System Architecture Diagram
+
+```mermaid
+graph TB
+    %% External Users
+    Users[End Users<br/>(Students/Teachers/Admins)]
+    
+    %% Internet Gateway
+    Internet[Internet]
+    DNS[DNS: secure-exam.duckdns.org]
+    
+    %% Load Balancer & Security
+    LB[Nginx Load Balancer<br/>Port: 80/443<br/>SSL Termination<br/>Rate Limiting<br/>Security Headers]
+    
+    %% Application Services
+    Frontend[Frontend Service<br/>React + TypeScript<br/>Port: 3005<br/>Static Assets<br/>Client-side Logic]
+    
+    Backend[Backend Service<br/>Node.js + Express<br/>Port: 4005<br/>API Gateway<br/>Business Logic<br/>WebSocket Server]
+    
+    AI[AI Proctoring Service<br/>Python + FastAPI<br/>Port: 5005<br/>Computer Vision<br/>Risk Assessment<br/>Frame Analysis]
+    
+    %% Data Layer
+    PG[PostgreSQL Database<br/>Port: 5432<br/>ACID Compliance<br/>Primary Data Store<br/>Audit Trail]
+    
+    Redis[Redis Cache<br/>Port: 6379<br/>Session Store<br/>Token Blacklist<br/>API Caching]
+    
+    %% Monitoring Stack
+    Prometheus[Prometheus<br/>Port: 9092<br/>Metrics Collection<br/>Time Series DB<br/>Alert Management]
+    
+    Grafana[Grafana<br/>Port: 3002<br/>Dashboards<br/>Visualization<br/>Alert Interface]
+    
+    NodeExporter[Node Exporter<br/>Port: 9100<br/>System Metrics<br/>Resource Monitoring]
+    
+    %% Connections
+    Users --> Internet
+    Internet --> DNS
+    DNS --> LB
+    
+    LB --> Frontend
+    LB --> Backend
+    LB --> AI
+    
+    Backend --> PG
+    Backend --> Redis
+    Backend --> Prometheus
+    
+    AI --> Redis
+    AI --> Prometheus
+    
+    Frontend --> Backend
+    Frontend --> AI
+    
+    Prometheus --> Grafana
+    NodeExporter --> Prometheus
+    
+    %% Styling
+    classDef user fill:#e1f5fe,stroke:#0175c2,stroke-width:2px
+    classDef gateway fill:#f8f9fa,stroke:#343a40,stroke-width:3px
+    classDef service fill:#e3f2fd,stroke:#0ea5e9,stroke-width:2px
+    classDef data fill:#fff3cd,stroke:#856404,stroke-width:2px
+    classDef monitoring fill:#d1ecf1,stroke:#0c5460,stroke-width:2px
+    
+    class Users user
+    class LB gateway
+    class Frontend,Backend,AI service
+    class PG,Redis data
+    class Prometheus,Grafana,NodeExporter monitoring
+```
+
+**Explanation:**
+The High-Level System Architecture Diagram shows the complete microservices architecture with clear separation of concerns. The system follows a layered approach with security at the edge (Nginx), application services in the middle tier, data persistence at the bottom, and comprehensive monitoring throughout. This architecture ensures scalability, maintainability, and observability while maintaining security through defense-in-depth principles.
+
+### Figure 4.2 – Entity-Relationship (ER) Diagram
+
+```mermaid
+erDiagram
+    %% User Entity
+    USERS {
+        uuid id PK
+        string email UK
+        string password
+        string name
+        string role
+        string student_id UK
+        string teacher_id UK
+        string registration_number UK
+        timestamp created_at
+        timestamp updated_at
+        timestamp last_login
+        boolean is_active
+    }
+    
+    %% Exam Entity
+    EXAMS {
+        uuid id PK
+        string title
+        text description
+        integer duration_minutes
+        timestamp scheduled_at
+        timestamp end_time
+        string status
+        uuid teacher_id FK
+        integer passing_score
+        integer max_attempts
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    %% Question Entity
+    QUESTIONS {
+        uuid id PK
+        uuid exam_id FK
+        text text
+        string type
+        jsonb options
+        text correct_answer
+        text explanation
+        integer points
+        integer order_index
+        timestamp created_at
+    }
+    
+    %% Exam Attempts Entity
+    EXAM_ATTEMPTS {
+        uuid id PK
+        uuid exam_id FK
+        uuid user_id FK
+        string status
+        timestamp started_at
+        timestamp submitted_at
+        integer time_left_seconds
+        integer score
+        integer total_points
+        decimal percentage
+        integer cheating_warnings
+        integer proctoring_score
+        jsonb answers
+        inet ip_address
+        text user_agent
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    %% Answers Entity
+    ANSWERS {
+        uuid id PK
+        uuid attempt_id FK
+        uuid question_id FK
+        text answer
+        boolean is_correct
+        integer points_earned
+        integer time_spent_seconds
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    %% Proctoring Logs Entity
+    PROCTORING_LOGS {
+        uuid id PK
+        uuid attempt_id FK
+        string event_type
+        integer risk_score
+        text frame_data
+        jsonb metadata
+        timestamp timestamp
+        timestamp created_at
+    }
+    
+    %% Relationships
+    USERS ||--o{ EXAMS : "creates"
+    USERS ||--o{ EXAM_ATTEMPTS : "attempts"
+    EXAMS ||--o{ QUESTIONS : "contains"
+    EXAMS ||--o{ EXAM_ATTEMPTS : "has attempts"
+    EXAM_ATTEMPTS ||--o{ ANSWERS : "contains"
+    QUESTIONS ||--o{ ANSWERS : "answered in"
+    EXAM_ATTEMPTS ||--o{ PROCTORING_LOGS : "monitored by"
+    
+    %% Relationship Constraints
+    USERS {
+        role IN ('student', 'teacher', 'admin')
+        status IN ('draft', 'published', 'active', 'completed')
+        type IN ('mcq', 'text', 'coding')
+        event_type IN ('face_detected', 'face_lost', 'multiple_faces', 'tab_switch', 'fullscreen_exit', 'copy_paste', 'suspicious_movement', 'no_face_detected')
+    }
+    
+    %% Unique Constraints
+    EXAM_ATTEMPTS {
+        UNIQUE(exam_id, user_id) WHERE status = 'in_progress'
+    }
+    
+    ANSWERS {
+        UNIQUE(attempt_id, question_id)
+    }
+```
+
+**Explanation:**
+The Entity-Relationship Diagram shows the complete database schema with all entities, attributes, and relationships. The design uses UUID primary keys for global uniqueness, JSONB for flexible data storage, and proper foreign key relationships to maintain data integrity. The unique constraints on exam attempts and answers prevent duplicate submissions and ensure business logic enforcement at the database level.
+
+### Figure 4.3 – API Request-Response Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client as Client Browser
+    participant Nginx as Nginx Proxy
+    participant Frontend as Frontend Service
+    participant Backend as Backend API
+    participant DB as PostgreSQL
+    participant Redis as Redis Cache
+    participant AI as AI Proctoring
+    
+    %% Authentication Flow
+    Note over Client,Backend: User Login Flow
+    Client->>Nginx: POST /api/auth/login
+    Nginx->>Frontend: Route to /api/*
+    Frontend->>Backend: POST /auth/login
+    Backend->>DB: Validate credentials
+    DB-->>Backend: User data
+    Backend->>Redis: Store session tokens
+    Backend-->>Frontend: JWT tokens + user data
+    Frontend-->>Nginx: Response
+    Nginx-->>Client: Auth response
+    
+    %% Exam Start Flow
+    Note over Client,AI: Exam Start with Proctoring
+    Client->>Nginx: POST /api/attempts/start
+    Nginx->>Backend: Route request
+    Backend->>DB: Check existing attempt
+    DB-->>Backend: Attempt status
+    Backend->>DB: Create new attempt
+    DB-->>Backend: Attempt ID
+    Backend->>AI: Initialize proctoring session
+    AI-->>Backend: Session ready
+    Backend-->>Frontend: Attempt started
+    Frontend-->>Client: Exam interface loaded
+    
+    %% Real-time Monitoring Flow
+    Note over Client,AI: Live Proctoring Monitoring
+    loop Every 5 seconds
+        Client->>Frontend: Webcam frame
+        Frontend->>AI: POST /ai/analyze-frame
+        AI->>AI: Face detection & risk scoring
+        AI-->>Frontend: Risk score + events
+        Frontend->>Redis: Store proctoring events
+        Frontend-->>Client: Update risk indicator
+    end
+    
+    %% Exam Submission Flow
+    Note over Client,DB: Exam Submission Process
+    Client->>Nginx: POST /api/attempts/submit
+    Nginx->>Backend: Route submission
+    Backend->>DB: Validate attempt ownership
+    DB-->>Backend: Attempt data
+    Backend->>DB: Process answers for grading
+    DB-->>Backend: Score results
+    Backend->>AI: Generate final proctoring report
+    AI-->>Backend: Complete report
+    Backend->>DB: Store final results
+    Backend->>Redis: Clear session data
+    Backend-->>Frontend: Final score + report
+    Frontend-->>Client: Results display
+    
+    %% Error Handling Flow
+    Note over Client,Backend: Error Recovery Scenario
+    Client->>Nginx: API Request
+    Nginx->>Backend: Route request
+    Backend-->>Frontend: Error response
+    Frontend->>Redis: Cache error state
+    Frontend-->>Client: User-friendly error message
+    Client->>Frontend: Retry request
+    Frontend->>Backend: Retried API call
+    Backend-->>Frontend: Success response
+    Frontend-->>Client: Recovery successful
+```
+
+**Explanation:**
+The API Request-Response Flow Diagram illustrates the complete lifecycle of API interactions from authentication through exam submission and error handling. It shows how requests flow through the Nginx proxy, between services, and how Redis provides caching and session management. The diagram also demonstrates the real-time nature of AI proctoring with continuous frame analysis and the robust error recovery mechanisms built into the system.
+
+### Figure 4.4 – Authentication and Session Flow
+
+```mermaid
+flowchart TD
+    %% Initial State
+    Start([User Access Attempt]) --> AuthChoice{Authentication Method}
+    
+    %% Registration Branch
+    AuthChoice -->|New User| Registration[User Registration]
+    Registration --> ValidateReg[Validate Input<br/>Email Format<br/>Password Strength<br/>Role Selection]
+    ValidateReg -->|Valid| CreateAccount[Create User Account<br/>Hash Password<br/>Assign Role<br/>Generate Registration Number]
+    CreateAccount --> StoreUser[Store in PostgreSQL<br/>Send Verification Email]
+    StoreUser --> RegSuccess[Registration Successful<br/>Login Required]
+    
+    %% Login Branch
+    AuthChoice -->|Existing User| Login[User Login]
+    Login --> ValidateCreds[Validate Credentials<br/>Check Account Status<br/>Verify Password Hash]
+    ValidateCreds -->|Valid| GenerateTokens[Generate JWT Tokens<br/>Access Token (15min)<br/>Refresh Token (7days)]
+    GenerateTokens --> StoreTokens[Store in Redis<br/>Create Session Record<br/>Update Last Login]
+    StoreTokens --> LoginSuccess[Login Successful<br/>Redirect to Dashboard]
+    
+    %% Token Refresh Flow
+    LoginSuccess --> ActiveSession[Active Session]
+    ActiveSession --> TokenCheck{Access Token Valid?}
+    TokenCheck -->|Expired| RefreshToken[Use Refresh Token<br/>Generate New Access Token<br/>Invalidate Old Token]
+    RefreshToken -->|Success| ActiveSession
+    RefreshToken -->|Failed| ForceLogout[Clear All Tokens<br/>Redirect to Login]
+    
+    %% Session Management
+    ActiveSession -->|Valid| ApiAccess[API Access with JWT<br/>Validate Each Request<br/>Check Token Blacklist]
+    ApiAccess --> RateLimit[Rate Limiting Check<br/>5 req/s for auth<br/>10 req/s for API]
+    RateLimit -->|Within Limit| ProcessRequest[Process Request<br/>Update Activity Log<br/>Return Response]
+    RateLimit -->|Exceeded| RateLimitError[Return 429 Error<br/>Log Rate Limit Event<br/>Temporary Block]
+    
+    %% Security Features
+    ProcessRequest --> SecurityCheck[Security Monitoring<br/>Failed Login Attempts<br/>Suspicious Activity<br/>Session Anomalies]
+    SecurityCheck -->|Threat Detected| SecurityAction[Lock Account<br/>Revoke Tokens<br/>Notify Admin<br/>Log Security Event]
+    SecurityAction --> ForceLogout
+    
+    %% Logout Flow
+    ActiveSession -->|User Action| Logout[User Logout]
+    Logout --> ClearSession[Clear Redis Session<br/>Blacklist Tokens<br/>Update Logout Time]
+    ClearSession --> LogoutSuccess[Logout Successful<br/>Redirect to Login]
+    
+    %% Error States
+    ValidateCreds -->|Invalid| LoginError[Invalid Credentials<br/>Increment Failed Counter<br/>Temporary Lock if >5 attempts]
+    ValidateReg -->|Invalid| RegError[Registration Error<br/>Return Validation Messages<br/>Suggest Corrections]
+    
+    %% Final States
+    LoginSuccess --> Dashboard[Role-Based Dashboard]
+    RegSuccess --> Login
+    LogoutSuccess --> Start
+    ForceLogout --> Start
+    RegError --> Registration
+    LoginError --> Login
+    
+    %% Styling
+    classDef start fill:#d4edda,stroke:#155724,stroke-width:2px
+    classDef process fill:#cce5ff,stroke:#004085,stroke-width:2px
+    classDef success fill:#d1ecf1,stroke:#0c5460,stroke-width:2px
+    classDef error fill:#f8d7da,stroke:#721c24,stroke-width:2px
+    classDef security fill:#f8f9fa,stroke:#343a40,stroke-width:3px
+    
+    class Start start
+    class Registration,ValidateReg,CreateAccount,StoreUser,Login,ValidateCreds,GenerateTokens,StoreTokens,TokenCheck,RefreshToken,ApiAccess,RateLimit,ProcessRequest process
+    class RegSuccess,LoginSuccess,ActiveSession,Logout,ClearSession,LogoutSuccess,Dashboard success
+    class LoginError,RegError,ForceLogout,RateLimitError error
+    class SecurityCheck,SecurityAction security
+```
+
+**Explanation:**
+The Authentication and Session Flow diagram provides a comprehensive view of the security architecture. It covers user registration, login with JWT tokens, automatic token refresh, session management, rate limiting, and security monitoring. The flow demonstrates defense-in-depth security with multiple layers of protection including account lockout mechanisms, token blacklisting, and real-time threat detection.
+
+## 6. User Experience & Workflows
+
+### Figure 6.1 – Student User Flow Diagram
+
+```mermaid
+flowchart TD
+    %% Entry Points
+    Start([Student Access]) --> LoginChoice{Already Registered?}
+    
+    %% Registration Flow
+    LoginChoice -->|No| StudentReg[Student Registration]
+    StudentReg --> ValidateStudent[Validate Student Data<br/>Email + Institution ID<br/>Password Strength<br/>Parent Consent if Minor]
+    ValidateStudent -->|Valid| CreateStudent[Create Student Account<br/>Generate Student ID<br/>Send Welcome Email]
+    CreateStudent --> StudentDashboard[Student Dashboard]
+    
+    %% Login Flow
+    LoginChoice -->|Yes| StudentLogin[Student Login]
+    StudentLogin --> ValidateLogin[Validate Credentials<br/>Check Enrollment Status<br/>Verify Account Active]
+    ValidateLogin -->|Success| StudentHome[Student Home Dashboard<br/>View Available Exams<br/>Check Schedule<br/>See Progress]
+    
+    %% Exam Discovery
+    StudentHome --> BrowseExams[Browse Available Exams<br/>Filter by Subject<br/>Check Prerequisites<br/>View Exam Details]
+    BrowseExams --> SelectExam[Select Exam<br/>Review Instructions<br/>Check Time Requirements<br/>Verify Enrollment]
+    SelectExam --> PrepareExam[Exam Preparation<br/>System Check<br/>Webcam Test<br/>Network Stability Test]
+    
+    %% Exam Taking Flow
+    PrepareExam --> StartExam[Start Exam Attempt<br/>Initialize Proctoring<br/>Begin Timer<br/>Lock Down Browser]
+    StartExam --> ExamInterface[Active Exam Interface<br/>Display Questions<br/>Auto-save Progress<br/>Show Timer]
+    
+    %% Real-time Monitoring
+    ExamInterface --> ProctoringActive[AI Proctoring Active<br/>Face Detection<br/>Tab Switch Monitoring<br/>Risk Score Display<br/>Real-time Warnings]
+    
+    %% Question Navigation
+    ExamInterface --> NavigateQuestions[Navigate Questions<br/>Previous/Next<br/>Review Flagged<br/>Save Progress]
+    NavigateQuestions --> AnswerQuestions[Answer Questions<br/>Multiple Choice<br/>Text Input<br/>Code Editor]
+    
+    %% Exam Completion
+    AnswerQuestions --> SubmitChoice{Ready to Submit?}
+    SubmitChoice -->|Manual| SubmitExam[Submit Exam<br/>Final Validation<br/>Confirm Submission]
+    SubmitChoice -->|Time Expired| AutoSubmit[Auto-submit on Timer<br/>Save All Progress<br/>Generate Attempt Record]
+    
+    %% Post-Exam Flow
+    SubmitExam --> ProctoringReport[Generate Proctoring Report<br/>Calculate Final Risk Score<br/>Compile Event Log]
+    AutoSubmit --> ProctoringReport
+    ProctoringReport --> StoreResults[Store Results in Database<br/>Update Student Progress<br/>Trigger Notifications]
+    StoreResults --> ViewResults[View Results<br/>Score Breakdown<br/>Correct Answers<br/>Proctoring Summary]
+    
+    %% Learning Analytics
+    ViewResults --> Analytics[Learning Analytics<br/>Topic Performance<br/>Weak Areas Identification<br/>Progress Trends<br/>Recommendations]
+    Analytics --> StudyPlan[Personalized Study Plan<br/>Targeted Practice<br/>Resource Suggestions<br/>Improvement Tracking]
+    
+    %% Ongoing Engagement
+    StudentDashboard --> Notifications[Real-time Notifications<br/>New Exam Published<br/>Results Available<br/>Teacher Messages]
+    StudentDashboard --> ProgressTrack[Progress Tracking<br/>Historical Performance<br/>Achievement Badges<br/>Leaderboard Position]
+    
+    %% Error Handling
+    StartExam -->|Technical Issues| ExamRecovery[Exam Recovery<br/>Auto-save Restoration<br/>Session Resume<br/>Technical Support Contact]
+    ExamRecovery --> ContinueExam[Continue from Last Save<br/>Extended Time if Valid<br/>Proctoring Resume]
+    
+    %% Styling
+    classDef entry fill:#e3f2fd,stroke:#0ea5e9,stroke-width:2px
+    classDef process fill:#cce5ff,stroke:#004085,stroke-width:2px
+    classDef success fill:#d1ecf1,stroke:#0c5460,stroke-width:2px
+    classDef warning fill:#fff3cd,stroke:#856404,stroke-width:2px
+    classDef monitoring fill:#f8f9fa,stroke:#dc3545,stroke-width:2px
+    
+    class Start entry
+    class StudentReg,ValidateStudent,CreateStudent,StudentLogin,ValidateLogin,StudentHome,BrowseExams,SelectExam,PrepareExam,StartExam,ExamInterface,NavigateQuestions,AnswerQuestions process
+    class StudentDashboard,ViewResults,Analytics,StudyPlan success
+    class ProctoringActive,Notifications,ProgressTrack monitoring
+    class SubmitExam,AutoSubmit,ProctoringReport,StoreResults warning
+    class ExamRecovery,ContinueExam error
+```
+
+**Explanation:**
+The Student User Flow Diagram illustrates the complete student journey from registration through exam completion and learning analytics. It emphasizes the seamless experience with built-in safeguards like auto-save, technical recovery mechanisms, and comprehensive proctoring integration. The flow shows how the system supports learning through analytics and personalized recommendations while maintaining exam integrity through AI monitoring.
+
+### Figure 6.2 – Teacher/Admin User Flow Diagram
+
+```mermaid
+flowchart TD
+    %% Entry Points
+    Start([Teacher/Admin Access]) --> RoleSelect{User Role}
+    
+    %% Teacher Flow
+    RoleSelect -->|Teacher| TeacherLogin[Teacher Login]
+    TeacherLogin --> TeacherDashboard[Teacher Dashboard<br/>My Exams<br/>Student Performance<br/>Analytics Overview<br/>Notifications]
+    
+    %% Exam Management
+    TeacherDashboard --> ExamAction{Exam Management}
+    ExamAction -->|Create| CreateExam[Create New Exam<br/>Set Title & Description<br/>Configure Duration<br/>Define Passing Score]
+    CreateExam --> AddQuestions[Add Questions<br/>Multiple Choice<br/>Text Answers<br/>Coding Problems<br/>Set Points & Order]
+    AddQuestions --> ConfigureSettings[Configure Settings<br/>Randomize Questions<br/>Set Attempt Limits<br/>Enable Proctoring<br/>Schedule Exam]
+    ConfigureSettings --> ReviewExam[Review & Preview<br/>Test All Questions<br/>Validate Settings<br/>Check Time Allocation]
+    ReviewExam --> PublishChoice{Ready to Publish?}
+    
+    %% Exam Publishing
+    PublishChoice -->|Yes| PublishExam[Publish Exam<br/>Notify Enrolled Students<br/>Make Available in Dashboard<br/>Start Monitoring]
+    PublishExam --> TrackExam[Track Exam Progress<br/>Monitor Active Attempts<br/>View Real-time Analytics<br/>Handle Issues]
+    
+    %% Existing Exam Management
+    ExamAction -->|Manage| ManageExams[Manage Existing Exams<br/>View All My Exams<br/>Filter by Status<br/>Bulk Operations]
+    ManageExams --> SelectExisting[Select Exam to Edit<br/>View Current Settings<br/>Check Student Attempts<br/>Review Performance]
+    SelectExisting --> EditExam[Edit Exam Details<br/>Modify Questions<br/>Update Settings<br/>Change Schedule]
+    EditExam --> RepublishChoice{Changes Made?}
+    RepublishChoice -->|Yes| UpdatePublished[Update Published Exam<br/>Notify Students of Changes<br/>Maintain Attempt Records]
+    RepublishChoice -->|No| ViewAnalytics[View Exam Analytics<br/>Pass/Fail Rates<br/>Question Difficulty<br/>Time Analysis]
+    
+    %% Student Management
+    TeacherDashboard --> StudentMgmt[Student Management<br/>View Enrolled Students<br/>Monitor Progress<br/>Send Messages]
+    StudentMgmt --> ViewProgress[View Individual Progress<br/>Performance Trends<br/>Weak Areas<br/>Engagement Metrics]
+    ViewProgress --> Intervene[Intervention Actions<br/>Send Reminders<br/>Provide Resources<br/>Schedule Support]
+    
+    %% Results & Reporting
+    TeacherDashboard --> Results[Results & Reporting<br/>Grade Submissions<br/>Review Proctoring Reports<br/>Handle Appeals]
+    Results --> GenerateReports[Generate Reports<br/>Class Performance<br/>Individual Results<br/>Statistical Analysis<br/>Export Data]
+    GenerateReports --> ShareReports[Share Results<br/>Student Access<br/>Parent Portal<br/>Admin Dashboard]
+    
+    %% Admin Flow
+    RoleSelect -->|Admin| AdminLogin[Administrator Login]
+    AdminLogin --> AdminDashboard[Admin Dashboard<br/>System Overview<br/>User Management<br/>System Configuration<br/>Security Monitoring]
+    
+    %% User Management
+    AdminDashboard --> UserAdmin[User Administration<br/>Create/Manage Users<br/>Role Assignments<br/>Account Status<br/>Bulk Operations]
+    UserAdmin --> CreateUser[Create New User<br/>Assign Role & ID<br/>Set Permissions<br/>Send Credentials]
+    CreateUser --> AuditUsers[Audit User Activities<br/>Login History<br/>Permission Changes<br/>System Access Logs]
+    
+    %% System Configuration
+    AdminDashboard --> SystemConfig[System Configuration<br/>Global Settings<br/>Security Policies<br/>Integration Setup<br/>Backup Configuration]
+    SystemConfig --> BackupMgmt[Backup Management<br/>Schedule Backups<br/>Test Recovery<br/>Monitor Backup Health]
+    
+    %% Monitoring & Security
+    AdminDashboard --> SecurityMonitor[Security Monitoring<br/>Failed Login Attempts<br/>Proctoring Alerts<br/>System Anomalies<br/>Compliance Reports]
+    SecurityMonitor --> IncidentResponse[Incident Response<br/>Investigate Alerts<br/>Lock Accounts<br/>Generate Reports<br/>Notify Stakeholders]
+    
+    %% Analytics & Insights
+    AdminDashboard --> SystemAnalytics[System Analytics<br/>Usage Statistics<br/>Performance Metrics<br/>User Engagement<br/>System Health Trends]
+    SystemAnalytics --> GenerateInsights[Generate Insights<br/>Usage Patterns<br/>Performance Optimization<br/>Capacity Planning<br/>Improvement Recommendations]
+    
+    %% Error Handling
+    CreateExam -->|Validation Error| ValidationFix[Fix Validation Issues<br/>Correct Question Format<br/>Adjust Settings<br/>Resolve Conflicts]
+    PublishExam -->|Publish Error| PublishRetry[Retry Publishing<br/>Check Dependencies<br/>Verify Permissions<br/>Log Error Details]
+    
+    %% Styling
+    classDef entry fill:#e3f2fd,stroke:#0ea5e9,stroke-width:2px
+    classDef process fill:#cce5ff,stroke:#004085,stroke-width:2px
+    classDef success fill:#d1ecf1,stroke:#0c5460,stroke-width:2px
+    classDef warning fill:#fff3cd,stroke:#856404,stroke-width:2px
+    classDef admin fill:#e2e3e6,stroke:#6c757d,stroke-width:2px
+    classDef monitoring fill:#f8f9fa,stroke:#dc3545,stroke-width:2px
+    
+    class Start entry
+    class TeacherLogin,TeacherDashboard,CreateExam,AddQuestions,ConfigureSettings,ReviewExam,PublishExam,TrackExam,ManageExams,SelectExisting,EditExam,UpdatePublished,ViewAnalytics,StudentMgmt,ViewProgress,Intervene,Results,GenerateReports,ShareReports process
+    class AdminLogin,AdminDashboard,UserAdmin,CreateUser,AuditUsers,SystemConfig,BackupMgmt,SecurityMonitor,SystemAnalytics,GenerateInsights admin
+    class PublishChoice,RepublishChoice success
+    class ValidationFix,PublishRetry warning
+    class Notifications,ProgressTrack,SecurityMonitor,IncidentResponse monitoring
+```
+
+**Explanation:**
+The Teacher/Admin User Flow Diagram demonstrates the comprehensive workflows for educational administrators and teachers. It shows the complete exam lifecycle from creation through publishing and monitoring, student management capabilities, and administrative functions. The diagram highlights the system's robust features for educational management including analytics, reporting, user administration, and system configuration. The flow emphasizes efficiency through bulk operations, automation, and comprehensive monitoring capabilities.
+
 ## 8. Future Improvements & Roadmap
 
 ### Short-term Enhancements (3-6 months)
