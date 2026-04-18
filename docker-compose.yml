@@ -30,6 +30,8 @@ services:
         VITE_API_URL: https://secure-exam.duckdns.org/api
         VITE_AI_URL: https://secure-exam.duckdns.org/ai
         VITE_ENVIRONMENT: production
+    ports:
+      - "3000:80"
     depends_on:
       - backend
       - ai-proctoring
