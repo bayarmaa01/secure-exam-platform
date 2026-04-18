@@ -375,7 +375,7 @@ export default function ExamRoom() {
       attemptStarted.current = false
       hasInitialized.current = false // Reset for next mount
     }
-  }, [id, loadExam]) // Only depends on ID change
+  }, [id]) // Only depends on ID change
 
   // Anti-cheating setup - only runs when attempt is available and prevents duplicates
   const antiCheatingSetup = useRef(false)
@@ -406,7 +406,7 @@ export default function ExamRoom() {
       stopWebcam()
       antiCheatingSetup.current = false
     }
-  }, [attemptId, setupAntiCheating, handleFullscreenChange, handleKeyDown, handleVisibilityChange, preventContextMenu, preventCopyPaste, stopWebcam])
+  }, [attemptId])
 
   // Production-grade timer countdown effect
   useEffect(() => {
@@ -432,7 +432,7 @@ export default function ExamRoom() {
       console.log(`[${sessionId.current}] Timer reached zero, auto-submitting exam`)
       submitExam()
     }
-  }, [timeLeft, attemptId, submitting, submitExam])
+  }, [timeLeft, attemptId, submitting])
 
   // Production-grade auto-submit when exam time ends (backup check)
   useEffect(() => {
