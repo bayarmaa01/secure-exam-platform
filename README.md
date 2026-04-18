@@ -1573,13 +1573,58 @@ flowchart TD
 **Explanation:**
 The Teacher/Admin User Flow Diagram demonstrates the comprehensive workflows for educational administrators and teachers. It shows the complete exam lifecycle from creation through publishing and monitoring, student management capabilities, and administrative functions. The diagram highlights the system's robust features for educational management including analytics, reporting, user administration, and system configuration. The flow emphasizes efficiency through bulk operations, automation, and comprehensive monitoring capabilities.
 
-## 8. Future Improvements & Roadmap
+## 8. Production Deployment Guide
+
+### Quick Start
+
+```bash
+# 1. Update DuckDNS A record to point to your server IP
+# A record: secure-exam.duckdns.org → 4.247.154.224
+
+# 2. Setup SSL certificates
+chmod +x ssl-setup.sh
+./ssl-setup.sh
+
+# 3. Deploy with HTTPS
+docker-compose down -v
+docker-compose up -d --build
+
+# 4. Verify deployment
+curl -f https://secure-exam.duckdns.org/health
+```
+
+### Service URLs
+
+- **Frontend**: https://secure-exam.duckdns.org
+- **API**: https://secure-exam.duckdns.org/api
+- **AI Service**: https://secure-exam.duckdns.org/ai
+- **Grafana**: https://secure-exam.duckdns.org/grafana (admin/SecureGrafanaAdmin2024!)
+- **Prometheus**: https://secure-exam.duckdns.org/prometheus
+
+### Configuration Files
+
+#### docker-compose.yml
+- Frontend uses HTTPS URLs
+- Backend CORS configured for HTTPS
+- Grafana with proper domain settings
+- All services communicate via internal network
+- Only Nginx exposes ports 80/443
+
+#### nginx.conf
+- HTTP to HTTPS redirect
+- SSL termination with Let's Encrypt
+- Security headers and rate limiting
+- Proper routing for all services
+
+### Troubleshooting
+
+Use `DEPLOYMENT_CHECKLIST.md` for comprehensive validation and troubleshooting.
 
 ## 9. Diagram Rendering Help
 
 ### Viewing Mermaid Diagrams
 
-If the diagrams are not rendering properly, try these solutions:
+If diagrams are not rendering properly, try these solutions:
 
 #### Online Viewers
 - **GitHub/GitLab**: Should render automatically in README.md
@@ -1604,11 +1649,49 @@ mermaid-cli -i README.md -o diagrams.html
 5. **Try different viewers** if one doesn't work
 
 #### Alternative Diagram Formats
-If Mermaid continues to have issues, the diagrams can be recreated as:
+If Mermaid continues to have issues, diagrams can be recreated as:
 - **ASCII art** for simple text-based diagrams
 - **PlantUML** for UML-compatible viewers
 - **Draw.io** for visual editing
 - **SVG exports** for static images
+
+### Production Deployment
+
+The Secure Exam Platform is now production-ready with HTTPS, proper domain configuration, and comprehensive monitoring. All services communicate via internal Docker network with only Nginx exposed to the internet.
+
+#### Key Features
+- **HTTPS Enabled**: Let's Encrypt SSL certificates
+- **Domain-Based**: All services accessible via secure-exam.duckdns.org
+- **Secure**: CORS, rate limiting, security headers
+- **Scalable**: Docker networking, health checks
+- **Monitored**: Prometheus + Grafana integration
+- **Production-Ready**: One-command deployment
+
+#### Quick Deployment
+```bash
+# 1. Update DNS
+# A record: secure-exam.duckdns.org → your-server-ip
+
+# 2. Setup SSL
+./ssl-setup.sh
+
+# 3. Deploy
+docker-compose down -v
+docker-compose up -d --build
+```
+
+#### Access URLs
+- **Frontend**: https://secure-exam.duckdns.org
+- **API**: https://secure-exam.duckdns.org/api
+- **AI Service**: https://secure-exam.duckdns.org/ai
+- **Grafana**: https://secure-exam.duckdns.org/grafana
+- **Prometheus**: https://secure-exam.duckdns.org/prometheus
+
+#### Configuration Files
+- `docker-compose.yml`: Production-ready with HTTPS
+- `nginx.conf`: SSL termination and routing
+- `ssl-setup.sh`: Automated SSL certificate management
+- `DEPLOYMENT_CHECKLIST.md`: Comprehensive validation
 
 ### Current Diagram Status
 All diagrams have been added with proper Mermaid syntax:
