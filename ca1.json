@@ -2,181 +2,181 @@
   {
     "question": "What is cloud provisioning?",
     "type": "mcq",
-    "options": ["Manual hardware setup", "Allocating cloud resources on demand", "Writing application code", "Installing OS locally"],
+    "options": "{\"Manual hardware setup\", \"Allocating cloud resources on demand\", \"Writing application code\", \"Installing OS locally\"}",
     "answer": "Allocating cloud resources on demand"
   },
   {
     "question": "Which of the following is a cloud provider?",
     "type": "mcq",
-    "options": ["Linux", "AWS", "Git", "HTML"],
+    "options": "{\"Linux\", \"AWS\", \"Git\", \"HTML\"}",
     "answer": "AWS"
   },
   {
     "question": "Which is a benefit of cloud computing?",
     "type": "mcq",
-    "options": ["High upfront cost", "Scalability", "Limited access", "Manual provisioning"],
+    "options": "{\"High upfront cost\", \"Scalability\", \"Limited access\", \"Manual provisioning\"}",
     "answer": "Scalability"
   },
   {
     "question": "Which deployment model uses shared infrastructure?",
     "type": "mcq",
-    "options": ["Private", "Public", "Hybrid", "Local"],
+    "options": "{\"Private\", \"Public\", \"Hybrid\", \"Local\"}",
     "answer": "Public"
   },
   {
     "question": "Hybrid cloud combines:",
     "type": "mcq",
-    "options": ["Public + Private", "Private + Local", "Public + SaaS", "None"],
+    "options": "{\"Public + Private\", \"Private + Local\", \"Public + SaaS\", \"None\"}",
     "answer": "Public + Private"
   },
   {
     "question": "Which service model provides complete applications?",
     "type": "mcq",
-    "options": ["IaaS", "PaaS", "SaaS", "FaaS"],
+    "options": "{\"IaaS\", \"PaaS\", \"SaaS\", \"FaaS\"}",
     "answer": "SaaS"
   },
   {
     "question": "Which service model provides infrastructure?",
     "type": "mcq",
-    "options": ["SaaS", "PaaS", "IaaS", "DaaS"],
+    "options": "{\"SaaS\", \"PaaS\", \"IaaS\", \"DaaS\"}",
     "answer": "IaaS"
   },
   {
     "question": "Which service model provides platform for developers?",
     "type": "mcq",
-    "options": ["IaaS", "PaaS", "SaaS", "None"],
+    "options": "{\"IaaS\", \"PaaS\", \"SaaS\", \"None\"}",
     "answer": "PaaS"
   },
   {
     "question": "Provisioning lifecycle starts with:",
     "type": "mcq",
-    "options": ["Deployment", "Monitoring", "Request", "Scaling"],
+    "options": "{\"Deployment\", \"Monitoring\", \"Request\", \"Scaling\"}",
     "answer": "Request"
   },
   {
     "question": "Automated provisioning uses:",
     "type": "mcq",
-    "options": ["Manual setup", "Scripts/tools", "Human input only", "Hardware devices"],
+    "options": "{\"Manual setup\", \"Scripts/tools\", \"Human input only\", \"Hardware devices\"}",
     "answer": "Scripts/tools"
   },
   {
     "question": "Cloud automation means:",
     "type": "mcq",
-    "options": ["Manual resource allocation", "Automating cloud tasks", "Deleting servers", "None"],
+    "options": "{\"Manual resource allocation\", \"Automating cloud tasks\", \"Deleting servers\", \"None\"}",
     "answer": "Automating cloud tasks"
   },
   {
     "question": "Benefit of cloud automation:",
     "type": "mcq",
-    "options": ["Slower process", "More errors", "Reduced human effort", "High cost"],
+    "options": "{\"Slower process\", \"More errors\", \"Reduced human effort\", \"High cost\"}",
     "answer": "Reduced human effort"
   },
   {
     "question": "Cloud automation is used for:",
     "type": "mcq",
-    "options": ["Cooking", "Deployment", "Gaming", "Typing"],
+    "options": "{\"Cooking\", \"Deployment\", \"Gaming\", \"Typing\"}",
     "answer": "Deployment"
   },
   {
     "question": "What is SonarQube?",
     "type": "mcq",
-    "options": ["Database", "Code quality tool", "Compiler", "Cloud provider"],
+    "options": "{\"Database\", \"Code quality tool\", \"Compiler\", \"Cloud provider\"}",
     "answer": "Code quality tool"
   },
   {
     "question": "SonarQube checks for:",
     "type": "mcq",
-    "options": ["Syntax errors only", "Code quality issues", "Hardware issues", "Network latency"],
+    "options": "{\"Syntax errors only\", \"Code quality issues\", \"Hardware issues\", \"Network latency\"}",
     "answer": "Code quality issues"
   },
   {
     "question": "Which is a feature of SonarQube?",
     "type": "mcq",
-    "options": ["Code duplication detection", "Gaming support", "Video editing", "None"],
+    "options": "{\"Code duplication detection\", \"Gaming support\", \"Video editing\", \"None\"}",
     "answer": "Code duplication detection"
   },
   {
     "question": "Code scanner is used to:",
     "type": "mcq",
-    "options": ["Run code", "Analyze code", "Delete code", "Compile code"],
+    "options": "{\"Run code\", \"Analyze code\", \"Delete code\", \"Compile code\"}",
     "answer": "Analyze code"
   },
   {
     "question": "Code scanners improve:",
     "type": "mcq",
-    "options": ["Hardware", "Code quality", "Internet speed", "Storage"],
+    "options": "{\"Hardware\", \"Code quality\", \"Internet speed\", \"Storage\"}",
     "answer": "Code quality"
   },
   {
     "question": "Migration from on-premise to cloud means:",
     "type": "mcq",
-    "options": ["Deleting servers", "Moving apps to cloud", "Installing OS", "None"],
+    "options": "{\"Deleting servers\", \"Moving apps to cloud\", \"Installing OS\", \"None\"}",
     "answer": "Moving apps to cloud"
   },
   {
     "question": "Cloud migration is:",
     "type": "mcq",
-    "options": ["Local storage", "Moving data/apps to cloud", "Coding practice", "None"],
+    "options": "{\"Local storage\", \"Moving data/apps to cloud\", \"Coding practice\", \"None\"}",
     "answer": "Moving data/apps to cloud"
   },
   {
     "question": "Which is a migration strategy?",
     "type": "mcq",
-    "options": ["Rehost", "Restart", "Rewrite only", "Shutdown"],
+    "options": "{\"Rehost\", \"Restart\", \"Rewrite only\", \"Shutdown\"}",
     "answer": "Rehost"
   },
   {
     "question": "Benefit of cloud migration:",
     "type": "mcq",
-    "options": ["High cost", "Scalability", "Low performance", "Manual work"],
+    "options": "{\"High cost\", \"Scalability\", \"Low performance\", \"Manual work\"}",
     "answer": "Scalability"
   },
   {
     "question": "Network security ensures:",
     "type": "mcq",
-    "options": ["Data protection", "Slow speed", "High cost", "None"],
+    "options": "{\"Data protection\", \"Slow speed\", \"High cost\", \"None\"}",
     "answer": "Data protection"
   },
   {
     "question": "Microservices are:",
     "type": "mcq",
-    "options": ["Large monolithic apps", "Small independent services", "Databases", "Networks"],
+    "options": "{\"Large monolithic apps\", \"Small independent services\", \"Databases\", \"Networks\"}",
     "answer": "Small independent services"
   },
   {
     "question": "Microservices communicate using:",
     "type": "mcq",
-    "options": ["API", "Keyboard", "Mouse", "Disk"],
+    "options": "{\"API\", \"Keyboard\", \"Mouse\", \"Disk\"}",
     "answer": "API"
   },
   {
     "question": "AKS stands for:",
     "type": "mcq",
-    "options": ["Azure Kubernetes Service", "Amazon Kubernetes Service", "Advanced Kubernetes System", "None"],
+    "options": "{\"Azure Kubernetes Service\", \"Amazon Kubernetes Service\", \"Advanced Kubernetes System\", \"None\"}",
     "answer": "Azure Kubernetes Service"
   },
   {
     "question": "Benefit of AKS:",
     "type": "mcq",
-    "options": ["Manual scaling", "Auto-scaling", "High cost", "No monitoring"],
+    "options": "{\"Manual scaling\", \"Auto-scaling\", \"High cost\", \"No monitoring\"}",
     "answer": "Auto-scaling"
   },
   {
     "question": "EKS stands for:",
     "type": "mcq",
-    "options": ["Elastic Kubernetes Service", "External Kubernetes Service", "Enhanced Kubernetes System", "None"],
+    "options": "{\"Elastic Kubernetes Service\", \"External Kubernetes Service\", \"Enhanced Kubernetes System\", \"None\"}",
     "answer": "Elastic Kubernetes Service"
   },
   {
     "question": "EKS is provided by:",
     "type": "mcq",
-    "options": ["Azure", "AWS", "Google", "IBM"],
+    "options": "{\"Azure\", \"AWS\", \"Google\", \"IBM\"}",
     "answer": "AWS"
   },
   {
     "question": "Benefit of EKS:",
     "type": "mcq",
-    "options": ["Manual deployment", "Managed Kubernetes", "No scaling", "Low security"],
+    "options": "{\"Manual deployment\", \"Managed Kubernetes\", \"No scaling\", \"Low security\"}",
     "answer": "Managed Kubernetes"
   }
 ]
