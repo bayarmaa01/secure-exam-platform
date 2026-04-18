@@ -121,6 +121,17 @@ const limiter = rateLimit({
 })
 app.use('/api', limiter)
 
+// Debug middleware to track all requests
+app.use('/api', (req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - Headers:`, {
+    'content-type': req.headers['content-type'],
+    'authorization': req.headers.authorization ? 'PRESENT' : 'MISSING',
+    'content-length': req.headers['content-length']
+  })
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - Body:`, req.body)
+  next()
+})
+
 // Routes
 app.use('/api/auth', authRoutes)
 app.use('/api', attemptsApiRoutes)

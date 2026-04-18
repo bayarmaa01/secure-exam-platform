@@ -16,6 +16,17 @@ router.post('/attempts/test', (req, res) => {
   })
 })
 
+// Simple test endpoint without auth to verify basic routing
+router.post('/attempts/ping', (req, res) => {
+  console.log('PING ENDPOINT - Request received:', req.body)
+  res.json({ 
+    success: true, 
+    message: 'Ping endpoint working',
+    body: req.body,
+    timestamp: new Date().toISOString()
+  })
+})
+
 // Prometheus metrics for attempts
 const attemptsTotal = new Counter({
   name: 'attempts_total',
