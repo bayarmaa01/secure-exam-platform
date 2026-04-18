@@ -1,8 +1,11 @@
 FROM node:20-alpine AS builder
 
-# Set build arguments for versioning
+# Set build arguments for versioning and environment
 ARG APP_VERSION=unknown
 ARG BUILD_DATE=unknown
+ARG VITE_API_URL
+ARG VITE_AI_URL
+ARG VITE_ENVIRONMENT
 
 WORKDIR /app
 COPY package*.json ./
@@ -12,7 +15,7 @@ RUN npm ci --no-cache && npm cache clean --force
 
 COPY . .
 
-# Build with version info
+# Build with environment variables
 RUN npm run build
 
 # Create version file

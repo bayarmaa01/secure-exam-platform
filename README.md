@@ -1575,6 +1575,51 @@ The Teacher/Admin User Flow Diagram demonstrates the comprehensive workflows for
 
 ## 8. Future Improvements & Roadmap
 
+## 9. Diagram Rendering Help
+
+### Viewing Mermaid Diagrams
+
+If the diagrams are not rendering properly, try these solutions:
+
+#### Online Viewers
+- **GitHub/GitLab**: Should render automatically in README.md
+- **Mermaid Live Editor**: https://mermaid.live/
+- **Mermaid Online**: https://mermaid-js.github.io/mermaid-live-editor/
+- **VS Code**: Install Mermaid Preview extension
+
+#### Local Setup
+```bash
+# Install Mermaid CLI
+npm install -g @mermaid-js/mermaid-cli
+
+# Convert README.md to HTML
+mermaid-cli -i README.md -o diagrams.html
+```
+
+#### Troubleshooting Tips
+1. **Check for syntax errors** in the Mermaid blocks
+2. **Ensure proper spacing** around diagram elements
+3. **Verify bracket matching** for all opening/closing pairs
+4. **Check line endings** (LF vs CRLF can cause issues)
+5. **Try different viewers** if one doesn't work
+
+#### Alternative Diagram Formats
+If Mermaid continues to have issues, the diagrams can be recreated as:
+- **ASCII art** for simple text-based diagrams
+- **PlantUML** for UML-compatible viewers
+- **Draw.io** for visual editing
+- **SVG exports** for static images
+
+### Current Diagram Status
+All diagrams have been added with proper Mermaid syntax:
+- ✅ Figure 3.1 – System Use Case Diagram
+- ✅ Figure 4.1 – High-Level System Architecture Diagram  
+- ✅ Figure 4.2 – Entity-Relationship (ER) Diagram
+- ✅ Figure 4.3 – API Request-Response Flow Diagram
+- ✅ Figure 4.4 – Authentication and Session Flow
+- ✅ Figure 6.1 – Student User Flow Diagram
+- ✅ Figure 6.2 – Teacher/Admin User Flow Diagram
+
 ### Short-term Enhancements (3-6 months)
 
 #### 1. Kubernetes Production Deployment
