@@ -6,6 +6,16 @@ import { auth, AuthRequest, requireStudent } from '../middleware/auth'
 
 const router = Router()
 
+// Test endpoint to verify routing works
+router.post('/attempts/test', (req, res) => {
+  console.log('TEST ENDPOINT - Request received:', req.body)
+  res.json({ 
+    success: true, 
+    message: 'Test endpoint working',
+    body: req.body 
+  })
+})
+
 // Prometheus metrics for attempts
 const attemptsTotal = new Counter({
   name: 'attempts_total',
@@ -39,14 +49,28 @@ router.post('/attempts/start',
       'authorization': req.headers.authorization ? 'PRESENT' : 'MISSING',
       'user-agent': req.headers['user-agent']
     })
-    console.log('DEBUG: Request body:', req.body)
+    console.log('DEBUG: Raw request body type:', typeof req.body)
+    console.log('DEBUG: Raw request body:', req.body)
     console.log('DEBUG: Request user from auth middleware:', req.user)
+    
+    // Check if body parser worked correctly
+    if (!req.body || Object.keys(req.body).length === 0) {
+      console.log('ERROR: Request body is empty or undefined')
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Request body is empty or undefined' 
+      })
+    }
     
     try {
       const errors = validationResult(req)
+      console.log('DEBUG: Validation result - isEmpty:', errors.isEmpty())
       if (!errors.isEmpty()) {
-        console.log('VALIDATION FAILED - Errors:', errors.array())
-        console.log('VALIDATION FAILED - Request body was:', req.body)
+        console.log('VALIDATION FAILED - Errors:', JSON.stringify(errors.array(), null, 2))
+        console.log('VALIDATION FAILED - Request body was:', JSON.stringify(req.body, null, 2))
+        console.log('VALIDATION FAILED - Body keys:', Object.keys(req.body))
+        console.log('VALIDATION FAILED - examId value:', req.body?.examId)
+        console.log('VALIDATION FAILED - examId type:', typeof req.body?.examId)
         return res.status(400).json({ 
           success: false, 
           message: 'Validation failed',
@@ -359,4 +383,4 @@ router.post('/api/attempts/submit',
   }
 )
 
-export { router as attemptsApiRoutes }
+export default router
