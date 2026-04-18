@@ -41,12 +41,13 @@ export default function ExamRoom() {
   const [examEndTime, setExamEndTime] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
   
-  // Refs for production-grade safety
+  // Refs for production-grade safety and state stability
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const timerRef = useRef<number | null>(null)
   const webcamIntervalRef = useRef<number | null>(null)
   const isMounted = useRef(true)
+  const hasInitialized = useRef(false) // Prevents duplicate execution
   const isLoadingExam = useRef(false)
   const isStartingAttempt = useRef(false)
   const attemptStarted = useRef(false)
@@ -354,12 +355,15 @@ export default function ExamRoom() {
 
   // Main useEffect - Load exam data once when component mounts or ID changes
   useEffect(() => {
-    if (!id || !isMounted.current || isLoadingExam.current) {
-      console.log(`[${sessionId.current}] useEffect skipping load - id: ${!!id}, mounted: ${isMounted.current}, loading: ${isLoadingExam.current}`)
+    // One-time execution guard - prevents duplicate calls
+    if (!id || !isMounted.current || isLoadingExam.current || hasInitialized.current) {
+      console.log(`[${sessionId.current}] useEffect skipping load - id: ${!!id}, mounted: ${isMounted.current}, loading: ${isLoadingExam.current}, initialized: ${hasInitialized.current}`)
       return
     }
     
     console.log(`[${sessionId.current}] ExamRoom useEffect triggering, loading exam: ${id}`)
+    hasInitialized.current = true // Mark as initialized
+    setLoading(true) // Show loading state
     loadExam()
     
     return () => {
@@ -368,18 +372,23 @@ export default function ExamRoom() {
       isLoadingExam.current = false
       isStartingAttempt.current = false
       attemptStarted.current = false
+      hasInitialized.current = false // Reset for next mount
     }
-  }, [id]) // REMOVED loadExam from dependencies - React StrictMode safe
+  }, [id]) // Only depends on ID change
 
-  // Anti-cheating setup - only runs when attempt is available
+  // Anti-cheating setup - only runs when attempt is available and prevents duplicates
+  const antiCheatingSetup = useRef(false)
+  
   useEffect(() => {
-    if (!attemptId || !isMounted.current) return
+    if (!attemptId || !isMounted.current || antiCheatingSetup.current) return
     
     console.log(`[${sessionId.current}] Setting up anti-cheating for attempt: ${attemptId}`)
     setupAntiCheating()
+    antiCheatingSetup.current = true
     
     return () => {
       console.log(`[${sessionId.current}] Cleaning up anti-cheating measures`)
+      
       // Remove event listeners to prevent memory leaks
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
       document.removeEventListener('keydown', handleKeyDown)
@@ -393,6 +402,7 @@ export default function ExamRoom() {
         timerRef.current = null
       }
       stopWebcam()
+      antiCheatingSetup.current = false
     }
   }, [attemptId, setupAntiCheating, handleFullscreenChange, handleKeyDown, handleVisibilityChange, preventContextMenu, preventCopyPaste, stopWebcam])
 
@@ -433,19 +443,21 @@ export default function ExamRoom() {
     }
   }, [examEndTime, attemptId, submitting, submitExam])
 
-  // StrictMode-safe cleanup on component unmount
+  // StrictMode-safe cleanup on component unmount (DO NOT reset attemptStarted)
   useEffect(() => {
     return () => {
-      console.log(`[${sessionId.current}] StrictMode cleanup - resetting all guards`)
+      console.log(`[${sessionId.current}] Component unmounting - cleaning up resources`)
       isStartingAttempt.current = false
-      attemptStarted.current = false
       isLoadingExam.current = false
       isMounted.current = false
+      // NOTE: Do NOT reset attemptStarted.current - it should persist
+      // NOTE: Do NOT reset hasInitialized.current - it should persist
     }
   }, [])
 
   const currentQuestion = questions[currentQuestionIndex]
 
+  // Conditional rendering - prevent "Exam not found" flicker
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -457,15 +469,18 @@ export default function ExamRoom() {
     )
   }
 
-  if (error) {
+  // Only show error if not loading AND error exists
+  if (!loading && error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Exam</h1>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <div className="bg-red-100 border border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+            <h2 className="text-lg font-semibold mb-2">Error Loading Exam</h2>
+            <p className="text-gray-600">{error}</p>
+          </div>
           <button
             onClick={() => navigate('/student/exams')}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
             Back to Exams
           </button>
