@@ -27,6 +27,16 @@ router.post('/attempts/ping', (req, res) => {
   })
 })
 
+// Health check for attempts-api
+router.get('/attempts/health', (req, res) => {
+  console.log('ATTEMPTS-API HEALTH CHECK')
+  res.json({ 
+    success: true, 
+    message: 'Attempts API is working',
+    timestamp: new Date().toISOString()
+  })
+})
+
 // Prometheus metrics for attempts
 const attemptsTotal = new Counter({
   name: 'attempts_total',
