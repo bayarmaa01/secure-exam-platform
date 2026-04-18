@@ -414,4 +414,5 @@ router.post('/attempts/submit',
   }
 )
 
+export const attemptsApiRoutes = router
 export default router
