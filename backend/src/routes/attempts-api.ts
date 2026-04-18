@@ -33,17 +33,28 @@ router.post('/attempts/start',
     body('examId').notEmpty().withMessage('Exam ID is required')
   ],
   async (req: AuthRequest, res) => {
-    console.log(`[${new Date().toISOString()}] POST /api/attempts/start - User: ${req.user?.id}, Exam: ${req.body.examId}`)
+    console.log(`[${new Date().toISOString()}] POST /api/attempts/start - REQUEST RECEIVED`)
+    console.log('DEBUG: Request headers:', {
+      'content-type': req.headers['content-type'],
+      'authorization': req.headers.authorization ? 'PRESENT' : 'MISSING',
+      'user-agent': req.headers['user-agent']
+    })
+    console.log('DEBUG: Request body:', req.body)
+    console.log('DEBUG: Request user from auth middleware:', req.user)
     
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
-        console.log('Validation errors:', errors.array())
+        console.log('VALIDATION FAILED - Errors:', errors.array())
+        console.log('VALIDATION FAILED - Request body was:', req.body)
         return res.status(400).json({ 
           success: false, 
+          message: 'Validation failed',
           errors: errors.array() 
         })
       }
+      
+      console.log('VALIDATION PASSED - Proceeding with attempt start')
 
       const { examId } = req.body
       const studentId = req.user!.id

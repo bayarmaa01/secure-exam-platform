@@ -42,6 +42,8 @@ export default function ExamRoom() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const timerRef = useRef<number | null>(null)
   const isMounted = useRef(true) // Prevent state updates on unmount
+  const isLoadingExam = useRef(false) // Prevent duplicate exam loads
+  const isStartingAttempt = useRef(false) // Prevent duplicate attempt starts
 
   const submitExam = useCallback(async () => {
     if (!attemptId || submitting) return
@@ -63,14 +65,19 @@ export default function ExamRoom() {
   }, [attemptId, submitting, answers, cheatingWarnings, navigate])
 
   const loadExam = useCallback(async () => {
-    if (!id || !isMounted.current) return
+    if (!id || !isMounted.current || isLoadingExam.current) {
+      console.log('DEBUG: Skipping exam load - id:', !!id, 'mounted:', isMounted.current, 'loading:', isLoadingExam.current)
+      return
+    }
     
-    console.log('DEBUG: Fetching exam data for ID:', id)
+    console.log('DEBUG: Starting exam load for ID:', id)
+    isLoadingExam.current = true
     setLoading(true)
     setError(null)
     
     try {
       // First fetch exam data
+      console.log('DEBUG: Fetching exam data for ID:', id)
       const examResponse = await api.get(`/exams/${id}`)
       const examData = examResponse.data
       console.log('DEBUG: Exam data loaded successfully:', examData.title)
@@ -83,47 +90,67 @@ export default function ExamRoom() {
       setTimeLeft(examData.durationMinutes * 60)
       setExamEndTime(new Date(examData.endTime))
       
-      // Then try to start exam attempt
-      try {
-        console.log('DEBUG: Attempting to start exam attempt for:', id)
-        const attemptResponse = await api.post(`/attempts/start`, { examId: id })
+      // Then try to start exam attempt (only if not already starting)
+      if (!isStartingAttempt.current) {
+        isStartingAttempt.current = true
         
-        if (attemptResponse.data.success) {
-          setAttemptId(attemptResponse.data.attemptId)
-          console.log('DEBUG: Exam attempt started:', attemptResponse.data.attemptId)
-        } else {
-          throw new Error(attemptResponse.data.message || 'Failed to start exam attempt')
-        }
-      } catch (attemptError) {
-        console.error('DEBUG: Failed to start exam attempt:', attemptError)
-        
-        // Handle specific cases for attempt start failures
-        if (attemptError instanceof Error) {
-          const errorMessage = attemptError.message
+        try {
+          console.log('DEBUG: Attempting to start exam attempt for:', id)
           
-          // Check if student already has an active attempt
-          if (errorMessage.includes('already have an active attempt')) {
-            console.log('DEBUG: Student already has active attempt, checking attempt ID')
-            // Try to get the attempt ID from the error response
-            const errorData = (attemptError as any).response?.data
-            if (errorData?.attemptId) {
-              setAttemptId(errorData.attemptId)
-              console.log('DEBUG: Using existing attempt ID:', errorData.attemptId)
-              return // Don't throw error, continue with existing attempt
+          // Validate payload before sending
+          const payload = { examId: id }
+          console.log('DEBUG: Sending payload to /attempts/start:', payload)
+          
+          const attemptResponse = await api.post(`/attempts/start`, payload)
+          
+          console.log('DEBUG: Attempt response received:', attemptResponse.data)
+          
+          if (attemptResponse.data.success) {
+            setAttemptId(attemptResponse.data.attemptId)
+            console.log('DEBUG: Exam attempt started:', attemptResponse.data.attemptId)
+          } else {
+            throw new Error(attemptResponse.data.message || 'Failed to start exam attempt')
+          }
+        } catch (attemptError) {
+          console.error('DEBUG: Failed to start exam attempt:', attemptError)
+          
+          // Handle specific cases for attempt start failures
+          if (attemptError instanceof Error) {
+            const errorMessage = attemptError.message
+            
+            // Check if student already has an active attempt
+            if (errorMessage.includes('already have an active attempt')) {
+              console.log('DEBUG: Student already has active attempt, checking attempt ID')
+              // Try to get the attempt ID from the error response
+              const errorData = (attemptError as any).response?.data
+              if (errorData?.attemptId) {
+                setAttemptId(errorData.attemptId)
+                console.log('DEBUG: Using existing attempt ID:', errorData.attemptId)
+                return // Don't throw error, continue with existing attempt
+              }
             }
+            
+            // Check if student has completed the exam and is retaking
+            if (errorMessage.includes('already completed this exam')) {
+              console.log('DEBUG: Student retaking completed exam, should create new attempt')
+              // This should be handled by backend retake logic
+              throw new Error('Please contact your instructor to retake this exam')
+            }
+            
+            // For validation errors, show specific message
+            if (errorMessage.includes('Validation failed')) {
+              const validationErrors = (attemptError as any).response?.data?.errors
+              console.log('DEBUG: Validation errors:', validationErrors)
+              throw new Error(`Invalid request: ${validationErrors?.[0]?.msg || errorMessage}`)
+            }
+            
+            // For other attempt errors, show specific message
+            throw new Error(`Cannot start exam: ${errorMessage}`)
+          } else {
+            throw new Error('Failed to start exam attempt')
           }
-          
-          // Check if student has completed the exam and is retaking
-          if (errorMessage.includes('already completed this exam')) {
-            console.log('DEBUG: Student retaking completed exam, should create new attempt')
-            // This should be handled by backend retake logic
-            throw new Error('Please contact your instructor to retake this exam')
-          }
-          
-          // For other attempt errors, show specific message
-          throw new Error(`Cannot start exam: ${errorMessage}`)
-        } else {
-          throw new Error('Failed to start exam attempt')
+        } finally {
+          isStartingAttempt.current = false
         }
       }
       
@@ -146,6 +173,7 @@ export default function ExamRoom() {
       if (isMounted.current) {
         setLoading(false)
       }
+      isLoadingExam.current = false
     }
   }, [id, navigate])
 
@@ -274,14 +302,19 @@ export default function ExamRoom() {
 
   // Main useEffect - Load exam data once when component mounts or ID changes
   useEffect(() => {
-    if (!id || !isMounted.current) return
+    if (!id || !isMounted.current || isLoadingExam.current) {
+      console.log('DEBUG: useEffect skipping load - id:', !!id, 'mounted:', isMounted.current, 'loading:', isLoadingExam.current)
+      return
+    }
     
-    console.log('DEBUG: ExamRoom component mounted, loading exam:', id)
+    console.log('DEBUG: ExamRoom useEffect triggering, loading exam:', id)
     loadExam()
     
     return () => {
       console.log('DEBUG: ExamRoom component unmounting, cleaning up')
       isMounted.current = false
+      isLoadingExam.current = false
+      isStartingAttempt.current = false
     }
   }, [id, loadExam])
 
