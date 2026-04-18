@@ -27,8 +27,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: /api
-        VITE_AI_URL: /ai
+        VITE_API_URL: https://secure-exam.duckdns.org/api
+        VITE_AI_URL: https://secure-exam.duckdns.org/ai
         VITE_ENVIRONMENT: production
     depends_on:
       - backend
@@ -49,14 +49,14 @@ services:
       dockerfile: Dockerfile
     environment:
       AI_SERVICE_URL: http://ai-proctoring:8000
-      ALLOWED_ORIGINS: http://secure-exam.duckdns.org
-      CORS_ORIGIN: http://secure-exam.duckdns.org
+      ALLOWED_ORIGINS: https://secure-exam.duckdns.org
+      CORS_ORIGIN: https://secure-exam.duckdns.org
       DB_HOST: postgres
       DB_NAME: exam_platform
       DB_PASSWORD: SecureExamPlatform2024!
       DB_PORT: '5432'
       DB_USER: postgres
-      FRONTEND_URL: http://secure-exam.duckdns.org
+      FRONTEND_URL: https://secure-exam.duckdns.org
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
       JWT_REFRESH_SECRET: SecureExamPlatformRefreshSecret2024!ProductionKey256BitsMinimum
@@ -136,7 +136,7 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_DOMAIN: secure-exam.duckdns.org
-      GF_SERVER_ROOT_URL: http://secure-exam.duckdns.org/grafana
+      GF_SERVER_ROOT_URL: https://secure-exam.duckdns.org/grafana
     depends_on:
       - prometheus
     restart: unless-stopped
@@ -148,8 +148,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-      - redis
-    restart: unless-stopped
+      restart: unless-stopped
     networks:
       - exam-network
     volumes:
