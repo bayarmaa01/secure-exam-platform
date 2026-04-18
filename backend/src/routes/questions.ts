@@ -172,7 +172,7 @@ router.post('/exams/:examId/questions/upload',
             VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
           `
-          const values = [examId, question_text, type, options, correct_answer, points]
+          const values = [examId, question_text, type, JSON.stringify(options), correct_answer, points]
           const r = await pool.query(query, values)
           insertedQuestions.push(r.rows[0])
         } catch (error) {
