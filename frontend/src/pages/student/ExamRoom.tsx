@@ -159,7 +159,9 @@ export default function ExamRoom() {
       console.log(`[${sessionId.current}] Sending payload to /attempts/start:`, payload)
       
       const response = await api.post(`/attempts/start`, payload)
-      console.log(`[${sessionId.current}] Attempt response received:`, response.data)
+      console.log(`[${sessionId.current}] FULL RESPONSE:`, response)
+      console.log(`[${sessionId.current}] RESPONSE DATA:`, response.data)
+      console.log(`[${sessionId.current}] RESPONSE.DATA.DATA:`, response.data.data)
       
       // CRITICAL FIX: Correct response parsing
       const attempt = response.data.data
