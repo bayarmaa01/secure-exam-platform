@@ -1,26 +1,47 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
-// Note: React Query example - install with: npm install @tanstack/react-query
+/*
+ * REACT QUERY MIGRATION TEMPLATE
+ * 
+ * This file demonstrates how to migrate ExamRoom.tsx to React Query
+ * for better caching, deduplication, and data fetching patterns.
+ * 
+ * TO USE:
+ * 1. Install React Query: npm install @tanstack/react-query
+ * 2. Uncomment the imports below
+ * 3. Copy the component code to replace ExamRoom.tsx
+ * 4. Set up QueryClientProvider in App.tsx
+ * 
+ * BENEFITS:
+ * - Automatic caching and deduplication
+ * - Background refetching and stale-while-revalidate
+ * - Optimistic updates and mutation handling
+ * - Better loading states and error boundaries
+ * - DevTools for debugging
+ */
+
+// Uncomment these imports after installing @tanstack/react-query
+// import { useState, useEffect, useRef, useCallback } from 'react'
+// import { useParams, useNavigate } from 'react-router-dom'
+// import { useAuth } from '../../contexts/AuthContext'
 // import { useQuery, useMutation } from '@tanstack/react-query'
-import api from '../../api'
+// import api from '../../api'
 
-interface Question {
-  id: string
-  text: string
-  options: string[]
-  type: 'mcq' | 'text'
-  points: number
-}
+// Uncomment these interfaces after installing React Query
+// interface Question {
+//   id: string
+//   text: string
+//   options: string[]
+//   type: 'mcq' | 'text'
+//   points: number
+// }
 
-interface Exam {
-  id: string
-  title: string
-  description: string
-  durationMinutes: number
-  scheduledAt: string
-  status: string
-}
+// interface Exam {
+//   id: string
+//   title: string
+//   description: string
+//   durationMinutes: number
+//   scheduledAt: string
+//   status: string
+// }
 
 /*
  * REACT QUERY MIGRATION TEMPLATE
