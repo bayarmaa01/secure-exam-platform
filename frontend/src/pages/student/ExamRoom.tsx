@@ -50,7 +50,7 @@ export default function ExamRoom() {
   const isLoadingExam = useRef(false)
   const isStartingAttempt = useRef(false)
   const attemptStarted = useRef(false)
-  const sessionId = useRef<string>(`session_${Date.now()}_${Math.random()}`) // Unique session ID
+  const sessionId = useRef<string>(`session_${Date.now()}`) // Clean session ID without random decimals
 
   // Production-grade submit exam with proper error handling and unmount protection
   const submitExam = useCallback(async () => {

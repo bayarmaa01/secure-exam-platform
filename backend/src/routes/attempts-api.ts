@@ -56,227 +56,152 @@ const attemptDuration = new Histogram({
   labelNames: ['exam_id']
 })
 
-// POST /api/attempts/start - Start a new exam attempt
+// POST /api/attempts/start - Start a new exam attempt (IDEMPOTENT VERSION)
 router.post('/attempts/start',
   auth,
   requireStudent,
   [
-    body('examId').notEmpty().withMessage('Exam ID is required')
+    body('examId').notEmpty().withMessage('Exam ID is required'),
+    body('sessionId').notEmpty().withMessage('Session ID is required')
   ],
   async (req: AuthRequest, res) => {
-    console.log('\n=== POST /api/attempts/start - DETAILED DEBUG ===')
-    console.log('TIMESTAMP:', new Date().toISOString())
-    console.log('REQUEST HEADERS:', {
-      'content-type': req.headers['content-type'],
-      'authorization': req.headers.authorization ? 'PRESENT' : 'MISSING',
-      'user-agent': req.headers['user-agent'],
-      'content-length': req.headers['content-length']
-    })
-    console.log('REQUEST BODY TYPE:', typeof req.body)
-    console.log('REQUEST BODY KEYS:', Object.keys(req.body || {}))
-    console.log('REQUEST BODY:', JSON.stringify(req.body, null, 2))
-    console.log('AUTH USER:', {
-      id: req.user?.id,
-      email: req.user?.email,
-      role: req.user?.role
-    })
-    
-    // Check if body parser worked correctly
-    if (!req.body || Object.keys(req.body).length === 0) {
-      console.log('ERROR: Request body is empty or undefined')
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Request body is empty or undefined',
-        debug: {
-          bodyType: typeof req.body,
-          bodyKeys: Object.keys(req.body || {}),
-          contentType: req.headers['content-type']
-        }
-      })
-    }
-    
     try {
-      const errors = validationResult(req)
-      console.log('VALIDATION RESULT:', {
-        isEmpty: errors.isEmpty(),
-        errors: errors.array()
-      })
+      console.log(`[${new Date().toISOString()}] POST /api/attempts/start - Starting attempt logic`)
       
-      if (!errors.isEmpty()) {
-        console.log('VALIDATION FAILED DETAILED:')
-        console.log('- Errors:', JSON.stringify(errors.array(), null, 2))
-        console.log('- Request body:', JSON.stringify(req.body, null, 2))
-        console.log('- Body keys:', Object.keys(req.body))
-        console.log('- examId value:', req.body?.examId)
-        console.log('- examId type:', typeof req.body?.examId)
-        console.log('- examId length:', req.body?.examId?.length)
-        
+      const { examId, sessionId } = req.body;
+      const userId = req.user?.id;
+
+      console.log(`[${new Date().toISOString()}] Request details:`, {
+        examId,
+        sessionId,
+        userId,
+        userEmail: req.user?.email
+      });
+
+      // Validate required fields
+      if (!examId || !sessionId) {
+        console.log(`[${new Date().toISOString()}] ERROR: Missing required fields`)
         return res.status(400).json({ 
-          success: false, 
-          message: 'Validation failed',
+          success: false,
+          message: 'Missing examId or sessionId',
           debug: {
-            errors: errors.array(),
-            requestBody: req.body,
-            examId: {
-              value: req.body?.examId,
-              type: typeof req.body?.examId,
-              length: req.body?.examId?.length
-            }
+            examId: !!examId,
+            sessionId: !!sessionId,
+            userId: !!userId
           }
-        })
+        });
       }
-      
-      console.log('VALIDATION PASSED - Proceeding with attempt start')
 
-      const { examId } = req.body
-      const studentId = req.user!.id
+      if (!userId) {
+        console.log(`[${new Date().toISOString()}] ERROR: User not authenticated`)
+        return res.status(400).json({ 
+          success: false,
+          message: 'User not authenticated' 
+        });
+      }
 
-      console.log('EXAM LOOKUP - Searching for exam:', examId)
-      console.log('EXAM LOOKUP - Student ID:', studentId)
-
-      // Simplified check - if student can see exam, they can start it
-      // Just verify exam exists and basic timing
+      // Check if exam exists
       const examCheck = await pool.query(
         'SELECT * FROM exams WHERE id = $1',
         [examId]
-      )
-
-      console.log('EXAM LOOKUP RESULT:', {
-        found: examCheck.rows.length > 0,
-        count: examCheck.rows.length,
-        examId: examId
-      })
+      );
 
       if (examCheck.rows.length === 0) {
-        console.log('ERROR: Exam not found - ID:', examId)
+        console.log(`[${new Date().toISOString()}] ERROR: Exam not found: ${examId}`)
         return res.status(404).json({ 
-          success: false, 
+          success: false,
           message: 'Exam not found',
-          debug: {
-            examId,
-            searchedId: examId,
-            studentId
-          }
-        })
+          debug: { examId, userId }
+        });
       }
 
-      const exam = examCheck.rows[0]
-      console.log('EXAM FOUND - Details:', {
-        id: exam.id,
-        title: exam.title,
-        status: exam.status,
-        assignToAll: exam.assign_to_all,
-        courseId: exam.course_id,
-        startTime: exam.start_time,
-        endTime: exam.end_time
-      })
+      console.log(`[${new Date().toISOString()}] Exam found: ${examCheck.rows[0].title}`)
 
-      // Allow draft exams for testing purposes
-      if (exam.status === 'draft') {
-        console.log('ALLOWING DRAFT EXAM: Student starting draft exam')
-      }
-
-      // Skip timing check for testing - allow exam to start anytime
-      console.log('TIMING CHECK: SKIPPED - Allowing exam to start for testing')
-
-      console.log('EXISTING ATTEMPT CHECK - Looking for attempts:', {
-        examId,
-        studentId
-      })
-
-      // Check if student already has an active attempt
+      // Check for existing attempt
       const existingAttempt = await pool.query(
-        'SELECT id, status, started_at FROM exam_attempts WHERE exam_id = $1 AND user_id = $2 ORDER BY created_at DESC',
-        [examId, studentId]
-      )
+        'SELECT id, status, started_at FROM exam_attempts WHERE exam_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1',
+        [examId, userId]
+      );
 
-      console.log('EXISTING ATTEMPT RESULT:', {
+      console.log(`[${new Date().toISOString()}] Existing attempt check:`, {
         found: existingAttempt.rows.length > 0,
-        count: existingAttempt.rows.length,
         attempts: existingAttempt.rows.map(a => ({
           id: a.id,
           status: a.status,
           startedAt: a.started_at
         }))
-      })
+      });
 
+      // Return existing attempt if found (IDEMPOTENT BEHAVIOR)
       if (existingAttempt.rows.length > 0) {
-        const attempt = existingAttempt.rows[0]
-        console.log('ATTEMPT EXISTS - Status:', attempt.status)
+        const attempt = existingAttempt.rows[0];
+        console.log(`[${new Date().toISOString()}] Reusing existing attempt: ${attempt.id} (status: ${attempt.status})`);
         
-        if (attempt.status === 'in_progress') {
-          console.log('ERROR: Student already has active attempt:', attempt.id)
-          return res.status(400).json({ 
-            success: false, 
-            message: 'You already have an active attempt',
+        attemptsTotal.labels('reused', examId).inc();
+        
+        return res.json({
+          success: true,
+          message: 'Exam attempt retrieved successfully',
+          data: {
             attemptId: attempt.id,
-            debug: {
-              existingAttempt: {
-                id: attempt.id,
-                status: attempt.status,
-                startedAt: attempt.started_at
-              }
-            }
-          })
-        } else if (attempt.status === 'submitted' || attempt.status === 'graded') {
-          console.log('INFO: Student retaking exam - previous attempt was:', attempt.status)
-        }
+            examId: examId,
+            userId: userId,
+            status: attempt.status,
+            startedAt: attempt.started_at,
+            startTime: examCheck.rows[0].start_time,
+            endTime: examCheck.rows[0].end_time,
+            reused: true
+          }
+        });
       }
 
-      console.log('CREATING NEW ATTEMPT - Student can start exam')
-      
       // Create new attempt
+      console.log(`[${new Date().toISOString()}] Creating new attempt for user ${userId}`)
+      
       const attemptResult = await pool.query(
-        `INSERT INTO exam_attempts (exam_id, user_id, status) 
-         VALUES ($1, $2, 'in_progress') 
+        `INSERT INTO exam_attempts (exam_id, user_id, status, started_at)
+         VALUES ($1, $2, 'in_progress', NOW())
          RETURNING *`,
-        [examId, studentId]
-      )
-      
-      const newAttempt = attemptResult.rows[0]
-      console.log('NEW ATTEMPT CREATED:', {
-        id: newAttempt.id,
-        examId: newAttempt.exam_id,
-        userId: newAttempt.user_id,
-        status: newAttempt.status,
-        startedAt: newAttempt.started_at
-      })
-      
-      // Record metrics
-      attemptsTotal.labels('started', examId).inc()
-      console.log(`SUCCESS: Attempt started: ${newAttempt.id} for user ${studentId}`)
+        [examId, userId]
+      );
+
+      const newAttempt = attemptResult.rows[0];
+      console.log(`[${new Date().toISOString()}] SUCCESS: New attempt created: ${newAttempt.id}`);
+
+      attemptsTotal.labels('started', examId).inc();
 
       res.status(201).json({
         success: true,
         message: 'Exam attempt started successfully',
         data: {
           attemptId: newAttempt.id,
-          examId: newAttempt.exam_id,
-          userId: newAttempt.user_id,
+          examId: examId,
+          userId: userId,
           status: newAttempt.status,
           startedAt: newAttempt.started_at,
-          startTime: exam.start_time,
-          endTime: exam.end_time
+          startTime: examCheck.rows[0].start_time,
+          endTime: examCheck.rows[0].end_time,
+          reused: false
         }
-      })
+      });
 
     } catch (error) {
-      console.error('UNEXPECTED ERROR in /api/attempts/start:', error)
+      console.error(`[${new Date().toISOString()}] ERROR in /api/attempts/start:`, error);
       console.error('Error details:', {
         message: error.message,
         stack: error.stack,
         body: req.body,
-        user: req.user
-      })
+        userId: req.user?.id
+      });
+      
       return res.status(500).json({ 
-        success: false, 
-        message: 'Unexpected server error',
+        success: false,
+        message: 'Server error',
         debug: {
           error: error.message,
-          body: req.body,
           userId: req.user?.id
         }
-      })
+      });
     }
   }
 )
