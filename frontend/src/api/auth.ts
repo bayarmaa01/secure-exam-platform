@@ -62,7 +62,8 @@ export const authService = {
   },
   
   logout: (): void => {
-    localStorage.removeItem('token')
+    console.log('DEBUG: authService logout - clearing tokens')
+    localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
     window.location.href = '/login'

@@ -7,32 +7,93 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
+// Request interceptor - add auth token and debug logging
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken')
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  const refreshToken = localStorage.getItem('refreshToken')
+  
+  console.log('DEBUG: Axios request interceptor:', {
+    method: config.method?.toUpperCase(),
+    url: config.url,
+    hasAccessToken: !!token,
+    hasRefreshToken: !!refreshToken,
+    tokenLength: token?.length || 0
+  })
+  
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+    console.log('DEBUG: Authorization header set with token')
+  } else {
+    console.log('DEBUG: No access token found in localStorage')
+  }
+  
   return config
 })
 
+// Response interceptor - handle token refresh and debug logging
 client.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    console.log('DEBUG: Axios response success:', {
+      method: res.config.method?.toUpperCase(),
+      url: res.config.url,
+      status: res.status
+    })
+    return res
+  },
   async (err) => {
     const original = err.config
+    console.log('DEBUG: Axios response error:', {
+      method: original.method?.toUpperCase(),
+      url: original.url,
+      status: err.response?.status,
+      message: err.message,
+      isRetry: !!original._retry
+    })
+    
     if (err.response?.status === 401 && !original._retry) {
+      console.log('DEBUG: 401 Unauthorized detected, attempting token refresh')
       original._retry = true
       const refreshToken = localStorage.getItem('refreshToken')
+      
       if (refreshToken) {
+        console.log('DEBUG: Refresh token found, attempting refresh')
         try {
+          console.log('DEBUG: Calling /auth/refresh endpoint')
           const { data } = await axios.post(baseURL + '/auth/refresh', { refreshToken })
+          
+          console.log('DEBUG: Token refresh successful, updating localStorage')
           localStorage.setItem('accessToken', data.accessToken)
+          
+          // Update the original request with new token
           original.headers.Authorization = `Bearer ${data.accessToken}`
+          console.log('DEBUG: Retrying original request with new token')
+          
           return client(original)
-        } catch {
+        } catch (refreshError) {
+          console.error('DEBUG: Token refresh failed:', refreshError)
+          console.log('DEBUG: Clearing tokens and redirecting to login')
+          
           localStorage.removeItem('accessToken')
           localStorage.removeItem('refreshToken')
+          localStorage.removeItem('user')
+          
+          // Only redirect if not already on login page
+          if (!window.location.pathname.includes('/login')) {
+            window.location.href = '/login'
+          }
+        }
+      } else {
+        console.log('DEBUG: No refresh token available, redirecting to login')
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        
+        if (!window.location.pathname.includes('/login')) {
           window.location.href = '/login'
         }
       }
     }
+    
     return Promise.reject(err)
   }
 )
