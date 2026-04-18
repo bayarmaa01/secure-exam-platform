@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../../api'
 
@@ -38,13 +38,7 @@ export default function ExamResults() {
   const [examResults, setExamResults] = useState<ExamResult[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (examId) {
-      fetchExamData()
-    }
-  }, [examId])
-
-  const fetchExamData = async () => {
+  const fetchExamData = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -78,7 +72,13 @@ export default function ExamResults() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [examId])
+
+  useEffect(() => {
+    if (examId) {
+      fetchExamData()
+    }
+  }, [examId, fetchExamData])
 
   // Combine students with results
   const studentsWithResults = allStudents.map(student => {

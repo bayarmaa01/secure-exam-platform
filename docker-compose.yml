@@ -1,12 +1,40 @@
 
 services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+      ai-proctoring:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - exam-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost/health || curl -f http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   frontend:
     build: 
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:4005/api}
-        REACT_APP_AI_URL: ${REACT_APP_AI_URL:-http://localhost:5005}
+        REACT_APP_API_URL: http://secure-exam.duckdns.org/api
+        REACT_APP_AI_URL: http://secure-exam.duckdns.org/ai
+        VITE_API_URL: http://secure-exam.duckdns.org/api
+        VITE_AI_URL: http://secure-exam.duckdns.org/ai
+        VITE_ENVIRONMENT: production
     ports:
       - "3005:80"
     depends_on:
@@ -28,13 +56,17 @@ services:
       - PORT=4005
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-exam_platform}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-change-refresh-in-production}
+      - DB_NAME=exam_platform
+      - DB_USER=postgres
+      - DB_PASSWORD=SecureExamPlatform2024!
+      - JWT_SECRET=SecureExamPlatformJWTSecret2024!ProductionKey256BitsMinimum
+      - JWT_REFRESH_SECRET=SecureExamPlatformRefreshSecret2024!ProductionKey256BitsMinimum
+      - JWT_EXPIRES_IN=15m
+      - JWT_REFRESH_EXPIRES_IN=7d
       - REDIS_URL=redis://redis:6379
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3005}
+      - CORS_ORIGIN=http://4.247.154.224:3005,http://secure-exam.duckdns.org
+      - FRONTEND_URL=http://4.247.154.224:3005
+      - ALLOWED_ORIGINS=http://4.247.154.224:3005,http://secure-exam.duckdns.org
       - AI_SERVICE_URL=http://ai-proctoring:8000
       - NODE_ENV=production
     depends_on:
@@ -46,7 +78,7 @@ services:
     networks:
       - exam-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
+      test: ["CMD", "sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:4005/health || curl -f http://localhost:4005/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -70,7 +102,7 @@ services:
     networks:
       - exam-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:8000/health || curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -79,13 +111,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=${DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
-      - POSTGRES_DB=${DB_NAME:-exam_platform}
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=SecureExamPlatform2024!
+      - POSTGRES_DB=exam_platform
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-exam_platform}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d exam_platform"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -113,8 +145,8 @@ services:
     ports:
       - "3002:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=SecureGrafanaAdmin2024!
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
@@ -130,7 +162,30 @@ services:
     networks:
       - exam-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      test: ["CMD", "sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - exam-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9100/metrics"]
       interval: 30s
       timeout: 10s
       retries: 3

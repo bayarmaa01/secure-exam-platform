@@ -81,7 +81,7 @@ export default function ExamRoom() {
         setError('Failed to submit exam. Please try again.')
       }
     }
-  }, [attemptId, answers, cheatingWarnings, navigate])
+  }, [attemptId, answers, cheatingWarnings, submitting, navigate])
 
   // Production-grade loadExam with race condition prevention and failsafe logic
   const loadExam = useCallback(async () => {
@@ -367,14 +367,15 @@ export default function ExamRoom() {
     loadExam()
     
     return () => {
-      console.log(`[${sessionId.current}] ExamRoom component unmounting, cleaning up`)
+      const currentSessionId = sessionId.current
+      console.log(`[${currentSessionId}] ExamRoom component unmounting, cleaning up`)
       isMounted.current = false
       isLoadingExam.current = false
       isStartingAttempt.current = false
       attemptStarted.current = false
       hasInitialized.current = false // Reset for next mount
     }
-  }, [id]) // Only depends on ID change
+  }, [id, loadExam]) // Only depends on ID change
 
   // Anti-cheating setup - only runs when attempt is available and prevents duplicates
   const antiCheatingSetup = useRef(false)
@@ -387,7 +388,8 @@ export default function ExamRoom() {
     antiCheatingSetup.current = true
     
     return () => {
-      console.log(`[${sessionId.current}] Cleaning up anti-cheating measures`)
+      const currentSessionId = sessionId.current
+      console.log(`[${currentSessionId}] Cleaning up anti-cheating measures`)
       
       // Remove event listeners to prevent memory leaks
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
@@ -446,7 +448,8 @@ export default function ExamRoom() {
   // StrictMode-safe cleanup on component unmount (DO NOT reset attemptStarted)
   useEffect(() => {
     return () => {
-      console.log(`[${sessionId.current}] Component unmounting - cleaning up resources`)
+      const currentSessionId = sessionId.current
+      console.log(`[${currentSessionId}] Component unmounting - cleaning up resources`)
       isStartingAttempt.current = false
       isLoadingExam.current = false
       isMounted.current = false
@@ -494,7 +497,7 @@ export default function ExamRoom() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Exam not found</h1>
-          <p className="text-gray-600 mb-6">The exam you're looking for doesn't exist or isn't available.</p>
+          <p className="text-gray-600 mb-6">The exam you&apos;re looking for doesn&apos;t exist or isn&apos;t available.</p>
           <button
             onClick={() => navigate('/student/exams')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
