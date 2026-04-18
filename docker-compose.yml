@@ -27,8 +27,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        REACT_APP_API_URL: http://secure-exam.duckdns.org/api
-        REACT_APP_AI_URL: http://secure-exam.duckdns.org/ai
         VITE_API_URL: http://secure-exam.duckdns.org/api
         VITE_AI_URL: http://secure-exam.duckdns.org/ai
         VITE_ENVIRONMENT: production
