@@ -36,10 +36,12 @@ export default function ExamRoom() {
   const [webcamActive, setWebcamActive] = useState(false)
   const [cheatingWarnings, setCheatingWarnings] = useState(0)
   const [examEndTime, setExamEndTime] = useState<Date | null>(null)
+  const [error, setError] = useState<string | null>(null)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const timerRef = useRef<number | null>(null)
+  const isMounted = useRef(true) // Prevent state updates on unmount
 
   const submitExam = useCallback(async () => {
     if (!attemptId || submitting) return
@@ -61,31 +63,58 @@ export default function ExamRoom() {
   }, [attemptId, submitting, answers, cheatingWarnings, navigate])
 
   const loadExam = useCallback(async () => {
+    if (!id || !isMounted.current) return
+    
+    console.log('DEBUG: Fetching exam data for ID:', id)
+    setLoading(true)
+    setError(null)
+    
     try {
-      const response = await api.get(`/exams/${id}`)
-      const examData = response.data
-      console.log('Exam data loaded:', examData)
-
+      // Fetch exam data and start attempt in parallel for better performance
+      const [examResponse, attemptResponse] = await Promise.all([
+        api.get(`/exams/${id}`),
+        api.post(`/attempts/start`, { examId: id })
+      ])
+      
+      const examData = examResponse.data
+      console.log('DEBUG: Exam data loaded successfully:', examData.title)
+      
+      // Prevent state updates if component unmounted
+      if (!isMounted.current) return
+      
       setExam(examData)
       setQuestions(examData.questions || [])
-
-      // Start exam attempt
-      const attemptResponse = await api.post(`/attempts/start`, {
-        examId: id
-      })
-
+      setTimeLeft(examData.durationMinutes * 60)
+      setExamEndTime(new Date(examData.endTime))
+      
       if (attemptResponse.data.success) {
         setAttemptId(attemptResponse.data.attemptId)
-        setTimeLeft(examData.durationMinutes * 60)
-        setExamEndTime(new Date(examData.endTime))
+        console.log('DEBUG: Exam attempt started:', attemptResponse.data.attemptId)
+      } else {
+        throw new Error(attemptResponse.data.message || 'Failed to start exam attempt')
       }
-
-      setLoading(false)
+      
     } catch (error) {
-      console.error('Failed to load exam:', error)
-      setLoading(false)
+      console.error('DEBUG: Failed to load exam:', error)
+      
+      // Prevent state updates if component unmounted
+      if (!isMounted.current) return
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load exam'
+      setError(errorMessage)
+      
+      // Navigate back if exam not found
+      if (errorMessage.includes('not found') || errorMessage.includes('404')) {
+        console.log('DEBUG: Exam not found, redirecting to dashboard')
+        navigate('/student/exams')
+      }
+    } finally {
+      // Prevent state updates if component unmounted
+      if (isMounted.current) {
+        setLoading(false)
+      }
     }
-  }, [id])
+  }, [id, navigate])
 
   // Anti-cheating prevention functions
   const preventContextMenu = (e: MouseEvent) => e.preventDefault()
@@ -172,6 +201,10 @@ export default function ExamRoom() {
   }
 
   const setupAntiCheating = useCallback(async () => {
+    if (!isMounted.current) return
+    
+    console.log('DEBUG: Setting up anti-cheating measures')
+    
     try {
       // Enable anti-cheating measures
       document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -183,10 +216,11 @@ export default function ExamRoom() {
 
       // Start webcam for proctoring
       await startWebcam()
+      console.log('DEBUG: Anti-cheating measures setup completed')
     } catch (error) {
-      console.error('Failed to setup proctoring:', error)
+      console.error('DEBUG: Failed to setup proctoring:', error)
     }
-  }, [handleFullscreenChange, handleKeyDown, handleVisibilityChange, startWebcam])
+  }, []) // Remove dependencies to prevent recreation
 
   const stopWebcam = () => {
     if (videoRef.current && videoRef.current.srcObject) {
@@ -205,54 +239,107 @@ export default function ExamRoom() {
     }))
   }
 
-  // useEffect hooks - must be called before any conditional returns
+  // Main useEffect - Load exam data once when component mounts or ID changes
   useEffect(() => {
-    if (!id) return
+    if (!id || !isMounted.current) return
     
+    console.log('DEBUG: ExamRoom component mounted, loading exam:', id)
     loadExam()
+    
+    return () => {
+      console.log('DEBUG: ExamRoom component unmounting, cleaning up')
+      isMounted.current = false
+    }
   }, [id, loadExam])
 
+  // Anti-cheating setup - only runs when attempt is available
   useEffect(() => {
-    if (!id) return
-
+    if (!attemptId || !isMounted.current) return
+    
+    console.log('DEBUG: Setting up anti-cheating for attempt:', attemptId)
     setupAntiCheating()
     
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
+      console.log('DEBUG: Cleaning up anti-cheating measures')
+      // Remove event listeners to prevent memory leaks
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      document.removeEventListener('contextmenu', preventContextMenu)
+      document.removeEventListener('copy', preventCopyPaste)
+      document.removeEventListener('paste', preventCopyPaste)
+      
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
       stopWebcam()
     }
-  }, [id, setupAntiCheating])
+  }, [attemptId, setupAntiCheating])
 
+  // Timer countdown effect
   useEffect(() => {
-    if (timeLeft > 0) {
-      timerRef.current = setTimeout(() => {
-        setTimeLeft(timeLeft - 1)
-      }, 1000)
-    } else if (timeLeft === 0 && attemptId) {
-      submitExam()
-    }
+    if (timeLeft <= 0 || !isMounted.current) return
+    
+    timerRef.current = setTimeout(() => {
+      if (isMounted.current) {
+        setTimeLeft(prev => prev - 1)
+      }
+    }, 1000)
     
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [timeLeft, attemptId, submitExam])
-
-  // Auto-submit when exam time ends
-  useEffect(() => {
-    if (examEndTime && timeLeft > 0) {
-      const timeUntilEnd = examEndTime.getTime() - Date.now()
-      if (timeUntilEnd <= 0) {
-        submitExam()
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
       }
     }
-  }, [examEndTime, timeLeft, submitExam])
+  }, [timeLeft])
+
+  // Auto-submit when timer reaches zero
+  useEffect(() => {
+    if (timeLeft === 0 && attemptId && !submitting && isMounted.current) {
+      console.log('DEBUG: Timer reached zero, auto-submitting exam')
+      submitExam()
+    }
+  }, [timeLeft, attemptId, submitting, submitExam])
+
+  // Auto-submit when exam time ends (backup check)
+  useEffect(() => {
+    if (!examEndTime || !isMounted.current) return
+    
+    const timeUntilEnd = examEndTime.getTime() - Date.now()
+    if (timeUntilEnd <= 0 && attemptId && !submitting) {
+      console.log('DEBUG: Exam end time reached, auto-submitting exam')
+      submitExam()
+    }
+  }, [examEndTime, attemptId, submitting, submitExam])
 
   const currentQuestion = questions[currentQuestionIndex]
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading exam...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Exam</h1>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button
+            onClick={() => navigate('/student/exams')}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back to Exams
+          </button>
+        </div>
       </div>
     )
   }
@@ -262,11 +349,12 @@ export default function ExamRoom() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Exam not found</h1>
+          <p className="text-gray-600 mb-6">The exam you're looking for doesn't exist or isn't available.</p>
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/student/exams')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
-            Back to Dashboard
+            Back to Exams
           </button>
         </div>
       </div>
