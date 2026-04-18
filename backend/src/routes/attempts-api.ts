@@ -56,151 +56,69 @@ const attemptDuration = new Histogram({
   labelNames: ['exam_id']
 })
 
-// POST /api/attempts/start - Start a new exam attempt (IDEMPOTENT VERSION)
+// POST /api/attempts/start - Start a new exam attempt (PRODUCTION-SAFE IDEMPOTENT)
 router.post('/attempts/start',
   auth,
   requireStudent,
   [
-    body('examId').notEmpty().withMessage('Exam ID is required'),
-    body('sessionId').notEmpty().withMessage('Session ID is required')
+    body('examId').notEmpty().withMessage('Exam ID is required')
   ],
   async (req: AuthRequest, res) => {
+    const { examId } = req.body;
+    const userId = req.user!.id;
+
     try {
-      console.log(`[${new Date().toISOString()}] POST /api/attempts/start - Starting attempt logic`)
-      
-      const { examId, sessionId } = req.body;
-      const userId = req.user?.id;
+      console.log(`[${new Date().toISOString()}] POST /api/attempts/start - Production-safe attempt start`);
+      console.log(`[${new Date().toISOString()}] User: ${userId}, Exam: ${examId}`);
 
-      console.log(`[${new Date().toISOString()}] Request details:`, {
-        examId,
-        sessionId,
-        userId,
-        userEmail: req.user?.email
-      });
-
-      // Validate required fields
-      if (!examId || !sessionId) {
-        console.log(`[${new Date().toISOString()}] ERROR: Missing required fields`)
-        return res.status(400).json({ 
-          success: false,
-          message: 'Missing examId or sessionId',
-          debug: {
-            examId: !!examId,
-            sessionId: !!sessionId,
-            userId: !!userId
-          }
-        });
-      }
-
-      if (!userId) {
-        console.log(`[${new Date().toISOString()}] ERROR: User not authenticated`)
-        return res.status(400).json({ 
-          success: false,
-          message: 'User not authenticated' 
-        });
-      }
-
-      // Check if exam exists
-      const examCheck = await pool.query(
-        'SELECT * FROM exams WHERE id = $1',
-        [examId]
-      );
-
-      if (examCheck.rows.length === 0) {
-        console.log(`[${new Date().toISOString()}] ERROR: Exam not found: ${examId}`)
-        return res.status(404).json({ 
-          success: false,
-          message: 'Exam not found',
-          debug: { examId, userId }
-        });
-      }
-
-      console.log(`[${new Date().toISOString()}] Exam found: ${examCheck.rows[0].title}`)
-
-      // Check for existing attempt
-      const existingAttempt = await pool.query(
-        'SELECT id, status, started_at FROM exam_attempts WHERE exam_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1',
+      // 1. Check if an in_progress attempt exists (CRITICAL FOR IDEMPOTENCY)
+      const existing = await pool.query(
+        `SELECT * FROM exam_attempts
+         WHERE exam_id = $1 AND user_id = $2 AND status = 'in_progress'
+         LIMIT 1`,
         [examId, userId]
       );
 
-      console.log(`[${new Date().toISOString()}] Existing attempt check:`, {
-        found: existingAttempt.rows.length > 0,
-        attempts: existingAttempt.rows.map(a => ({
-          id: a.id,
-          status: a.status,
-          startedAt: a.started_at
-        }))
-      });
-
-      // Return existing attempt if found (IDEMPOTENT BEHAVIOR)
-      if (existingAttempt.rows.length > 0) {
-        const attempt = existingAttempt.rows[0];
-        console.log(`[${new Date().toISOString()}] Reusing existing attempt: ${attempt.id} (status: ${attempt.status})`);
+      // 2. IF exists: Return existing attempt (NO 400 ERROR)
+      if (existing.rows.length > 0) {
+        console.log(`[${new Date().toISOString()}] Resuming existing attempt: ${existing.rows[0].id}`);
         
         attemptsTotal.labels('reused', examId).inc();
         
-        return res.json({
+        return res.status(200).json({
           success: true,
-          message: 'Exam attempt retrieved successfully',
-          data: {
-            attemptId: attempt.id,
-            examId: examId,
-            userId: userId,
-            status: attempt.status,
-            startedAt: attempt.started_at,
-            startTime: examCheck.rows[0].start_time,
-            endTime: examCheck.rows[0].end_time,
-            reused: true
-          }
+          message: 'Resuming existing attempt',
+          data: existing.rows[0],
         });
       }
 
-      // Create new attempt
-      console.log(`[${new Date().toISOString()}] Creating new attempt for user ${userId}`)
+      // 3. ELSE: Create new attempt
+      console.log(`[${new Date().toISOString()}] Creating new attempt for user ${userId}`);
       
-      const attemptResult = await pool.query(
+      const result = await pool.query(
         `INSERT INTO exam_attempts (exam_id, user_id, status, started_at)
          VALUES ($1, $2, 'in_progress', NOW())
          RETURNING *`,
         [examId, userId]
       );
 
-      const newAttempt = attemptResult.rows[0];
+      const newAttempt = result.rows[0];
       console.log(`[${new Date().toISOString()}] SUCCESS: New attempt created: ${newAttempt.id}`);
 
       attemptsTotal.labels('started', examId).inc();
 
-      res.status(201).json({
+      return res.status(200).json({
         success: true,
-        message: 'Exam attempt started successfully',
-        data: {
-          attemptId: newAttempt.id,
-          examId: examId,
-          userId: userId,
-          status: newAttempt.status,
-          startedAt: newAttempt.started_at,
-          startTime: examCheck.rows[0].start_time,
-          endTime: examCheck.rows[0].end_time,
-          reused: false
-        }
+        message: 'New attempt started',
+        data: newAttempt,
       });
 
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] ERROR in /api/attempts/start:`, error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        body: req.body,
-        userId: req.user?.id
-      });
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Start attempt error:`, err);
       
-      return res.status(500).json({ 
+      return res.status(500).json({
         success: false,
-        message: 'Server error',
-        debug: {
-          error: error.message,
-          userId: req.user?.id
-        }
+        message: 'Failed to start attempt',
       });
     }
   }

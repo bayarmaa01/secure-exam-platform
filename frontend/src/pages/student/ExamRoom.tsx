@@ -145,67 +145,42 @@ export default function ExamRoom() {
     }
   }, [id, navigate])
 
-  // Production-grade exam attempt starter with comprehensive error handling
+  // Production-safe exam attempt starter with idempotent behavior
   const startExamAttempt = async (examId: string) => {
-    if (!isMounted.current || isStartingAttempt.current) return
+    // StrictMode-safe guards
+    if (isStartingAttempt.current || attemptStarted.current || !isMounted.current) return
     
     isStartingAttempt.current = true
     
     try {
       console.log(`[${sessionId.current}] Attempting to start exam attempt for: ${examId}`)
       
-      const payload = { examId, sessionId: sessionId.current }
+      const payload = { examId }
       console.log(`[${sessionId.current}] Sending payload to /attempts/start:`, payload)
       
-      const attemptResponse = await api.post(`/attempts/start`, payload)
-      console.log(`[${sessionId.current}] Attempt response received:`, attemptResponse.data)
+      const response = await api.post(`/attempts/start`, payload)
+      console.log(`[${sessionId.current}] Attempt response received:`, response.data)
       
-      if (attemptResponse.data.success) {
-        // Success case
+      // CRITICAL FIX: Correct response parsing
+      const attempt = response.data.data
+      
+      if (response.data.success && attempt) {
+        // Success case - set attempt ID from correct location
         if (isMounted.current) {
-          setAttemptId(attemptResponse.data.attemptId)
+          setAttemptId(attempt.id)
           attemptStarted.current = true
-          console.log(`[${sessionId.current}] Exam attempt started: ${attemptResponse.data.attemptId}`)
+          console.log(`[${sessionId.current}] Exam attempt started/resumed: ${attempt.id}`)
         }
       } else {
-        throw new Error(attemptResponse.data.message || 'Failed to start exam attempt')
+        throw new Error(response.data.message || 'Failed to start exam attempt')
       }
       
     } catch (attemptError) {
       console.error(`[${sessionId.current}] Failed to start exam attempt:`, attemptError)
       
-      // Production-grade error handling with failsafe recovery
+      // Simplified error handling - no complex recovery needed since backend is idempotent
       if (attemptError instanceof Error) {
-        const errorMessage = attemptError.message
-        
-        // Case 1: Student already has active attempt - RECOVERABLE
-        if (errorMessage.includes('already have an active attempt')) {
-          console.log(`[${sessionId.current}] Student already has active attempt, attempting recovery`)
-          const errorData = (attemptError as any).response?.data
-          
-          if (errorData?.attemptId && isMounted.current) {
-            setAttemptId(errorData.attemptId)
-            attemptStarted.current = true
-            console.log(`[${sessionId.current}] Successfully recovered existing attempt: ${errorData.attemptId}`)
-            return // Success recovery
-          }
-        }
-        
-        // Case 2: Validation errors - NON-RECOVERABLE
-        if (errorMessage.includes('Validation failed')) {
-          const validationErrors = (attemptError as any).response?.data?.errors
-          console.log(`[${sessionId.current}] Validation errors:`, validationErrors)
-          throw new Error(`Invalid request: ${validationErrors?.[0]?.msg || errorMessage}`)
-        }
-        
-        // Case 3: Exam already completed - NON-RECOVERABLE
-        if (errorMessage.includes('already completed this exam')) {
-          console.log(`[${sessionId.current}] Student retaking completed exam`)
-          throw new Error('Please contact your instructor to retake this exam')
-        }
-        
-        // Case 4: Other errors - NON-RECOVERABLE
-        throw new Error(`Cannot start exam: ${errorMessage}`)
+        throw new Error(`Cannot start exam: ${attemptError.message}`)
       } else {
         throw new Error('Failed to start exam attempt')
       }
@@ -392,7 +367,7 @@ export default function ExamRoom() {
       isStartingAttempt.current = false
       attemptStarted.current = false
     }
-  }, [id, loadExam]) // Include loadExam dependency but it's properly memoized
+  }, [id]) // REMOVED loadExam from dependencies - React StrictMode safe
 
   // Anti-cheating setup - only runs when attempt is available
   useEffect(() => {
@@ -455,6 +430,17 @@ export default function ExamRoom() {
       submitExam()
     }
   }, [examEndTime, attemptId, submitting, submitExam])
+
+  // StrictMode-safe cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      console.log(`[${sessionId.current}] StrictMode cleanup - resetting all guards`)
+      isStartingAttempt.current = false
+      attemptStarted.current = false
+      isLoadingExam.current = false
+      isMounted.current = false
+    }
+  }, [])
 
   const currentQuestion = questions[currentQuestionIndex]
 
