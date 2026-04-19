@@ -141,6 +141,7 @@ services:
       GF_SERVER_DOMAIN: secure-exam.duckdns.org
       GF_SERVER_ROOT_URL: https://secure-exam.duckdns.org/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_ROUTER_LOGGING: "false"
     depends_on:
       - prometheus
     restart: unless-stopped
