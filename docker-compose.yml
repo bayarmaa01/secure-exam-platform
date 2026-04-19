@@ -162,6 +162,8 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
+      - --web.external-url=/prometheus
+      - --web.route-prefix=/prometheus
     restart: unless-stopped
     networks:
       - exam-network
