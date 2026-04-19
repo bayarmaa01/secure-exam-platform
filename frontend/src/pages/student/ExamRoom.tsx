@@ -214,7 +214,7 @@ export default function ExamRoom() {
     }
     
     // Send warning asynchronously (non-blocking)
-    api.post('/api/warnings', {
+    api.post('/warnings', {
       userId: user?.id,
       examId: id,
       sessionId: sessionId.current,
@@ -234,7 +234,7 @@ export default function ExamRoom() {
     }
     
     // Send warning asynchronously (non-blocking)
-    api.post('/api/warnings', {
+    api.post('/warnings', {
       userId: user?.id,
       examId: id,
       sessionId: sessionId.current,
@@ -284,7 +284,7 @@ export default function ExamRoom() {
           const frame = canvas.toDataURL('image/jpeg', 0.8)
 
           // Send frame to AI for analysis (non-blocking)
-          api.post('/api/ai/analyze-frame', {
+          api.post('/ai/analyze-frame', {
             frame,
             timestamp: Date.now(),
             sessionId: sessionId.current,
