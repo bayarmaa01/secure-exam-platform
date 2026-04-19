@@ -175,6 +175,21 @@ services:
       retries: 3
       start_period: 40s
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:SecureExamPlatform2024!@postgres:5432/exam_platform?sslmode=disable"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - exam-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9187/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
