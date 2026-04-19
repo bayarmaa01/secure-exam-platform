@@ -11,7 +11,3 @@ datasources:
       timeInterval: "5s"
       queryTimeout: "60s"
       httpMethod: "POST"
-    secureJsonData:
-      httpHeaderValueName1: "Authorization"
-      httpHeaderValueValue1: "Bearer ${PROMETHEUS_TOKEN}"
-      tlsSkipVerify: true
