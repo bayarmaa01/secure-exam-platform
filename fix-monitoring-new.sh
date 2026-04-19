@@ -2,6 +2,14 @@
 
 echo "🔧 Fixing Grafana and Prometheus access issues..."
 
+# Restart Prometheus to fix health issue
+echo "📝 Restarting Prometheus with fixed configuration..."
+docker-compose restart prometheus
+
+# Wait for Prometheus to be ready
+echo "⏳ Waiting for Prometheus to be ready..."
+sleep 15
+
 # Restart nginx to apply configuration changes
 echo "📝 Restarting Nginx with new configuration..."
 docker-compose restart nginx
