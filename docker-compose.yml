@@ -32,7 +32,7 @@ services:
         VITE_AI_URL: https://secure-exam.duckdns.org/ai
         VITE_ENVIRONMENT: production
     ports:
-      - "3000:80"
+      - "3001:80"  # Changed from 3000 to avoid conflict with Grafana
     depends_on:
       - backend
       - ai-proctoring
