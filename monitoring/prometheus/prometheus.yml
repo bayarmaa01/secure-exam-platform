@@ -25,6 +25,11 @@ scrape_configs:
     scrape_interval: 15s
     scrape_timeout: 10s
 
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 15s
+
   # Removed nginx job - nginx doesn't have proper metrics endpoint
   # - job_name: 'nginx'
   #   static_configs:
