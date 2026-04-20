@@ -138,13 +138,14 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: SecureGrafanaAdmin2024!
       GF_SECURITY_ADMIN_USER: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: https://secure-exam.duckdns.org/grafana/
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # Removed subpath configuration - using direct port access
     depends_on:
       - prometheus
     restart: unless-stopped
     networks:
       - exam-network
+    ports:
+      - "3000:3000"  # Expose Grafana directly
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
@@ -165,6 +166,8 @@ services:
     restart: unless-stopped
     networks:
       - exam-network
+    ports:
+      - "9090:9090"  # Expose Prometheus directly
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus

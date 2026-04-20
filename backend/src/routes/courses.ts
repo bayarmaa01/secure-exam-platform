@@ -180,7 +180,7 @@ router.delete('/courses/:id',
       // Delete related records in correct order to avoid foreign key constraints
       // 1. Delete exam-related records
       for (const exam of examsInCourse.rows) {
-        await client.query('DELETE FROM exam_violations WHERE exam_id = $1', [exam.id])
+        // Note: exam_violations table doesn't exist in current schema
         await client.query('DELETE FROM exam_sessions WHERE exam_id = $1', [exam.id])
         await client.query('DELETE FROM exam_attempts WHERE exam_id = $1', [exam.id])
         await client.query('DELETE FROM results WHERE exam_id = $1', [exam.id])
