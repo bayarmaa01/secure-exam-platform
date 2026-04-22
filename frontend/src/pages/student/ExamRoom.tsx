@@ -42,7 +42,6 @@ export default function ExamRoom() {
   const [error, setError] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
   const [examError, setExamError] = useState<string | null>(null)
-  const [warningError, setWarningError] = useState<string | null>(null)
   
   // Refs for production-grade safety and state stability
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -217,12 +216,12 @@ export default function ExamRoom() {
     const timeSinceLastWarning = now - (window as any).lastWarningTime || 0
     
     if (timeSinceLastWarning < 5000) {
-      console.log(`[${sessionId.current}] Throttling warning request - only ${timeSinceLastWarning}ms since last`)
-      return
+      console.log(`[${sessionId.current}] Throttling warning request - only ${timeSinceLastWarning}ms since last`);
+      return;
     }
     
-    console.log(`[${sessionId.current}] Tab switch detected`)
-    (window as any).lastWarningTime = now
+    console.log(`[${sessionId.current}] Tab switch detected`);
+    (window as any).lastWarningTime = now;
     
     if (isMounted.current) {
       setCheatingWarnings(prev => prev + 1)
