@@ -105,6 +105,12 @@ router.post('/exams/:examId/questions',
           if (!test_cases || test_cases.length === 0) {
             return res.status(400).json({ message: 'Coding questions must have at least one test case' })
           }
+          // Validate test case structure
+          for (const testCase of test_cases) {
+            if (!testCase.input || !testCase.output) {
+              return res.status(400).json({ message: 'Each test case must have input and output fields' })
+            }
+          }
           break
 
         default:

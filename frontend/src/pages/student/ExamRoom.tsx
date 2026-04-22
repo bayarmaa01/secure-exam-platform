@@ -2,27 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
-
-interface Question {
-  id: string
-  text: string
-  options: string[]
-  type: 'mcq' | 'short_answer' | 'long_answer' | 'coding'
-  points: number
-  language?: string
-  starter_code?: Record<string, string>
-  test_cases?: Array<{input: string, output: string}>
-}
-
-interface Exam {
-  id: string
-  title: string
-  description: string
-  durationMinutes: number
-  scheduledAt: string
-  status: string
-  endTime: string
-}
+import { Question, Exam, QuestionType } from '../../types/exam'
 
 // Production-grade ExamRoom component with strict React StrictMode safety
 export default function ExamRoom() {
@@ -118,8 +98,8 @@ export default function ExamRoom() {
       // Update exam state atomically
       setExam(examData)
       setQuestions(examData.questions || [])
-      setTimeLeft(examData.durationMinutes * 60)
-      setExamEndTime(new Date(examData.endTime))
+      setTimeLeft(examData.duration_minutes * 60)
+      setExamEndTime(new Date(examData.end_time))
       
       // Phase 2: Start exam attempt (only if not already started)
       if (!isStartingAttempt.current && !attemptStarted.current) {
@@ -623,7 +603,7 @@ export default function ExamRoom() {
           {/* Question */}
           <div className="mb-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {currentQuestion.text}
+              {currentQuestion.question_text}
             </h2>
 
             {/* MCQ Options */}

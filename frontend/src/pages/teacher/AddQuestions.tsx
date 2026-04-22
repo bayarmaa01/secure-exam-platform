@@ -1,15 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../../api'
-
-interface Question {
-  id: string
-  question_text: string
-  type: 'mcq' | 'written' | 'coding'
-  options: string[]
-  correct_answer: string
-  points: number
-}
+import { Question, QuestionType } from '../../types/exam'
 
 interface ApiError {
   response?: {
@@ -31,10 +23,13 @@ export default function AddQuestions() {
   const [success, setSuccess] = useState('')
   const [formData, setFormData] = useState({
     question_text: '',
-    type: 'mcq' as 'mcq' | 'written' | 'coding',
+    type: 'mcq' as QuestionType,
     options: ['', ''],
     correct_answer: '',
-    points: 1
+    points: 1,
+    language: 'python' as const,
+    starter_code: '',
+    test_cases: [{ input: '', output: '' }]
   })
 
   useEffect(() => {
@@ -61,7 +56,10 @@ export default function AddQuestions() {
         type: formData.type,
         options: formData.type === 'mcq' ? formData.options.filter(o => o.trim()) : [],
         correct_answer: formData.correct_answer,
-        points: formData.points
+        points: formData.points,
+        language: formData.type === 'coding' ? formData.language : undefined,
+        starter_code: formData.type === 'coding' ? { [formData.language]: formData.starter_code } : undefined,
+        test_cases: formData.type === 'coding' ? formData.test_cases.filter(tc => tc.input.trim() && tc.output.trim()) : undefined
       }
       
       await api.post(`/exams/${id}/questions`, payload)
@@ -71,7 +69,10 @@ export default function AddQuestions() {
         type: 'mcq',
         options: ['', ''],
         correct_answer: '',
-        points: 1
+        points: 1,
+        language: 'python',
+        starter_code: '',
+        test_cases: [{ input: '', output: '' }]
       })
       setShowAddModal(false)
       fetchQuestions(id!)
@@ -224,7 +225,7 @@ export default function AddQuestions() {
                         </span>
                       </div>
                       <p className="text-gray-900 font-medium mb-2">{question.question_text}</p>
-                      {question.type === 'mcq' && question.options.length > 0 && (
+                      {question.type === 'mcq' && question.options && question.options.length > 0 && (
                         <div className="space-y-1">
                           {question.options.map((option, index) => (
                             <div key={index} className={`text-sm ${option === question.correct_answer ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
@@ -288,11 +289,12 @@ export default function AddQuestions() {
                   </label>
                   <select
                     value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as 'mcq' | 'written' | 'coding' })}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as QuestionType })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="mcq">Multiple Choice</option>
-                    <option value="written">Written</option>
+                    <option value="short_answer">Short Answer</option>
+                    <option value="long_answer">Long Answer</option>
                     <option value="coding">Coding</option>
                   </select>
                 </div>
@@ -343,6 +345,102 @@ export default function AddQuestions() {
                     >
                       + Add Option
                     </button>
+                  </div>
+                )}
+
+                {/* Coding Question Fields */}
+                {formData.type === 'coding' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-gray-700 text-sm font-bold mb-2">
+                        Programming Language *
+                      </label>
+                      <select
+                        value={formData.language}
+                        onChange={(e) => setFormData({ ...formData, language: e.target.value as any })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="python">Python</option>
+                        <option value="java">Java</option>
+                        <option value="cpp">C++</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="c">C</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 text-sm font-bold mb-2">
+                        Starter Code (optional)
+                      </label>
+                      <textarea
+                        value={formData.starter_code}
+                        onChange={(e) => setFormData({ ...formData, starter_code: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                        rows={6}
+                        placeholder={`def solve():\n    # Your code here\n    pass`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 text-sm font-bold mb-2">
+                        Test Cases *
+                      </label>
+                      {formData.test_cases.map((testCase, index) => (
+                        <div key={index} className="border border-gray-200 rounded p-3 mb-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Input</label>
+                              <input
+                                type="text"
+                                value={testCase.input}
+                                onChange={(e) => {
+                                  const newTestCases = [...formData.test_cases]
+                                  newTestCases[index].input = e.target.value
+                                  setFormData({ ...formData, test_cases: newTestCases })
+                                }}
+                                className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                                placeholder="Input for test case"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Expected Output</label>
+                              <input
+                                type="text"
+                                value={testCase.output}
+                                onChange={(e) => {
+                                  const newTestCases = [...formData.test_cases]
+                                  newTestCases[index].output = e.target.value
+                                  setFormData({ ...formData, test_cases: newTestCases })
+                                }}
+                                className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                                placeholder="Expected output"
+                                required
+                              />
+                            </div>
+                          </div>
+                          {formData.test_cases.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newTestCases = formData.test_cases.filter((_, i) => i !== index)
+                                setFormData({ ...formData, test_cases: newTestCases })
+                              }}
+                              className="mt-2 text-red-600 hover:text-red-800 text-xs"
+                            >
+                              Remove Test Case
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, test_cases: [...formData.test_cases, { input: '', output: '' }] })}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        + Add Test Case
+                      </button>
+                    </div>
                   </div>
                 )}
 

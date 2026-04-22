@@ -6,7 +6,7 @@ import { auth, AuthRequest, requireTeacher } from '../middleware/auth'
 interface ExamFormData {
   title: string
   description?: string
-  type: 'mcq' | 'written' | 'coding' | 'mixed' | 'ai_proctored'
+  type: 'mcq' | 'writing' | 'coding' | 'mixed' | 'ai_proctored'
   duration_minutes: number
   start_time: string
   end_time: string
@@ -34,7 +34,7 @@ router.post('/exams/advanced',
   [
     body('title').notEmpty().trim(),
     body('description').optional().trim(),
-    body('type').isIn(['mcq', 'written', 'coding', 'mixed', 'ai_proctored']),
+    body('type').isIn(['mcq', 'writing', 'coding', 'mixed', 'ai_proctored']),
     body('duration_minutes').isInt({ min: 1, max: 480 }),
     body('start_time').isISO8601().toDate(),
     body('end_time').isISO8601().toDate(),
@@ -138,7 +138,7 @@ router.post('/exams/:id/questions/advanced',
   [
     body('question_text').notEmpty().trim(),
     body('topic').notEmpty().trim(),
-    body('type').isIn(['mcq', 'written', 'coding']),
+    body('type').isIn(['mcq', 'short_answer', 'long_answer', 'coding']),
     body('options').optional().isArray(),
     body('correct_answer').notEmpty(),
     body('points').optional().isInt({ min: 1, max: 100 }),

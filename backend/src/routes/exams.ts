@@ -144,16 +144,19 @@ router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
 
     // Get questions for this exam
     const questionsQuery = await pool.query(
-      'SELECT id, text, options, type, points FROM questions WHERE exam_id = $1 ORDER BY created_at',
+      'SELECT id, question_text, options, type, points, language, starter_code, test_cases FROM questions WHERE exam_id = $1 ORDER BY created_at',
       [req.params.id]
     )
     
     const questions = questionsQuery.rows.map(q => ({
       id: q.id,
-      text: q.text,
+      text: q.question_text,
       options: q.options || [],
       type: q.type || 'mcq',
-      points: q.points || 1
+      points: q.points || 1,
+      language: q.language,
+      starter_code: q.starter_code,
+      test_cases: q.test_cases
     }))
     
     res.json({
@@ -523,7 +526,7 @@ router.post('/exams/:id/questions',
   requireTeacher,
   [
     body('question_text').notEmpty().trim(),
-    body('type').isIn(['mcq', 'written', 'coding']),
+    body('type').isIn(['mcq', 'short_answer', 'long_answer', 'coding']),
     body('options').optional().isArray(),
     body('correct_answer').notEmpty(),
     body('points').optional().isInt({ min: 1, max: 100 })
