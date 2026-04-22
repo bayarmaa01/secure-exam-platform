@@ -23,13 +23,22 @@ interface Exam {
 export default function ManageExams() {
   const [exams, setExams] = useState<Exam[]>([])
   const [loading, setLoading] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
 
   useEffect(() => {
     fetchExams()
-  }, [])
+  }, []) // Only fetch once on mount
 
   const fetchExams = async () => {
+    // Prevent duplicate calls
+    if (isFetching) {
+      console.log('Already fetching exams, skipping...')
+      return
+    }
+
+    setIsFetching(true)
     try {
+      console.log('Fetching exams...')
       const response = await api.get('/teacher/exams')
       const examsData = Array.isArray(response.data) ? response.data : response.data?.data || []
       setExams(examsData)
@@ -38,6 +47,7 @@ export default function ManageExams() {
       setExams([])
     } finally {
       setLoading(false)
+      setIsFetching(false)
     }
   }
 

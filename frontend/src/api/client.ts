@@ -8,17 +8,30 @@ const client = axios.create({
 })
 
 // Request interceptor - add auth token and debug logging
+let requestCount = 0
+const resetRequestCount = () => {
+  requestCount = 0
+  console.log('DEBUG: Reset request count to 0')
+}
+
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken')
   const refreshToken = localStorage.getItem('refreshToken')
   
+  requestCount++
   console.log('DEBUG: Axios request interceptor:', {
     method: config.method?.toUpperCase(),
     url: config.url,
     hasAccessToken: !!token,
     hasRefreshToken: !!refreshToken,
-    tokenLength: token?.length || 0
+    tokenLength: token?.length || 0,
+    requestCount: requestCount
   })
+  
+  // Warn if too many requests
+  if (requestCount > 50) {
+    console.warn('WARNING: High request frequency detected! Request count:', requestCount)
+  }
   
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -49,6 +62,26 @@ client.interceptors.response.use(
       message: err.message,
       isRetry: !!original._retry
     })
+    
+    // Handle 429 Too Many Requests with retry logic
+    if (err.response?.status === 429 && !original._retry) {
+      console.log('DEBUG: 429 Too Many Requests, implementing retry with backoff')
+      
+      // Calculate exponential backoff: 1s, 2s, 4s, 8s, 16s
+      const retryCount = original._retryCount || 0
+      const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 16000) // Max 16 seconds
+      
+      original._retry = true
+      original._retryCount = (retryCount || 0) + 1
+      
+      console.log(`DEBUG: Retrying in ${backoffTime}ms (attempt ${retryCount + 1})`)
+      
+      setTimeout(() => {
+        return client(original)
+      }, backoffTime)
+      
+      return Promise.reject(err)
+    }
     
     if (err.response?.status === 401 && !original._retry) {
       console.log('DEBUG: 401 Unauthorized detected, attempting token refresh')

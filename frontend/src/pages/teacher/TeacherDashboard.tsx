@@ -51,10 +51,11 @@ export default function TeacherDashboard() {
     totalStudents: 0
   })
   const [loading, setLoading] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
 
   useEffect(() => {
     fetchDashboardData()
-  }, [])
+  }, [user?.id]) // Only refetch when user changes
 
   const deleteExam = async (examId: string) => {
     if (!confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
@@ -63,7 +64,7 @@ export default function TeacherDashboard() {
 
     try {
       await api.delete(`/exams/${examId}`)
-      // Refresh the dashboard data
+      // Refresh dashboard data
       fetchDashboardData()
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
@@ -72,8 +73,24 @@ export default function TeacherDashboard() {
     }
   }
 
+  let fetchTimeout: ReturnType<typeof setTimeout> | null = null
+
   const fetchDashboardData = async () => {
+    // Prevent duplicate calls
+    if (isFetching) {
+      console.log('Already fetching dashboard data, skipping...')
+      return
+    }
+
+    // Clear existing timeout
+    if (fetchTimeout) {
+      clearTimeout(fetchTimeout)
+    }
+
+    setIsFetching(true)
     try {
+      console.log('Fetching dashboard data...')
+      
       // Use the correct teacher stats API
       const [statsRes, examsRes, studentsRes] = await Promise.all([
         api.get('/teacher/stats').catch(err => {
@@ -89,7 +106,7 @@ export default function TeacherDashboard() {
           return { data: [] }
         })
       ])
-      
+    
       setStats(statsRes.data)
       setExams(Array.isArray(examsRes.data) ? examsRes.data.slice(0, 5) : []) // Show only 5 recent exams
       setStudents(Array.isArray(studentsRes.data) ? studentsRes.data : [])
@@ -101,6 +118,7 @@ export default function TeacherDashboard() {
       setStudents([])
     } finally {
       setLoading(false)
+      setIsFetching(false)
     }
   }
 
