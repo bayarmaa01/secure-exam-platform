@@ -40,6 +40,9 @@ export default function ExamRoom() {
   const [cheatingWarnings, setCheatingWarnings] = useState(0)
   const [examEndTime, setExamEndTime] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [examError, setExamError] = useState<string | null>(null)
+  const [warningError, setWarningError] = useState<string | null>(null)
   
   // Refs for production-grade safety and state stability
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -132,8 +135,11 @@ export default function ExamRoom() {
       // Handle different error types
       if (errorMessage.includes('not found') || errorMessage.includes('404')) {
         console.log(`[${sessionId.current}] Exam not found, redirecting to dashboard`)
-        setError('Exam not found')
+        setExamError('Exam not found')
         navigate('/student/exams')
+      } else if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+        console.log(`[${sessionId.current}] Authentication error`)
+        setAuthError('Authentication failed')
       } else {
         setError(errorMessage)
       }
@@ -206,8 +212,17 @@ export default function ExamRoom() {
   const handleVisibilityChange = useCallback(() => {
     if (!isMounted.current || !document.hidden || !attemptId) return
     
-    // Tab switch detected
+    // Tab switch detected with cooldown
+    const now = Date.now()
+    const timeSinceLastWarning = now - (window as any).lastWarningTime || 0
+    
+    if (timeSinceLastWarning < 5000) {
+      console.log(`[${sessionId.current}] Throttling warning request - only ${timeSinceLastWarning}ms since last`)
+      return
+    }
+    
     console.log(`[${sessionId.current}] Tab switch detected`)
+    (window as any).lastWarningTime = now
     
     if (isMounted.current) {
       setCheatingWarnings(prev => prev + 1)
@@ -477,7 +492,7 @@ export default function ExamRoom() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="bg-red-100 border border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
             <h2 className="text-lg font-semibold mb-2">Error Loading Exam</h2>
             <p className="text-gray-600">{error}</p>
           </div>
@@ -492,7 +507,8 @@ export default function ExamRoom() {
     )
   }
 
-  if (!exam || !currentQuestion) {
+  // Show specific error states
+  if (examError) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -504,6 +520,34 @@ export default function ExamRoom() {
           >
             Back to Exams
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Authentication Error</h1>
+          <p className="text-gray-600 mb-6">Please log in again to continue.</p>
+          <button
+            onClick={() => navigate('/login')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!exam || !currentQuestion) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Loading Exam...</h1>
+          <p className="text-gray-600 mb-6">Please wait while we load your exam.</p>
         </div>
       </div>
     )

@@ -24,11 +24,19 @@ router.post('/warnings',
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
+        console.error('POST /api/warnings - Validation errors:', errors.array())
         return res.status(400).json({ errors: errors.array() })
       }
 
       const { exam_id, type, message } = req.body
-      const studentId = req.user!.id
+      
+      // Additional validation
+      if (!req.user || !req.user.id) {
+        console.error('POST /api/warnings - User not authenticated')
+        return res.status(401).json({ message: 'User not authenticated' })
+      }
+      
+      const studentId = req.user.id
 
       // Get Prometheus metrics from app
       const metrics = req.app.get('metrics') as {
