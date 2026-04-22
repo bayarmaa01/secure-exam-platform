@@ -30,8 +30,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('DEBUG: Initializing auth with tokens:', {
         hasAccessToken: !!token,
         hasRefreshToken: !!refreshToken,
-        hasUser: !!userStr
+        hasUser: !!userStr,
+        currentPath: window.location.pathname
       })
+
+      // Don't auto-login if user is explicitly on login page
+      if (window.location.pathname === '/login') {
+        console.log('DEBUG: User on login page, skipping auto-login')
+        setLoading(false)
+        return
+      }
 
       if (token && refreshToken && userStr) {
         try {
@@ -42,11 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('DEBUG: Token validation successful, user logged in')
         } catch (error) {
           console.error('DEBUG: Token validation failed:', error)
-          // Clear invalid tokens
+          // Clear ALL invalid tokens and user data
           localStorage.removeItem('accessToken')
           localStorage.removeItem('refreshToken')
           localStorage.removeItem('user')
           setUser(null)
+          console.log('DEBUG: Cleared all invalid auth data')
         }
       }
       
@@ -128,9 +137,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
-    setUser(null)
     
-    // Redirect to login
+    // Also clear any session storage data
+    sessionStorage.removeItem('accessToken')
+    sessionStorage.removeItem('refreshToken')
+    sessionStorage.removeItem('user')
+    
+    setUser(null)
+    console.log('DEBUG: All auth data cleared, redirecting to login')
+    
+    // Force redirect to login page
     window.location.href = '/login'
   }
 

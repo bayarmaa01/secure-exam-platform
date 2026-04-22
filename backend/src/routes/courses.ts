@@ -195,8 +195,7 @@ router.delete('/courses/:id',
       const enrollmentResult = await client.query('DELETE FROM enrollments WHERE course_id = $1', [courseId])
       console.log(`  Deleted ${enrollmentResult.rowCount} enrollments`)
 
-      // 4. Delete notifications related to this course
-      await client.query('DELETE FROM notifications WHERE course_id = $1', [courseId])
+      // 4. Note: Notifications table doesn't have course_id column, so we skip this step
 
       // 5. Delete the course
       const deleteResult = await client.query('DELETE FROM courses WHERE id = $1', [courseId])

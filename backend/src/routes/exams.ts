@@ -165,7 +165,11 @@ router.post('/exams',
     body('title').notEmpty().withMessage('Title is required'),
     body('description').optional().trim(),
     body('course_id').notEmpty().withMessage('Course ID is required'),
+    body('type').isIn(['mcq', 'written', 'coding', 'mixed', 'ai_proctored']).withMessage('Invalid exam type'),
     body('duration_minutes').isInt({ min: 1, max: 480 }),
+    body('difficulty').isIn(['easy', 'medium', 'hard']).withMessage('Invalid difficulty level'),
+    body('total_marks').isInt({ min: 1 }).withMessage('Total marks must be at least 1'),
+    body('passing_marks').isInt({ min: 1 }).withMessage('Passing marks must be at least 1'),
     body('start_time').isISO8601().toDate(),
     body('end_time').optional().isISO8601().toDate(),
   ],
@@ -183,9 +187,22 @@ router.post('/exams',
         title, 
         description, 
         course_id,
+        type = 'mcq',
         duration_minutes = 60,
         start_time,
-        end_time
+        end_time,
+        total_marks = 100,
+        passing_marks = 50,
+        difficulty = 'medium',
+        fullscreen_required = false,
+        tab_switch_detection = false,
+        copy_paste_blocked = false,
+        camera_required = false,
+        face_detection_enabled = false,
+        shuffle_questions = false,
+        shuffle_options = false,
+        assign_to_all = true,
+        assigned_groups = []
       } = req.body
 
       // Validate course exists and belongs to teacher
@@ -209,10 +226,11 @@ router.post('/exams',
 
       // Prepare values for insertion - matching actual database schema
       const values = [
-        title, description, 'mcq', duration_minutes, start_time, end_time,
-        'medium', 100, 50, false, course_id, req.user!.id,
-        false, false, false, false,
-        false, false, false, true, [], 'draft'
+        title, description, type, duration_minutes, start_time, end_time,
+        difficulty, total_marks, passing_marks, false, course_id, req.user!.id,
+        fullscreen_required, tab_switch_detection, copy_paste_blocked,
+        camera_required, face_detection_enabled, shuffle_questions,
+        shuffle_options, assign_to_all, assigned_groups, 'draft'
       ]
 
       // Generate placeholders dynamically to prevent mismatch
