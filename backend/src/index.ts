@@ -296,4 +296,4 @@ async function start() {
 start()
 
 // Export app and metrics for testing
-export { app, activeExamSessions }
+export { app, activeExamSessions, examSubmissionsTotal }

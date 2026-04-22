@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent, requireTeacher } from '../middleware/auth'
 import { register, Counter } from 'prom-client'
+import { examSubmissionsTotal } from '../index'
 
 const router = Router()
 
@@ -13,12 +14,7 @@ const examActiveTotal = new Counter({
   registers: [register]
 })
 
-const examSubmissionsTotal = new Counter({
-  name: 'exam_submissions_total',
-  help: 'Total exam submissions',
-  labelNames: ['exam_id', 'status'],
-  registers: [register]
-})
+// examSubmissionsTotal metric is defined in index.ts to avoid conflicts
 
 // Warnings metrics handled in warnings-unified.ts
 
