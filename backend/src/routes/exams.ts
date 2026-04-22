@@ -29,13 +29,15 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
       id: row.id,
       title: row.title,
       description: row.description,
-      durationMinutes: row.duration_minutes,
+      durationMinutes: row.duration_minutes || 60,
       startTime: row.start_time,
       endTime: row.end_time,
-      status: row.status,
-      courseName: row.course_name,
+      status: row.status || 'draft',
+      courseName: row.course_name || 'No Course',
       courseDescription: row.course_description,
-      questionCount: parseInt(row.question_count) || 0
+      questionCount: parseInt(row.question_count) || 0,
+      // Add scheduledAt for frontend compatibility
+      scheduledAt: row.start_time
     }))
     
     console.log('Mapped results being sent to frontend:', JSON.stringify(mappedResults, null, 2))
@@ -65,7 +67,8 @@ router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res)
     const r = await pool.query(
       `SELECT e.id, e.title, e.description, e.duration_minutes, e.start_time, e.end_time, e.status, e.created_at, e.course_id,
               c.name as course_name,
-              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
+              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count,
+              (SELECT COUNT(*) FROM exam_attempts ea WHERE ea.exam_id = e.id) as attempt_count
        FROM exams e
        LEFT JOIN courses c ON e.course_id = c.id
        WHERE e.teacher_id = $1
@@ -79,14 +82,17 @@ router.get('/teacher/exams', auth, requireTeacher, async (req: AuthRequest, res)
       id: row.id,
       title: row.title,
       description: row.description,
-      durationMinutes: row.duration_minutes,
+      durationMinutes: row.duration_minutes || 60,
       startTime: row.start_time,
       endTime: row.end_time,
-      status: row.status,
+      status: row.status || 'draft',
       createdAt: row.created_at,
       courseId: row.course_id,
-      courseName: row.course_name || 'Unknown Course',
-      questionCount: parseInt(row.question_count) || 0
+      courseName: row.course_name || 'No Course',
+      questionCount: parseInt(row.question_count) || 0,
+      attemptCount: parseInt(row.attempt_count) || 0,
+      // Add scheduledAt for frontend compatibility
+      scheduledAt: row.start_time
     }))
     
     console.log('Mapped results being sent to frontend:', JSON.stringify(mappedResults, null, 2))
@@ -150,7 +156,7 @@ router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
     
     const questions = questionsQuery.rows.map(q => ({
       id: q.id,
-      text: q.question_text,
+      question_text: q.question_text,
       options: q.options || [],
       type: q.type || 'mcq',
       points: q.points || 1,

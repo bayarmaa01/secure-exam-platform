@@ -95,11 +95,25 @@ export default function ExamRoom() {
       // Prevent state updates if component unmounted
       if (!isMounted.current) return
       
-      // Update exam state atomically
+      // Update exam state atomically with safety checks
       setExam(examData)
       setQuestions(examData.questions || [])
-      setTimeLeft(examData.duration_minutes * 60)
-      setExamEndTime(new Date(examData.end_time))
+      
+      // Handle duration with fallback
+      const durationMinutes = examData.duration_minutes || examData.durationMinutes || 60
+      setTimeLeft(durationMinutes * 60)
+      
+      // Handle end time with fallback calculation
+      let endTime: Date
+      if (examData.end_time) {
+        endTime = new Date(examData.end_time)
+      } else if (examData.endTime) {
+        endTime = new Date(examData.endTime)
+      } else {
+        // Calculate end time from duration if not provided
+        endTime = new Date(Date.now() + durationMinutes * 60000)
+      }
+      setExamEndTime(endTime)
       
       // Phase 2: Start exam attempt (only if not already started)
       if (!isStartingAttempt.current && !attemptStarted.current) {
@@ -192,32 +206,38 @@ export default function ExamRoom() {
   }, [])
 
   const handleVisibilityChange = useCallback(() => {
-    if (!isMounted.current || !document.hidden || !attemptId) return
+    if (!isMounted.current || !attemptId) return
     
-    // Tab switch detected with cooldown
-    const now = Date.now()
-    const timeSinceLastWarning = now - (window as any).lastWarningTime || 0
-    
-    if (timeSinceLastWarning < 5000) {
-      console.log(`[${sessionId.current}] Throttling warning request - only ${timeSinceLastWarning}ms since last`);
-      return;
+    // Tab switch detected
+    if (document.hidden) {
+      console.log(`[${sessionId.current}] Tab switch detected - page hidden`);
+      
+      // Apply cooldown to prevent spam
+      const now = Date.now()
+      const timeSinceLastWarning = now - (window as any).lastTabWarningTime || 0
+      
+      if (timeSinceLastWarning < 5000) {
+        console.log(`[${sessionId.current}] Throttling tab switch warning - only ${timeSinceLastWarning}ms since last`);
+        return;
+      }
+      
+      (window as any).lastTabWarningTime = now;
+      
+      if (isMounted.current) {
+        setCheatingWarnings(prev => prev + 1)
+      }
+      
+      // Send warning asynchronously (non-blocking)
+      api.post('/warnings', {
+        userId: user?.id,
+        examId: id,
+        sessionId: sessionId.current,
+        type: 'tab_switch',
+        message: 'Student switched tabs during exam'
+      }).catch((error: unknown) => console.error('Failed to send tab switch warning:', error))
+    } else {
+      console.log(`[${sessionId.current}] Page became visible again`);
     }
-    
-    console.log(`[${sessionId.current}] Tab switch detected`);
-    (window as any).lastWarningTime = now;
-    
-    if (isMounted.current) {
-      setCheatingWarnings(prev => prev + 1)
-    }
-    
-    // Send warning asynchronously (non-blocking)
-    api.post('/warnings', {
-      userId: user?.id,
-      examId: id,
-      sessionId: sessionId.current,
-      type: 'tab_switch',
-      message: 'Student switched tabs during exam'
-    }).catch((error: unknown) => console.error('Failed to send warning:', error))
   }, [attemptId, user?.id, id])
 
   const handleFullscreenChange = useCallback(() => {
@@ -259,6 +279,35 @@ export default function ExamRoom() {
         
         if (isMounted.current) {
           setWebcamActive(true)
+        }
+      }
+
+      // Add camera off detection
+      const videoTrack = stream.getVideoTracks()[0]
+      if (videoTrack) {
+        videoTrack.onended = () => {
+          console.log(`[${sessionId.current}] Camera track ended - camera turned off`)
+          if (isMounted.current) {
+            setWebcamActive(false)
+            setCheatingWarnings(prev => prev + 1)
+          }
+          
+          // Send warning asynchronously (non-blocking)
+          api.post('/warnings', {
+            userId: user?.id,
+            examId: id,
+            sessionId: sessionId.current,
+            type: 'camera_off',
+            message: 'Camera was turned off during exam'
+          }).catch((error: unknown) => console.error('Failed to send camera off warning:', error))
+        }
+        
+        videoTrack.onmute = () => {
+          console.log(`[${sessionId.current}] Camera track muted`)
+        }
+        
+        videoTrack.onunmute = () => {
+          console.log(`[${sessionId.current}] Camera track unmuted`)
         }
       }
 
@@ -550,6 +599,17 @@ export default function ExamRoom() {
     )
   }
 
+  if (!attemptId) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Starting Exam...</h1>
+          <p className="text-gray-600 mb-6">Please wait while we start your exam attempt.</p>
+        </div>
+      </div>
+    )
+  }
+
   const currentQuestion = questions[currentQuestionIndex]
   if (!currentQuestion) {
     return (
@@ -707,14 +767,21 @@ export default function ExamRoom() {
         </div>
       </div>
 
-      {/* Hidden video element for webcam */}
+      {/* Visible video element for webcam */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        className="hidden"
+        className="fixed bottom-4 right-4 w-40 h-32 rounded-lg shadow-lg border-2 border-blue-500 z-50 object-cover"
       />
+      
+      {/* Camera status indicator */}
+      {webcamActive && (
+        <div className="fixed bottom-4 right-44 bg-green-500 text-white px-2 py-1 rounded text-xs z-50">
+          Camera Active
+        </div>
+      )}
     </div>
   )
 }

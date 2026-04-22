@@ -3,12 +3,20 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 
+// Safe date formatting function
+const formatDate = (date: string | null | undefined) => {
+  if (!date) return "Not scheduled"
+  const d = new Date(date)
+  return isNaN(d.getTime()) ? "Invalid date" : d.toLocaleDateString()
+}
+
 interface Exam {
   id: string
   title: string
   description: string
   durationMinutes: number
   startTime: string
+  endTime?: string
   status: string
   createdAt: string
   courseId?: string
@@ -380,7 +388,10 @@ export default function TeacherDashboard() {
                               {exam.questionCount || 0} questions
                             </span>
                             <span className="text-sm text-gray-500">
-                              {exam.startTime ? new Date(exam.startTime).toLocaleDateString() : 'No date set'}
+                              {exam.attemptCount || 0} attempts
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              {formatDate(exam.startTime)}
                             </span>
                           </div>
                         </div>

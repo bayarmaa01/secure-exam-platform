@@ -47,6 +47,27 @@ const httpRequestTotal = new Counter({
   registers: [register]
 })
 
+// Exam session metrics
+const activeExamSessions = new Gauge({
+  name: 'exam_sessions_active',
+  help: 'Number of active exam sessions',
+  registers: [register]
+})
+
+const examSubmissionsTotal = new Counter({
+  name: 'exam_submissions_total',
+  help: 'Total number of exam submissions',
+  labelNames: ['status'],
+  registers: [register]
+})
+
+const examAttemptsTotal = new Counter({
+  name: 'exam_attempts_total',
+  help: 'Total number of exam attempts',
+  labelNames: ['exam_type', 'status'],
+  registers: [register]
+})
+
 const app = express()
 const server = createServer(app)
 const io = new SocketIOServer(server, {
@@ -156,6 +177,20 @@ app.use('/api', analyticsApiRoutes)
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
+app.get('/version.json', (_, res) => {
+  res.json({
+    version: '1.0.0',
+    name: 'Secure Exam Platform',
+    buildTime: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    features: {
+      authentication: true,
+      proctoring: true,
+      metrics: true,
+      websocket: true
+    }
+  })
+})
 
 // Prometheus metrics endpoint
 app.get('/metrics', async (_, res) => {
@@ -261,10 +296,4 @@ async function start() {
 start()
 
 // Export app and metrics for testing
-const activeExamSessions = new Gauge({
-  name: 'exam_sessions_active',
-  help: 'Number of active exam sessions',
-  registers: [register]
-})
-
 export { app, activeExamSessions }

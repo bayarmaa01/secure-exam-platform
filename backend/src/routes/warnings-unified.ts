@@ -52,9 +52,10 @@ router.post('/warnings',
       const { userId, examId, type, message } = req.body
 
       // Store warning in database
+      const sessionId = req.body.sessionId || null
       await pool.query(
-        'INSERT INTO warnings (user_id, exam_id, type, message) VALUES ($1, $2, $3, $4)',
-        [userId, examId, type, message]
+        'INSERT INTO warnings (user_id, exam_id, type, message, session_id) VALUES ($1, $2, $3, $4, $5)',
+        [userId, examId, type, message, sessionId]
       )
 
       // Update metrics
