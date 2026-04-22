@@ -141,6 +141,20 @@ router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
     if (req.user!.role === 'teacher' && row.teacher_id !== req.user!.id) {
       return res.status(403).json({ message: 'Access denied' })
     }
+
+    // Get questions for this exam
+    const questionsQuery = await pool.query(
+      'SELECT id, text, options, type, points FROM questions WHERE exam_id = $1 ORDER BY created_at',
+      [req.params.id]
+    )
+    
+    const questions = questionsQuery.rows.map(q => ({
+      id: q.id,
+      text: q.text,
+      options: q.options || [],
+      type: q.type || 'mcq',
+      points: q.points || 1
+    }))
     
     res.json({
       id: row.id,
@@ -148,11 +162,14 @@ router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
       description: row.description,
       durationMinutes: row.duration_minutes,
       startTime: row.start_time,
+      endTime: row.end_time,
       status: row.status,
       teacherName: row.teacher_name,
-      createdAt: row.created_at
+      createdAt: row.created_at,
+      questions: questions
     })
   } catch (error) {
+    console.error('GET /api/exams/:id - Error:', error)
     res.status(500).json({ message: 'Internal server error' })
   }
 })

@@ -86,7 +86,7 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "exam_sessions_active",
+            "expr": "exam_active_sessions or vector(0)",
             "legendFormat": "Active Sessions"
           }
         ],
@@ -230,7 +230,7 @@
         "type": "graph",
         "targets": [
           {
-            "expr": "sum(rate(suspicious_events_total[5m])) by (event_type)",
+            "expr": "sum(rate(exam_violations_total[5m])) by (type) or vector(0)",
             "legendFormat": "{{event_type}}"
           }
         ],
@@ -255,11 +255,11 @@
         "type": "graph",
         "targets": [
           {
-            "expr": "avg(proctoring_risk_score)",
+            "expr": "avg(exam_violation_rate) or vector(0)",
             "legendFormat": "Average Risk Score"
           },
           {
-            "expr": "max(proctoring_risk_score)",
+            "expr": "max(exam_violation_rate) or vector(0)",
             "legendFormat": "Max Risk Score"
           }
         ],

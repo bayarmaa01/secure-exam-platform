@@ -472,8 +472,6 @@ export default function ExamRoom() {
     }
   }, [])
 
-  const currentQuestion = questions[currentQuestionIndex]
-
   // Conditional rendering - prevent "Exam not found" flicker
   if (loading) {
     return (
@@ -541,12 +539,47 @@ export default function ExamRoom() {
     )
   }
 
-  if (!exam || !currentQuestion) {
+  if (!exam) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Loading Exam...</h1>
           <p className="text-gray-600 mb-6">Please wait while we load your exam.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">No Questions Available</h1>
+          <p className="text-gray-600 mb-6">This exam doesn't have any questions yet.</p>
+          <button
+            onClick={() => navigate('/student/exams')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back to Exams
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const currentQuestion = questions[currentQuestionIndex]
+  if (!currentQuestion) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Question Not Found</h1>
+          <p className="text-gray-600 mb-6">The current question is not available.</p>
+          <button
+            onClick={() => navigate('/student/exams')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back to Exams
+          </button>
         </div>
       </div>
     )
