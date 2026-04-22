@@ -43,6 +43,15 @@ client.interceptors.request.use((config) => {
   return config
 })
 
+// Export reset function for external use
+declare global {
+  interface Window {
+    resetRequestCount: () => void
+  }
+}
+
+window.resetRequestCount = resetRequestCount
+
 // Response interceptor - handle token refresh and debug logging
 client.interceptors.response.use(
   (res) => {
