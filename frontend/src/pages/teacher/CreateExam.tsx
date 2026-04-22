@@ -149,7 +149,7 @@ export default function CreateExam() {
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="mcq">Multiple Choice</option>
-                    <option value="written">Written</option>
+                    <option value="writing">Writing</option>
                     <option value="coding">Coding</option>
                     <option value="mixed">Mixed</option>
                     <option value="ai_proctored">AI Proctored</option>

@@ -7,8 +7,11 @@ interface Question {
   id: string
   text: string
   options: string[]
-  type: 'mcq' | 'text'
+  type: 'mcq' | 'short_answer' | 'long_answer' | 'coding'
   points: number
+  language?: string
+  starter_code?: Record<string, string>
+  test_cases?: Array<{input: string, output: string}>
 }
 
 interface Exam {
@@ -643,7 +646,7 @@ export default function ExamRoom() {
             )}
 
             {/* Text Answer */}
-            {currentQuestion.type === 'text' && (
+            {(currentQuestion.type === 'short_answer' || currentQuestion.type === 'long_answer') && (
               <textarea
                 value={answers[currentQuestion.id] as string || ''}
                 onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
@@ -651,6 +654,34 @@ export default function ExamRoom() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter your answer here..."
               />
+            )}
+
+            {/* Coding Answer */}
+            {currentQuestion.type === 'coding' && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <label className="text-sm font-medium text-gray-700">Language:</label>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                    {currentQuestion.language?.toUpperCase() || 'PYTHON'}
+                  </span>
+                </div>
+                <textarea
+                  value={answers[currentQuestion.id] as string || (currentQuestion.starter_code?.[currentQuestion.language || 'python'] || '')}
+                  onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+                  rows={12}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  placeholder="Write your code here..."
+                />
+                <div className="text-xs text-gray-500">
+                  <p>Test Cases:</p>
+                  {currentQuestion.test_cases?.map((testCase, index) => (
+                    <div key={index} className="mt-1">
+                      <span className="font-medium">Input:</span> {testCase.input} | 
+                      <span className="font-medium"> Output:</span> {testCase.output}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 

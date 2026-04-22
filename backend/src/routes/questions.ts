@@ -29,9 +29,12 @@ router.post('/exams/:examId/questions',
   requireTeacher,
   [
     body('question_text').notEmpty().trim(),
-    body('type').isIn(['mcq', 'written', 'coding']),
+    body('type').isIn(['mcq', 'short_answer', 'long_answer', 'coding']),
     body('options').optional().isArray(),
-    body('correct_answer').notEmpty().trim(),
+    body('correct_answer').optional().trim(),
+    body('language').optional().isIn(['python', 'java', 'cpp', 'javascript', 'c']),
+    body('starter_code').optional().isObject(),
+    body('test_cases').optional().isArray(),
     body('points').optional().isInt({ min: 1 })
   ],
   async (req: AuthRequest, res) => {
@@ -42,11 +45,11 @@ router.post('/exams/:examId/questions',
       }
 
       const examId = req.params.examId
-      const { question_text, type, options, correct_answer, points = 1 } = req.body
+      const { question_text, type, options, correct_answer, language, starter_code, test_cases, points = 1 } = req.body
 
-      // Check if exam belongs to teacher
+      // Check if exam belongs to teacher and get exam type
       const examCheck = await pool.query(
-        'SELECT teacher_id FROM exams WHERE id = $1',
+        'SELECT teacher_id, type FROM exams WHERE id = $1',
         [examId]
       )
 
@@ -58,18 +61,63 @@ router.post('/exams/:examId/questions',
         return res.status(403).json({ message: 'Access denied' })
       }
 
-      // Validate MCQ questions have options
-      if (type === 'mcq' && (!options || options.length < 2)) {
-        return res.status(400).json({ message: 'MCQ questions must have at least 2 options' })
+      const examType = examCheck.rows[0].type
+
+      // Validate question type compatibility with exam type
+      if (examType !== 'mixed') {
+        const allowedTypes = {
+          'mcq': ['mcq'],
+          'writing': ['short_answer', 'long_answer'],
+          'coding': ['coding'],
+          'ai_proctored': ['mcq', 'short_answer', 'long_answer', 'coding'] // AI proctored can have any type
+        }
+
+        const allowed = allowedTypes[examType as keyof typeof allowedTypes] || []
+        if (!allowed.includes(type)) {
+          return res.status(400).json({ 
+            message: `Question type '${type}' is not allowed for exam type '${examType}'. Allowed types: ${allowed.join(', ')}` 
+          })
+        }
+      }
+
+      // Validate question types based on requirements
+      switch (type) {
+        case 'mcq':
+          if (!options || options.length < 2) {
+            return res.status(400).json({ message: 'MCQ questions must have at least 2 options' })
+          }
+          if (!correct_answer) {
+            return res.status(400).json({ message: 'MCQ questions must have a correct answer' })
+          }
+          break
+
+        case 'short_answer':
+        case 'long_answer':
+          if (!correct_answer) {
+            return res.status(400).json({ message: 'Writing questions must have a correct answer for grading' })
+          }
+          break
+
+        case 'coding':
+          if (!language) {
+            return res.status(400).json({ message: 'Coding questions must specify a programming language' })
+          }
+          if (!test_cases || test_cases.length === 0) {
+            return res.status(400).json({ message: 'Coding questions must have at least one test case' })
+          }
+          break
+
+        default:
+          return res.status(400).json({ message: 'Invalid question type' })
       }
 
       const query = `
-        INSERT INTO questions (exam_id, question_text, type, options, correct_answer, points)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO questions (exam_id, question_text, type, options, correct_answer, points, language, starter_code, test_cases)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `
 
-      const values = [examId, question_text, type, options, correct_answer, points]
+      const values = [examId, question_text, type, options, correct_answer, points, language, starter_code || {}, test_cases || []]
       const r = await pool.query(query, values)
 
       res.status(201).json(r.rows[0])
