@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
-import { Question, Exam, QuestionType } from '../../types/exam'
+import { Question, Exam } from '../../types/exam'
 
 // Production-grade ExamRoom component with strict React StrictMode safety
 export default function ExamRoom() {
