@@ -219,6 +219,16 @@ router.post('/exams',
 
       console.log("Validated body:", req.body);
 
+      // Check if required fields are present
+      if (!req.body.title) {
+        console.log("ERROR: Title is missing or empty");
+        return res.status(400).json({ message: 'Title is required' });
+      }
+      if (!req.body.course_id) {
+        console.log("ERROR: Course ID is missing or empty");
+        return res.status(400).json({ message: 'Course ID is required' });
+      }
+
       const { 
         title, 
         description, 
@@ -238,7 +248,7 @@ router.post('/exams',
         shuffle_questions = false,
         shuffle_options = false,
         assign_to_all = true,
-        assigned_groups = []
+        assigned_groups = {}
       } = req.body
 
       console.log("Extracted exam data:", {
