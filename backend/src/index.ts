@@ -28,6 +28,7 @@ import { monitoringRoutes } from './routes/monitoring'
 import { aiProctoringRoutes } from './routes/ai-proctoring'
 import { attemptsApiRoutes } from './routes/attempts-api'
 import { analyticsApiRoutes } from './routes/analytics-api'
+import proctoringRoutes from './routes/proctoring'
 import { startExamStatusUpdater } from './jobs/examStatusUpdater'
 
 // Prometheus metrics
@@ -174,6 +175,7 @@ app.use('/api', warningsUnifiedRoutes)
 app.use('/api', monitoringRoutes)
 app.use('/api/ai', aiProctoringRoutes)
 app.use('/api', analyticsApiRoutes)
+app.use('/api', proctoringRoutes)
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))

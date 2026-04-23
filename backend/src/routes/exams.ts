@@ -13,7 +13,8 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
     
     const r = await pool.query(
       `SELECT e.*, c.name as course_name, c.description as course_description,
-              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
+              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count,
+              (SELECT ea.id FROM exam_attempts ea WHERE ea.exam_id = e.id AND ea.user_id = $1 AND ea.submitted_at IS NOT NULL LIMIT 1) as completed_attempt_id
        FROM exams e
        JOIN enrollments en ON e.course_id = en.course_id
        JOIN courses c ON e.course_id = c.id
@@ -37,7 +38,10 @@ router.get('/exams', auth, requireStudent, async (req: AuthRequest, res) => {
       courseDescription: row.course_description,
       questionCount: parseInt(row.question_count) || 0,
       // Add scheduledAt for frontend compatibility
-      scheduledAt: row.start_time
+      scheduledAt: row.start_time,
+      // Add completion status
+      completed: !!row.completed_attempt_id,
+      attemptId: row.completed_attempt_id
     }))
     
     console.log('Mapped results being sent to frontend:', JSON.stringify(mappedResults, null, 2))

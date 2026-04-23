@@ -49,7 +49,7 @@ router.post('/exams/:examId/start',
 
       // Check if student already has any attempt (completed or in_progress)
       const existingAttempt = await pool.query(
-        'SELECT id, status FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
+        'SELECT id, status, submitted_at FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
         [examId, studentId]
       )
 
@@ -57,7 +57,7 @@ router.post('/exams/:examId/start',
         const attempt = existingAttempt.rows[0]
         if (attempt.status === 'in_progress') {
           return res.status(400).json({ message: 'You already have an active attempt' })
-        } else if (attempt.status === 'completed' || attempt.status === 'submitted') {
+        } else if (attempt.status === 'completed' || attempt.status === 'submitted' || attempt.submitted_at) {
           return res.status(403).json({ message: 'You have already completed this exam' })
         }
       }

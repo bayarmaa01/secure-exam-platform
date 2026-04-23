@@ -45,8 +45,16 @@ export default function ExamRoom() {
     setSubmitting(true)
 
     try {
-      const response = await api.post(`/exams/attempts/${attemptId}/submit`, {
-        answers,
+      // First save all answers
+      for (const [questionId, answer] of Object.entries(answers)) {
+        await api.post(`/attempts/${attemptId}/answers`, {
+          question_id: questionId,
+          answer: answer
+        })
+      }
+      
+      // Then submit the exam
+      const response = await api.post(`/attempts/${attemptId}/submit`, {
         cheatingWarnings,
         sessionId: sessionId.current
       })
@@ -161,15 +169,15 @@ export default function ExamRoom() {
       const payload = { examId }
       console.log(`[${sessionId.current}] Sending payload to /attempts/start:`, payload)
       
-      const response = await api.post(`/attempts/start`, payload)
+      const response = await api.post(`/exams/${examId}/start`, payload)
       console.log(`[${sessionId.current}] FULL RESPONSE:`, response)
       console.log(`[${sessionId.current}] RESPONSE DATA:`, response.data)
       console.log(`[${sessionId.current}] RESPONSE.DATA.DATA:`, response.data.data)
       
       // CRITICAL FIX: Correct response parsing
-      const attempt = response.data.data
+      const attempt = response.data
       
-      if (response.data.success && attempt) {
+      if (attempt && attempt.id) {
         // Success case - set attempt ID from correct location
         if (isMounted.current) {
           setAttemptId(attempt.id)
@@ -177,7 +185,7 @@ export default function ExamRoom() {
           console.log(`[${sessionId.current}] Exam attempt started/resumed: ${attempt.id}`)
         }
       } else {
-        throw new Error(response.data.message || 'Failed to start exam attempt')
+        throw new Error('Failed to start exam attempt - no attempt ID returned')
       }
       
     } catch (attemptError) {
@@ -228,11 +236,10 @@ export default function ExamRoom() {
       }
       
       // Send warning asynchronously (non-blocking)
-      api.post('/warnings', {
-        userId: user?.id,
+      api.post('/proctoring/track', {
+        type: 'tab_switch',
         examId: id,
         sessionId: sessionId.current,
-        type: 'tab_switch',
         message: 'Student switched tabs during exam'
       }).catch((error: unknown) => console.error('Failed to send tab switch warning:', error))
     } else {
@@ -251,11 +258,10 @@ export default function ExamRoom() {
     }
     
     // Send warning asynchronously (non-blocking)
-    api.post('/warnings', {
-      userId: user?.id,
+    api.post('/proctoring/track', {
+      type: 'fullscreen_exit',
       examId: id,
       sessionId: sessionId.current,
-      type: 'fullscreen_exit',
       message: 'Student exited fullscreen during exam'
     }).catch((error: unknown) => console.error('Failed to send warning:', error))
   }, [attemptId, user?.id, id])
@@ -293,11 +299,10 @@ export default function ExamRoom() {
           }
           
           // Send warning asynchronously (non-blocking)
-          api.post('/warnings', {
-            userId: user?.id,
+          api.post('/proctoring/track', {
+            type: 'camera_off',
             examId: id,
             sessionId: sessionId.current,
-            type: 'camera_off',
             message: 'Camera was turned off during exam'
           }).catch((error: unknown) => console.error('Failed to send camera off warning:', error))
         }

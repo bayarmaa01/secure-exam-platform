@@ -8,8 +8,14 @@ interface Exam {
   title: string
   description: string
   durationMinutes: number
-  scheduledAt: string
+  startTime: string
+  endTime?: string
   status: string
+  courseName: string
+  questionCount: number
+  scheduledAt?: string // for backward compatibility
+  completed?: boolean // Track if student has completed this exam
+  attemptId?: string // Track existing attempt ID
 }
 
 export default function ExamList() {
@@ -125,21 +131,30 @@ export default function ExamList() {
                         {exam.status}
                       </span>
                       <span className="text-sm text-gray-500">
-                        {exam.durationMinutes} min
+                        {exam.durationMinutes} min • {exam.questionCount} questions
                       </span>
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">{exam.title}</h3>
-                    <p className="text-sm text-gray-600 mb-4">{exam.description}</p>
+                    <p className="text-sm text-gray-600 mb-2">{exam.description}</p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      <strong>Course:</strong> {exam.courseName}
+                    </p>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-500">
-                        {new Date(exam.scheduledAt).toLocaleDateString()}
+                        {new Date(exam.startTime || exam.scheduledAt || '').toLocaleDateString()} at {new Date(exam.startTime || exam.scheduledAt || '').toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </span>
-                      <Link
-                        to={`/exam/${exam.id}`}
-                        className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                      >
-                        Start Exam
-                      </Link>
+                      {exam.completed ? (
+                        <span className="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed">
+                          Completed
+                        </span>
+                      ) : (
+                        <Link
+                          to={`/exam/${exam.id}`}
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                        >
+                          Start Exam
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>
