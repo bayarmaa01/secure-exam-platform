@@ -7,6 +7,7 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<User>
   register: (email: string, password: string, name: string, role?: 'student' | 'teacher', registration_number?: string) => Promise<User>
   logout: () => void
+  resetAuth: () => void
   refreshToken: () => Promise<void>
   isAuthenticated: boolean
   isTeacher: boolean
@@ -150,6 +151,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = '/login'
   }
 
+  const resetAuth = (): void => {
+    localStorage.clear();
+    window.location.reload();
+  }
+
   const refreshToken = async (): Promise<void> => {
     try {
       const token = localStorage.getItem('refreshToken')
@@ -178,6 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login, 
       register, 
       logout, 
+      resetAuth,
       refreshToken,
       isAuthenticated,
       isTeacher,

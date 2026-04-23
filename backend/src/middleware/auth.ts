@@ -22,6 +22,7 @@ export interface JWTPayload {
 
 export async function auth(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization
+  console.log("AUTH HEADER:", authHeader);
   console.log('DEBUG: Auth middleware called:', {
     path: req.path,
     method: req.method,
