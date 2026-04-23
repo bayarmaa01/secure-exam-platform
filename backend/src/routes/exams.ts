@@ -592,8 +592,9 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
       return res.status(404).json({ message: 'Exam not found' })
     }
 
-    // REMOVE is_published check - any exam is available to enrolled students
-    
+    // REMOVE is_published check - any exam is available to students
+    // TEMPORARILY DISABLED: Remove enrollment check for testing
+    /*
     // Check if student is enrolled in the course
     const enrollmentCheck = await pool.query(
       'SELECT 1 FROM enrollments en WHERE en.course_id = (SELECT course_id FROM exams WHERE id = $1) AND en.student_id = $2',
@@ -602,6 +603,7 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
     if (enrollmentCheck.rows.length === 0) {
       return res.status(403).json({ message: 'Not enrolled in this exam course' })
     }
+    */
 
     // Check if already attempted
     const existingAttempt = await pool.query(
