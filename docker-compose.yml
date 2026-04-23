@@ -28,9 +28,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: https://secure-exam.duckdns.org/api
-        VITE_AI_URL: https://secure-exam.duckdns.org/ai
-        VITE_ENVIRONMENT: production
+        VITE_API_URL: /api
+        VITE_AI_URL: /ai
+        VITE_ENVIRONMENT: development
     # Removed direct port mapping - frontend only accessible via nginx
     depends_on:
       - backend
