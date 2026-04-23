@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
@@ -52,18 +52,12 @@ export default function TeacherDashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [isFetching, setIsFetching] = useState(false)
-  const fetchTimeout: ReturnType<typeof setTimeout> | null = null
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     // Prevent duplicate calls
     if (isFetching) {
       console.log('Already fetching dashboard data, skipping...')
       return
-    }
-
-    // Clear existing timeout
-    if (fetchTimeout) {
-      clearTimeout(fetchTimeout)
     }
 
     setIsFetching(true)
@@ -99,7 +93,7 @@ export default function TeacherDashboard() {
       setLoading(false)
       setIsFetching(false)
     }
-  }
+  }, [isFetching])
 
   const deleteExam = async (examId: string) => {
     if (!confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {

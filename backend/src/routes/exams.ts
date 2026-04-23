@@ -128,9 +128,10 @@ router.get('/admin/exams', auth, requireAdmin, async (req, res) => {
 router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
   try {
     const r = await pool.query(
-      `SELECT e.*, u.name as teacher_name 
+      `SELECT e.*, u.name as teacher_name, c.name as course_name, c.id as course_id
        FROM exams e 
        JOIN users u ON e.teacher_id = u.id
+       JOIN courses c ON e.course_id = c.id
        WHERE e.id = $1`,
       [req.params.id]
     )
@@ -178,6 +179,8 @@ router.get('/exams/:id', auth, async (req: AuthRequest, res) => {
       endTime: row.end_time,
       status: row.status,
       teacherName: row.teacher_name,
+      courseName: row.course_name,
+      courseId: row.course_id,
       createdAt: row.created_at,
       questions: questions
     })
