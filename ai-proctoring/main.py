@@ -22,11 +22,20 @@ app.add_middleware(
     allow_methods=["*"],
 )
 
-# Initialize MediaPipe Face Detection
-mp_face_detection = mp.solutions.face_detection
-face_detection = mp_face_detection.FaceDetection(
-    model_selection=0, min_detection_confidence=0.5
-)
+# Initialize MediaPipe Face Detection (simplified for CI/CD)
+face_detection = None
+try:
+    mp_face_detection = mp.solutions.face_detection
+    face_detection = mp_face_detection.FaceDetection(
+        model_selection=0, min_detection_confidence=0.5
+    )
+    print("MediaPipe face detection initialized successfully")
+except AttributeError as e:
+    print(f"MediaPipe face detection not available: {e}")
+    print("Using fallback mode without face detection")
+except Exception as e:
+    print(f"Error initializing MediaPipe: {e}")
+    print("Using fallback mode without face detection")
 
 # Redis connection for session management
 try:
