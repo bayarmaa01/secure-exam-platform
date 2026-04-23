@@ -241,6 +241,19 @@ router.post('/exams',
         assigned_groups = []
       } = req.body
 
+      console.log("Extracted exam data:", {
+        title, 
+        description, 
+        course_id,
+        type,
+        duration_minutes,
+        start_time,
+        end_time,
+        total_marks,
+        passing_marks,
+        difficulty
+      });
+
       // Validate course exists and belongs to teacher
       const courseCheck = await pool.query(
         'SELECT id FROM courses WHERE id = $1 AND teacher_id = $2',
