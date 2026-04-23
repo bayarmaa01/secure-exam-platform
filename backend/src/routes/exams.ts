@@ -411,7 +411,48 @@ router.post('/exams',
   }
 )
 
-// PUBLISH LOGIC REMOVED - Exams are visible immediately after creation
+// Teacher: Publish exam
+router.post('/exams/:id/publish', 
+  auth, 
+  requireTeacher,
+  async (req: AuthRequest, res) => {
+    try {
+      const examId = req.params.id
+
+      // Check ownership
+      const examCheck = await pool.query(
+        'SELECT teacher_id FROM exams WHERE id = $1',
+        [examId]
+      )
+      if (examCheck.rows.length === 0) {
+        return res.status(404).json({ message: 'Exam not found' })
+      }
+      if (examCheck.rows[0].teacher_id !== req.user!.id) {
+        return res.status(403).json({ message: 'Access denied' })
+      }
+
+      // Publish exam
+      const r = await pool.query(
+        `UPDATE exams 
+         SET is_published = true, status = 'published', updated_at = NOW()
+         WHERE id = $1 
+         RETURNING *`,
+        [examId]
+      )
+
+      console.log(`✅ Exam ${examId} published by teacher ${req.user!.id}`)
+
+      res.json({
+        success: true,
+        message: 'Exam published successfully',
+        exam: r.rows[0]
+      })
+    } catch (error) {
+      console.error('Error publishing exam:', error)
+      res.status(500).json({ message: 'Internal server error' })
+    }
+  }
+)
 
 // Teacher: Update exam
 router.put('/exams/:id', 
@@ -617,11 +658,53 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
 
     // Check if exam is available
     const examCheck = await pool.query(
-      'SELECT status, start_time FROM exams WHERE id = $1',
+      'SELECT status, start_time, end_time, is_published FROM exams WHERE id = $1',
       [examId]
     )
     if (examCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Exam not found' })
+    }
+
+    const exam = examCheck.rows[0]
+    const now = new Date()
+
+    // Check if exam is published
+    if (exam.is_published === false) {
+      const reason = "Exam not published"
+      console.log("BLOCKED:", reason, exam)
+      return res.status(403).json({ 
+        error: "FORBIDDEN", 
+        reason: reason
+      })
+    }
+
+    // Check exam status
+    if (exam.status !== "published") {
+      const reason = "Exam not active"
+      console.log("BLOCKED:", reason, exam)
+      return res.status(403).json({ 
+        error: "FORBIDDEN", 
+        reason: reason
+      })
+    }
+
+    // Check exam timing
+    if (new Date(exam.start_time) > now) {
+      const reason = "Exam not started yet"
+      console.log("BLOCKED:", reason, exam)
+      return res.status(403).json({ 
+        error: "FORBIDDEN", 
+        reason: reason
+      })
+    }
+
+    if (exam.end_time && new Date(exam.end_time) < now) {
+      const reason = "Exam already ended"
+      console.log("BLOCKED:", reason, exam)
+      return res.status(403).json({ 
+        error: "FORBIDDEN", 
+        reason: reason
+      })
     }
 
     // REMOVE is_published check - any exam is available to students

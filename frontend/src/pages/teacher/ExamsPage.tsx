@@ -227,20 +227,20 @@ export default function ExamsPage() {
                 <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
                   <div>
                     <div className="text-gray-500">Duration</div>
-                    <div className="font-medium">{exam.duration_minutes} min</div>
+                    <div className="font-medium">{exam.durationMinutes || exam.duration_minutes || 0} min</div>
                   </div>
                   <div>
                     <div className="text-gray-500">Questions</div>
-                    <div className="font-medium">{exam.question_count || 0}</div>
+                    <div className="font-medium">{exam.questionCount || exam.question_count || 0}</div>
                   </div>
                   <div>
                     <div className="text-gray-500">Attempts</div>
-                    <div className="font-medium">{exam.attempt_count || 0}</div>
+                    <div className="font-medium">{exam.attemptCount || exam.attempt_count || 0}</div>
                   </div>
                   <div>
                     <div className="text-gray-500">Start Time</div>
                     <div className="font-medium text-xs">
-                      {new Date(exam.start_time).toLocaleDateString()}
+                      {new Date(exam.startTime || exam.start_time).toLocaleDateString()}
                     </div>
                   </div>
                 </div>

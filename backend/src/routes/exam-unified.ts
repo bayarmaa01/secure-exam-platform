@@ -52,18 +52,42 @@ router.post('/exams/:id/start',
       const exam = examCheck.rows[0]
       const now = new Date()
 
+      // Check if exam is published
+      if (exam.is_published === false) {
+        const reason = "Exam not published"
+        console.log("BLOCKED:", reason, exam)
+        return res.status(403).json({ 
+          error: "FORBIDDEN", 
+          reason: reason
+        })
+      }
+
+      // Check exam status
+      if (exam.status !== "published") {
+        const reason = "Exam not active"
+        console.log("BLOCKED:", reason, exam)
+        return res.status(403).json({ 
+          error: "FORBIDDEN", 
+          reason: reason
+        })
+      }
+
       // Check exam timing
       if (new Date(exam.start_time) > now) {
+        const reason = "Exam not started yet"
+        console.log("BLOCKED:", reason, exam)
         return res.status(403).json({ 
-          success: false, 
-          message: 'Exam has not started yet' 
+          error: "FORBIDDEN", 
+          reason: reason
         })
       }
 
       if (new Date(exam.end_time) < now) {
+        const reason = "Exam already ended"
+        console.log("BLOCKED:", reason, exam)
         return res.status(403).json({ 
-          success: false, 
-          message: 'Exam has ended' 
+          error: "FORBIDDEN", 
+          reason: reason
         })
       }
 

@@ -67,7 +67,14 @@ export default function DynamicExamRoom() {
       setExam(examResponse.data as Exam)
       setQuestions(questionsResponse.data as Question[])
     } catch (error: unknown) {
-      setError((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to start exam')
+      console.error('Exam initialization error:', error)
+      console.error('Error response data:', (error as { response?: { data?: any } }).response?.data)
+      const errorData = (error as { response?: { data?: any } }).response?.data
+      if (errorData?.error === 'FORBIDDEN') {
+        setError(`Access denied: ${errorData.reason || 'Unknown reason'}`)
+      } else {
+        setError(errorData?.message || errorData?.reason || 'Failed to start exam')
+      }
     } finally {
       setLoading(false)
     }

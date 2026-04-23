@@ -141,7 +141,14 @@ export default function ExamList() {
                     </p>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-500">
-                        {new Date(exam.startTime || exam.scheduledAt || '').toLocaleDateString()} at {new Date(exam.startTime || exam.scheduledAt || '').toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {(() => {
+                          const dateStr = exam.startTime || exam.scheduledAt || ''
+                          const date = new Date(dateStr)
+                          if (isNaN(date.getTime())) {
+                            return 'Date not set'
+                          }
+                          return `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
+                        })()}
                       </span>
                       {exam.completed ? (
                         <span className="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed">
