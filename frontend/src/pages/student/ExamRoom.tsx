@@ -419,8 +419,8 @@ export default function ExamRoom() {
     loadExam()
     
     return () => {
-      const currentSessionId = sessionId.current
-      console.log(`[${currentSessionId}] ExamRoom component unmounting, cleaning up`)
+      const sessionIdValue = sessionId.current
+      console.log(`[${sessionIdValue}] ExamRoom component unmounting, cleaning up`)
       isMounted.current = false
       isLoadingExam.current = false
       isStartingAttempt.current = false
@@ -440,8 +440,8 @@ export default function ExamRoom() {
     antiCheatingSetup.current = true
     
     return () => {
-      const currentSessionId = sessionId.current
-      console.log(`[${currentSessionId}] Cleaning up anti-cheating measures`)
+      const sessionIdValue = sessionId.current
+      console.log(`[${sessionIdValue}] Cleaning up anti-cheating measures`)
       
       // Remove event listeners to prevent memory leaks
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
@@ -484,7 +484,7 @@ export default function ExamRoom() {
       console.log(`[${sessionId.current}] Timer reached zero, auto-submitting exam`)
       submitExam()
     }
-  }, [timeLeft, attemptId, submitting])
+  }, [timeLeft, attemptId, submitting, submitExam])
 
   // Production-grade auto-submit when exam time ends (backup check)
   useEffect(() => {
@@ -499,9 +499,9 @@ export default function ExamRoom() {
 
   // StrictMode-safe cleanup on component unmount (DO NOT reset attemptStarted)
   useEffect(() => {
+    const sessionIdValue = sessionId.current
     return () => {
-      const currentSessionId = sessionId.current
-      console.log(`[${currentSessionId}] Component unmounting - cleaning up resources`)
+      console.log(`[${sessionIdValue}] Component unmounting - cleaning up resources`)
       isStartingAttempt.current = false
       isLoadingExam.current = false
       isMounted.current = false

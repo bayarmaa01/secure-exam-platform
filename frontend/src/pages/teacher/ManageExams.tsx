@@ -25,10 +25,6 @@ export default function ManageExams() {
   const [loading, setLoading] = useState(true)
   const [isFetching, setIsFetching] = useState(false)
 
-  useEffect(() => {
-    fetchExams()
-  }, []) // Only fetch once on mount
-
   const fetchExams = async () => {
     // Prevent duplicate calls
     if (isFetching) {
@@ -50,6 +46,10 @@ export default function ManageExams() {
       setIsFetching(false)
     }
   }
+
+  useEffect(() => {
+    fetchExams()
+  }, [fetchExams]) // Only fetch once on mount
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>

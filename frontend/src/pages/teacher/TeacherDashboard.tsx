@@ -52,27 +52,6 @@ export default function TeacherDashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [isFetching, setIsFetching] = useState(false)
-
-  useEffect(() => {
-    fetchDashboardData()
-  }, [user?.id]) // Only refetch when user changes
-
-  const deleteExam = async (examId: string) => {
-    if (!confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
-      return
-    }
-
-    try {
-      await api.delete(`/exams/${examId}`)
-      // Refresh dashboard data
-      fetchDashboardData()
-    } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
-      console.error('Failed to delete exam:', apiError.response?.data?.message || 'Unknown error')
-      alert('Failed to delete exam. Please try again.')
-    }
-  }
-
   const fetchTimeout: ReturnType<typeof setTimeout> | null = null
 
   const fetchDashboardData = async () => {
@@ -121,6 +100,26 @@ export default function TeacherDashboard() {
       setIsFetching(false)
     }
   }
+
+  const deleteExam = async (examId: string) => {
+    if (!confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      await api.delete(`/exams/${examId}`)
+      // Refresh dashboard data
+      fetchDashboardData()
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { message?: string } } }
+      console.error('Failed to delete exam:', apiError.response?.data?.message || 'Unknown error')
+      alert('Failed to delete exam. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [user?.id, fetchDashboardData]) // Only refetch when user changes
 
   const getStatusColor = (status: string) => {
     switch (status) {

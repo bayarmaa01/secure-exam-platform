@@ -27,7 +27,7 @@ export default function AddQuestions() {
     options: ['', ''],
     correct_answer: '',
     points: 1,
-    language: 'python' as const,
+    language: 'python' as 'python' | 'java' | 'javascript' | 'cpp' | 'c',
     starter_code: '',
     test_cases: [{ input: '', output: '' }]
   })
@@ -357,7 +357,7 @@ export default function AddQuestions() {
                       </label>
                       <select
                         value={formData.language}
-                        onChange={(e) => setFormData({ ...formData, language: e.target.value as any })}
+                        onChange={(e) => setFormData({ ...formData, language: e.target.value as 'python' | 'java' | 'javascript' | 'cpp' | 'c' })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="python">Python</option>
