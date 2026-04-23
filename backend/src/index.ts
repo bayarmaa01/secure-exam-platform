@@ -1,7 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
+// import rateLimit from 'express-rate-limit' // DISABLED
 import { createServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
 import { initDb } from './db'
