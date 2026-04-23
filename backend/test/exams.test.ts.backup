@@ -42,10 +42,7 @@ describe('Exam Routes', () => {
           description: 'Basic mathematics',
           duration_minutes: 60,
           start_time: new Date().toISOString(),
-          status: 'published',
-          course_name: 'Math Course',
-          question_count: 5,
-          completed_attempt_id: null
+          status: 'published'
         }
       ];
 
@@ -59,19 +56,56 @@ describe('Exam Routes', () => {
 
       expect(response.body).toHaveLength(1);
       expect(response.body[0].title).toBe('Math Exam');
+      expect(response.body[0].durationMinutes).toBe(60);
+    });
+
+    test('should get exam by id', async () => {
+      const mockExam = {
+        id: 1,
+        title: 'Math Exam',
+        description: 'Basic mathematics',
+        duration_minutes: 60,
+        total_marks: 100,
+        teacher_id: 1, // Match the mock user ID
+        status: 'published',
+        start_time: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        teacher_name: 'Test Teacher'
+      };
+
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: [mockExam]
+      } as never);
+
+      const response = await request(app)
+        .get('/api/exams/1')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('id', 1);
+      expect(response.body).toHaveProperty('title', 'Math Exam');
+      expect(response.body).toHaveProperty('teacherName', 'Test Teacher');
+    });
+
+    test('should return 404 for non-existent exam', async () => {
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: []
+      } as never);
+
+      const response = await request(app)
+        .get('/api/exams/999')
+        .expect(404);
+
+      expect(response.body).toHaveProperty('message', 'Exam not found');
     });
 
     test('should create a new exam', async () => {
       const examData = {
-        title: 'Test Exam',
-        description: 'Test Description',
-        course_id: 1,
-        type: 'mcq',
+        title: 'New Exam',
+        description: 'Test description',
         duration_minutes: 60,
         start_time: new Date().toISOString(),
-        total_marks: 100,
-        passing_marks: 50,
-        difficulty: 'medium'
+        end_time: new Date(Date.now() + 3600000).toISOString(),
+        course_id: 1
       };
 
       // Mock course validation
@@ -84,7 +118,7 @@ describe('Exam Routes', () => {
         rows: [{ id: 1, ...examData }]
       } as never);
 
-      // Mock notification queries
+      // Mock notification queries (optional) - multiple queries for notifications
       mockPoolQuery.mockResolvedValueOnce({
         rows: []
       } as never);
@@ -108,9 +142,9 @@ describe('Exam Routes', () => {
         description: 'Updated description'
       };
 
-      // Mock exam existence check - returns exam with matching teacher_id
+      // Mock exam existence check
       mockPoolQuery.mockResolvedValueOnce({
-        rows: [{ teacher_id: 1 }]
+        rows: [{ teacher_id: 1 }] // Database returns number
       } as never);
 
       // Mock update result
@@ -180,21 +214,21 @@ describe('Exam Routes', () => {
     test('should get exam questions', async () => {
       // Mock exam access check
       mockPoolQuery.mockResolvedValueOnce({
-        rows: [{ teacher_id: 1, status: 'published' }]
+        rows: [{ teacher_id: 1, status: 'published' }] // Match the mock user ID and status
       } as never);
 
-      // Mock questions query
+      const mockQuestions = [
+        {
+          id: 1,
+          question_text: 'What is 2+2?',
+          type: 'multiple_choice',
+          options: ['3', '4', '5', '6'],
+          points: 10
+        }
+      ];
+
       mockPoolQuery.mockResolvedValueOnce({
-        rows: [
-          {
-            id: 1,
-            question_text: 'What is 2+2?',
-            type: 'mcq',
-            options: JSON.stringify(['3', '4', '5', '6']),
-            correct_answer: '4',
-            points: 10
-          }
-        ]
+        rows: mockQuestions
       } as never);
 
       const response = await request(app)
@@ -216,10 +250,7 @@ describe('Exam Routes', () => {
           duration_minutes: 90,
           start_time: new Date().toISOString(),
           status: 'draft',
-          created_at: new Date().toISOString(),
-          course_name: 'Test Course',
-          question_count: 5,
-          attempt_count: 0
+          created_at: new Date().toISOString()
         }
       ];
 

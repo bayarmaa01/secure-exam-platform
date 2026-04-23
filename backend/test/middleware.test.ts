@@ -71,7 +71,7 @@ describe('Authentication Middleware', () => {
       await auth(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
       expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Unauthorized' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Unauthorized - No valid token provided' });
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
@@ -87,7 +87,7 @@ describe('Authentication Middleware', () => {
       await auth(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
       expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Invalid token' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Authentication failed' });
       expect(nextFunction).not.toHaveBeenCalled();
     });
   });
@@ -201,7 +201,7 @@ describe('Authentication Middleware', () => {
       await auth(mockRequest as AuthRequest, mockResponse as Response, nextFunction);
 
       expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Unauthorized' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Unauthorized - No valid token provided' });
       expect(nextFunction).not.toHaveBeenCalled();
     });
   });

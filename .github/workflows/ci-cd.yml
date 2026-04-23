@@ -24,7 +24,7 @@ jobs:
     name: Code Quality & Tests
     runs-on: ubuntu-latest
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NODE_VERSION: '20'
     strategy:
       matrix:
         service: [frontend, backend, ai-proctoring]
@@ -33,18 +33,23 @@ jobs:
 
       - name: Checkout Repo
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         if: matrix.service != 'ai-proctoring'
         uses: actions/setup-node@v5
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Python
         if: matrix.service == 'ai-proctoring'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: false
 
       - name: Install Dependencies
         run: |
@@ -77,7 +82,7 @@ jobs:
         run: |
           cd ${{ matrix.service }}
           if [ "${{ matrix.service }}" = "ai-proctoring" ]; then
-            python -m pytest test_main.py -v
+            python -m pytest test_main.py -v --tb=short
           else
             npm run test:ci
           fi
@@ -96,6 +101,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
@@ -115,6 +121,9 @@ jobs:
 
       - name: Checkout Repo
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Trivy Scan
         uses: aquasecurity/trivy-action@master
@@ -149,6 +158,9 @@ jobs:
 
       - name: Checkout Repo
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
