@@ -64,6 +64,17 @@ export interface Exam {
   questions?: Question[]
   created_at: string
   updated_at: string
+  // Frontend compatibility properties (camelCase versions)
+  durationMinutes?: number
+  startTime?: string
+  endTime?: string
+  questionCount?: number
+  courseName?: string
+  teacherName?: string
+  attemptCount?: number
+  scheduledAt?: string // for backward compatibility
+  completed?: boolean // for student view
+  attemptId?: string // for student view
 }
 
 export interface ExamFormData {

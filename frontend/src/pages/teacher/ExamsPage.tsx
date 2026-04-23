@@ -1,23 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { coursesApi, Course } from '../../api/courses'
+import { Exam } from '../../types/exam'
 import api from '../../api'
-
-interface Exam {
-  id: string
-  title: string
-  description: string
-  type: string
-  duration_minutes: number
-  start_time: string
-  end_time: string
-  status: string
-  course_id: string
-  course_name?: string
-  created_at: string
-  question_count?: number
-  attempt_count?: number
-}
 
 export default function ExamsPage() {
   const [exams, setExams] = useState<Exam[]>([])
@@ -219,7 +204,7 @@ export default function ExamsPage() {
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                     </svg>
-                    {getCourseName(exam.course_id)}
+                    {getCourseName(exam.course_id || '')}
                   </div>
                 </div>
 
@@ -231,11 +216,11 @@ export default function ExamsPage() {
                   </div>
                   <div>
                     <div className="text-gray-500">Questions</div>
-                    <div className="font-medium">{exam.questionCount || exam.question_count || 0}</div>
+                    <div className="font-medium">{exam.questionCount || 0}</div>
                   </div>
                   <div>
                     <div className="text-gray-500">Attempts</div>
-                    <div className="font-medium">{exam.attemptCount || exam.attempt_count || 0}</div>
+                    <div className="font-medium">{exam.attemptCount || 0}</div>
                   </div>
                   <div>
                     <div className="text-gray-500">Start Time</div>
@@ -332,7 +317,7 @@ export default function ExamsPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Questions</p>
               <p className="text-2xl font-bold text-gray-900">
-                {exams.reduce((sum, exam) => sum + (exam.question_count || 0), 0)}
+                {exams.reduce((sum, exam) => sum + (exam.questionCount || 0), 0)}
               </p>
             </div>
           </div>
