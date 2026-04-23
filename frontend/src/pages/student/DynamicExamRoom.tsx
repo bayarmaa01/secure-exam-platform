@@ -67,11 +67,28 @@ export default function DynamicExamRoom() {
       setExam(examResponse.data as Exam)
       setQuestions(questionsResponse.data as Question[])
     } catch (error: unknown) {
-      console.error('Exam initialization error:', error)
-      console.error('Error response data:', (error as { response?: { data?: any } }).response?.data)
+      console.error('ERROR:', error)
+      console.error('ERROR RESPONSE DATA:', (error as { response?: { data?: any } }).response?.data)
       const errorData = (error as { response?: { data?: any } }).response?.data
+      
       if (errorData?.error === 'FORBIDDEN') {
-        setError(`Access denied: ${errorData.reason || 'Unknown reason'}`)
+        // Show user-friendly messages based on specific reason
+        switch (errorData.reason) {
+          case 'EXAM_NOT_PUBLISHED':
+            setError('This exam has not been published yet. Please contact your teacher.')
+            break
+          case 'EXAM_NOT_ACTIVE':
+            setError('This exam is not currently active. Please check the exam schedule.')
+            break
+          case 'EXAM_NOT_STARTED':
+            setError('This exam has not started yet. Please try again at the scheduled time.')
+            break
+          case 'EXAM_ENDED':
+            setError('This exam has already ended. The exam period is over.')
+            break
+          default:
+            setError(`Access denied: ${errorData.reason || 'Unknown reason'}`)
+        }
       } else {
         setError(errorData?.message || errorData?.reason || 'Failed to start exam')
       }

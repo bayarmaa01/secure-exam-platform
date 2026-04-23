@@ -669,8 +669,8 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
     const now = new Date()
 
     // Check if exam is published
-    if (exam.is_published === false) {
-      const reason = "Exam not published"
+    if (!exam.is_published) {
+      const reason = "EXAM_NOT_PUBLISHED"
       console.log("BLOCKED:", reason, exam)
       return res.status(403).json({ 
         error: "FORBIDDEN", 
@@ -680,7 +680,7 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
 
     // Check exam status
     if (exam.status !== "published") {
-      const reason = "Exam not active"
+      const reason = "EXAM_NOT_ACTIVE"
       console.log("BLOCKED:", reason, exam)
       return res.status(403).json({ 
         error: "FORBIDDEN", 
@@ -690,7 +690,7 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
 
     // Check exam timing
     if (new Date(exam.start_time) > now) {
-      const reason = "Exam not started yet"
+      const reason = "EXAM_NOT_STARTED"
       console.log("BLOCKED:", reason, exam)
       return res.status(403).json({ 
         error: "FORBIDDEN", 
@@ -699,7 +699,7 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
     }
 
     if (exam.end_time && new Date(exam.end_time) < now) {
-      const reason = "Exam already ended"
+      const reason = "EXAM_ENDED"
       console.log("BLOCKED:", reason, exam)
       return res.status(403).json({ 
         error: "FORBIDDEN", 
