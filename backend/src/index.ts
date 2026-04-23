@@ -129,12 +129,13 @@ app.use((req, res, next) => {
   next()
 })
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { message: 'Too many requests' }
-})
-app.use('/api', limiter)
+// Rate limiting - DISABLED for testing
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 100,
+//   message: { message: 'Too many requests' }
+// })
+// app.use('/api', limiter)
 
 // Debug middleware to track all requests
 app.use('/api', (req, res, next) => {
