@@ -73,7 +73,7 @@ export default function TeacherDashboard() {
     }
   }
 
-  let fetchTimeout: ReturnType<typeof setTimeout> | null = null
+  const fetchTimeout: ReturnType<typeof setTimeout> | null = null
 
   const fetchDashboardData = async () => {
     // Prevent duplicate calls

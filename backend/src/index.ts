@@ -62,13 +62,6 @@ const examSubmissionsTotal = new Counter({
   registers: [register]
 })
 
-const examAttemptsTotal = new Counter({
-  name: 'exam_attempts_total',
-  help: 'Total number of exam attempts',
-  labelNames: ['exam_type', 'status'],
-  registers: [register]
-})
-
 const app = express()
 const server = createServer(app)
 const io = new SocketIOServer(server, {

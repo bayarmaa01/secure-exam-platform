@@ -1,8 +1,18 @@
 import { useState } from 'react'
 
+interface Question {
+  question_text: string
+  type: string
+  options?: string[] | null
+  correct_answer?: string
+  points: number
+  starter_code?: { [key: string]: string } | null
+  test_cases?: { input: string; output: string }[] | null
+}
+
 interface QuestionFormProps {
   examType: string
-  onSubmit: (question: any) => void
+  onSubmit: (question: Question) => void
   onCancel: () => void
 }
 
@@ -269,7 +279,7 @@ export default function QuestionForm({ examType, onSubmit, onCancel }: QuestionF
           <label className="block text-sm font-medium text-gray-700">Question Type</label>
           <select
             value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+            onChange={(e) => setFormData({ ...formData, type: e.target.value as 'mcq' | 'short_answer' | 'coding' | 'essay' })}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {getAvailableQuestionTypes().map(type => (

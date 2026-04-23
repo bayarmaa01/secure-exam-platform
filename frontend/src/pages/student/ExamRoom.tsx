@@ -222,14 +222,15 @@ export default function ExamRoom() {
       
       // Apply cooldown to prevent spam
       const now = Date.now()
-      const timeSinceLastWarning = now - (window as any).lastTabWarningTime || 0
+      const lastWarningTime = ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime
+      const timeSinceLastWarning = lastWarningTime ? now - lastWarningTime : 0
       
       if (timeSinceLastWarning < 5000) {
         console.log(`[${sessionId.current}] Throttling tab switch warning - only ${timeSinceLastWarning}ms since last`);
         return;
       }
       
-      (window as any).lastTabWarningTime = now;
+      ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime = now;
       
       if (isMounted.current) {
         setCheatingWarnings(prev => prev + 1)
@@ -245,7 +246,7 @@ export default function ExamRoom() {
     } else {
       console.log(`[${sessionId.current}] Page became visible again`);
     }
-  }, [attemptId, user?.id, id])
+  }, [attemptId, id])
 
   const handleFullscreenChange = useCallback(() => {
     if (!isMounted.current || document.fullscreenElement || !attemptId) return
@@ -264,7 +265,7 @@ export default function ExamRoom() {
       sessionId: sessionId.current,
       message: 'Student exited fullscreen during exam'
     }).catch((error: unknown) => console.error('Failed to send warning:', error))
-  }, [attemptId, user?.id, id])
+  }, [attemptId, id])
 
   // Production-grade webcam with proper cleanup and memory leak prevention
   const startWebcam = useCallback(async () => {
@@ -426,7 +427,7 @@ export default function ExamRoom() {
       attemptStarted.current = false
       hasInitialized.current = false // Reset for next mount
     }
-  }, [id]) // Only depends on ID change
+  }, [id, loadExam]) // Only depends on ID change and loadExam
 
   // Anti-cheating setup - only runs when attempt is available and prevents duplicates
   const antiCheatingSetup = useRef(false)
@@ -457,7 +458,7 @@ export default function ExamRoom() {
       stopWebcam()
       antiCheatingSetup.current = false
     }
-  }, [attemptId])
+  }, [attemptId, handleFullscreenChange, handleKeyDown, handleVisibilityChange, preventContextMenu, preventCopyPaste, setupAntiCheating, stopWebcam])
 
   // Production-grade timer countdown effect
   useEffect(() => {
@@ -592,7 +593,7 @@ export default function ExamRoom() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">No Questions Available</h1>
-          <p className="text-gray-600 mb-6">This exam doesn't have any questions yet.</p>
+          <p className="text-gray-600 mb-6">This exam doesn&apos;t have any questions yet.</p>
           <button
             onClick={() => navigate('/student/exams')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
