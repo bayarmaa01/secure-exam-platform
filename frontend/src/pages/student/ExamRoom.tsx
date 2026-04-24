@@ -70,7 +70,8 @@ export default function ExamRoom() {
       }
       
       // Then submit the exam
-      const response = await api.post(`/attempts/${attemptId}/submit`, {
+      const response = await api.post(`/attempts/submit`, {
+        attemptId: attemptId,
         cheatingWarnings,
         sessionId: sessionId.current
       })
