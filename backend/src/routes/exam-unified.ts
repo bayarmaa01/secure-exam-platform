@@ -29,67 +29,42 @@ router.post('/exams/:id/start',
       const examId = req.params.id
       const studentId = req.user!.id
 
-      // Validate exam exists and is accessible
-      // TEMPORARILY DISABLED: Remove enrollment check for testing
+      // Database-driven validation - PostgreSQL as source of truth
       const examCheck = await pool.query(
         `SELECT e.*, c.name as course_name
          FROM exams e
          JOIN courses c ON e.course_id = c.id
-         /* JOIN enrollments en ON e.course_id = en.course_id
-         WHERE e.id = $1 AND en.student_id = $2 */
-         WHERE e.id = $1`,
+         WHERE e.id = $1 
+         AND e.is_published = true 
+         AND NOW() BETWEEN e.start_time AND e.end_time`,
         [examId]
       )
 
       if (examCheck.rows.length === 0) {
-        console.log(`Exam ${examId} not found or student not enrolled`)
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Exam not found or access denied' 
+        console.log({
+          error: "EXAM_NOT_ACTIVE",
+          examId,
+          studentId,
+          now: new Date().toISOString(),
+          reason: "Exam not found, not published, or outside time window"
+        })
+        
+        return res.status(403).json({ 
+          error: "FORBIDDEN", 
+          reason: "EXAM_NOT_ACTIVE"
         })
       }
 
       const exam = examCheck.rows[0]
-      const now = new Date()
-
-      // Check if exam is published
-      if (!exam.is_published) {
-        const reason = "EXAM_NOT_PUBLISHED"
-        console.log("BLOCKED:", reason, exam)
-        return res.status(403).json({ 
-          error: "FORBIDDEN", 
-          reason: reason
-        })
-      }
-
-      // Check exam status
-      if (exam.status !== "published") {
-        const reason = "EXAM_NOT_ACTIVE"
-        console.log("BLOCKED:", reason, exam)
-        return res.status(403).json({ 
-          error: "FORBIDDEN", 
-          reason: reason
-        })
-      }
-
-      // Check exam timing
-      if (new Date(exam.start_time) > now) {
-        const reason = "EXAM_NOT_STARTED"
-        console.log("BLOCKED:", reason, exam)
-        return res.status(403).json({ 
-          error: "FORBIDDEN", 
-          reason: reason
-        })
-      }
-
-      if (new Date(exam.end_time) < now) {
-        const reason = "EXAM_ENDED"
-        console.log("BLOCKED:", reason, exam)
-        return res.status(403).json({ 
-          error: "FORBIDDEN", 
-          reason: reason
-        })
-      }
+      
+      console.log({
+        examFound: true,
+        examId: exam.id,
+        now: new Date().toISOString(),
+        examStart: exam.start_time,
+        examEnd: exam.end_time,
+        isPublished: exam.is_published
+      })
 
       // Check if student already has an attempt
       const existingAttempt = await pool.query(
