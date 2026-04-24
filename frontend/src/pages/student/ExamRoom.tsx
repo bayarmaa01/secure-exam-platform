@@ -70,8 +70,15 @@ export default function ExamRoom() {
       }
       
       // Then submit the exam
+      // Convert answers object to array format expected by backend
+      const answersArray = Object.entries(answers).map(([questionId, answer]) => ({
+        questionId,
+        answer
+      }))
+      
       const response = await api.post(`/attempts/submit`, {
         attemptId: attemptId,
+        answers: answersArray,
         cheatingWarnings,
         sessionId: sessionId.current
       })
