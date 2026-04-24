@@ -163,7 +163,8 @@ export default function ExamRoomReactQuery() {
       warnings: number
     }) => {
       console.log('DEBUG: React Query - Submitting exam:', attemptId)
-      const response = await api.post(\`/exams/attempts/\${attemptId}/submit\`, {
+      const response = await api.post(\`/attempts/submit\`, {
+        attemptId: attemptId,
         answers,
         cheatingWarnings: warnings
       })

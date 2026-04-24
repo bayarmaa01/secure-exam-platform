@@ -135,7 +135,9 @@ export default function DynamicExamRoom() {
       }
 
       // Submit exam
-      await api.post(`/attempts/${attempt.id}/submit`)
+      await api.post(`/attempts/submit`, {
+        attemptId: attempt.id
+      })
       
       navigate('/student/results')
     } catch (error: unknown) {
