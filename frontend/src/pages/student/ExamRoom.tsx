@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 import { Question, Exam } from '../../types/exam'
+import { useAntiCheat } from '../../hooks/useAntiCheat'
 
 // Production-grade ExamRoom component with strict React StrictMode safety
 export default function ExamRoom() {
@@ -25,6 +26,9 @@ export default function ExamRoom() {
   const [error, setError] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
   const [examError, setExamError] = useState<string | null>(null)
+
+  // Session ID for anti-cheat tracking
+  const sessionId = useRef<string>(`session_${Date.now()}`) // Clean session ID without random decimals
   
   // Refs for production-grade safety and state stability
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -36,7 +40,19 @@ export default function ExamRoom() {
   const isLoadingExam = useRef(false)
   const isStartingAttempt = useRef(false)
   const attemptStarted = useRef(false)
-  const sessionId = useRef<string>(`session_${Date.now()}`) // Clean session ID without random decimals
+
+  // Anti-cheat system
+  const { violations } = useAntiCheat(sessionId.current, {
+    preventTabSwitch: true,
+    preventFullscreenExit: true,
+    preventCopyPaste: true,
+    preventRightClick: true
+  })
+
+  // Update cheating warnings when violations are detected
+  useEffect(() => {
+    setCheatingWarnings(violations.length)
+  }, [violations])
 
   // Production-grade submit exam with proper error handling and unmount protection
   const submitExam = useCallback(async () => {

@@ -70,7 +70,7 @@ export const useAntiCheat = (
     }
     
     // Also send via HTTP API as backup
-    api.post(`/exam-sessions/${sessionId}/violations`, {
+    api.post(`/sessions/${sessionId}/violations`, {
       type,
       details,
       timestamp: violation.timestamp

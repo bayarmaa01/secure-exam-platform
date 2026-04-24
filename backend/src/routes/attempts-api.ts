@@ -124,6 +124,115 @@ router.post('/attempts/start',
   }
 )
 
+// POST /api/attempts/:attemptId/answers - Submit individual answer
+router.post('/attempts/:attemptId/answers',
+  auth,
+  requireStudent,
+  [
+    body('questionId').notEmpty().withMessage('Question ID is required'),
+    body('answer').notEmpty().withMessage('Answer is required')
+  ],
+  async (req: AuthRequest, res) => {
+    console.log(`[${new Date().toISOString()}] POST /api/attempts/${req.params.attemptId}/answers - User: ${req.user?.id}`)
+    
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array())
+        return res.status(400).json({ 
+          success: false, 
+          errors: errors.array() 
+        })
+      }
+
+      const { questionId, answer } = req.body
+      const attemptId = req.params.attemptId
+      const studentId = req.user!.id
+
+      // Verify attempt belongs to student and is in progress
+      const attemptCheck = await pool.query(
+        'SELECT id, status, exam_id FROM exam_attempts WHERE id = $1 AND user_id = $2',
+        [attemptId, studentId]
+      )
+
+      if (attemptCheck.rows.length === 0) {
+        console.log(`Attempt ${attemptId} not found for user ${studentId}`)
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Attempt not found' 
+        })
+      }
+
+      const attempt = attemptCheck.rows[0]
+      if (attempt.status !== 'in_progress') {
+        console.log(`Attempt ${attemptId} is not in progress: ${attempt.status}`)
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Attempt is not active' 
+        })
+      }
+
+      // Get question details for grading
+      const questionQuery = await pool.query(
+        'SELECT id, correct_answer, points FROM questions WHERE id = $1 AND exam_id = $2',
+        [questionId, attempt.exam_id]
+      )
+
+      if (questionQuery.rows.length === 0) {
+        console.log(`Question ${questionId} not found for exam ${attempt.exam_id}`)
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Question not found' 
+        })
+      }
+
+      const question = questionQuery.rows[0]
+      
+      // Grade the answer
+      let isCorrect = false
+      let pointsEarned = 0
+
+      if (question.correct_answer && question.correct_answer.toLowerCase() === answer.toLowerCase()) {
+        isCorrect = true
+        pointsEarned = question.points
+      }
+
+      // Save the answer
+      await pool.query(
+        `INSERT INTO answers (attempt_id, question_id, answer, is_correct, points_earned)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (attempt_id, question_id) 
+         DO UPDATE SET 
+           answer = EXCLUDED.answer,
+           is_correct = EXCLUDED.is_correct,
+           points_earned = EXCLUDED.points_earned,
+           updated_at = NOW()`,
+        [attemptId, questionId, answer, isCorrect, pointsEarned]
+      )
+
+      console.log(`✅ Answer saved: Attempt ${attemptId}, Question ${questionId}, Correct: ${isCorrect}`)
+
+      res.json({
+        success: true,
+        message: 'Answer submitted successfully',
+        data: {
+          questionId,
+          answer,
+          isCorrect,
+          pointsEarned
+        }
+      })
+
+    } catch (error) {
+      console.error(`POST /api/attempts/${req.params.attemptId}/answers - Error:`, error)
+      res.status(500).json({ 
+        success: false, 
+        message: 'Internal server error' 
+      })
+    }
+  }
+)
+
 // POST /api/attempts/submit - Submit exam answers
 router.post('/attempts/submit',
   auth,
