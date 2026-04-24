@@ -68,17 +68,40 @@ router.post('/exams/:id/start',
 
       // Check if student already has an attempt
       const existingAttempt = await pool.query(
-        'SELECT id, status FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
+        'SELECT id, status, started_at FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
         [examId, studentId]
       )
 
       if (existingAttempt.rows.length > 0) {
         const attempt = existingAttempt.rows[0]
+        console.log({
+          existingAttemptFound: true,
+          attemptId: attempt.id,
+          status: attempt.status,
+          startedAt: attempt.started_at
+        })
+        
         if (attempt.status === 'in_progress') {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'You already have an active attempt',
-            attemptId: attempt.id
+          return res.status(200).json({ 
+            success: true,
+            message: 'Exam attempt already in progress',
+            data: {
+              attemptId: attempt.id,
+              examId: examId,
+              userId: studentId,
+              status: attempt.status,
+              startedAt: attempt.started_at,
+              exam: {
+                id: exam.id,
+                title: exam.title,
+                description: exam.description,
+                durationMinutes: exam.duration_minutes,
+                startTime: exam.start_time,
+                endTime: exam.end_time,
+                courseName: exam.course_name,
+                status: exam.status
+              }
+            }
           })
         } else if (attempt.status === 'submitted' || attempt.status === 'graded') {
           return res.status(403).json({ 
@@ -88,15 +111,57 @@ router.post('/exams/:id/start',
         }
       }
 
-      // Create new attempt
-      const attemptResult = await pool.query(
-        `INSERT INTO exam_attempts (exam_id, user_id, status) 
-         VALUES ($1, $2, 'in_progress') 
-         RETURNING *`,
-        [examId, studentId]
-      )
-
-      const attempt = attemptResult.rows[0]
+      // Create new attempt with better error handling
+      let attempt;
+      try {
+        const attemptResult = await pool.query(
+          `INSERT INTO exam_attempts (exam_id, user_id, status) 
+           VALUES ($1, $2, 'in_progress') 
+           RETURNING *`,
+          [examId, studentId]
+        )
+        attempt = attemptResult.rows[0]
+        console.log(`✅ New exam attempt created: ${attempt.id}`)
+      } catch (insertError: any) {
+        // Handle potential race condition - check if attempt was created by another request
+        if (insertError.code === '23505' || insertError.message.includes('duplicate')) {
+          console.log('Race condition detected - checking for existing attempt')
+          const retryCheck = await pool.query(
+            'SELECT id, status, started_at FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
+            [examId, studentId]
+          )
+          
+          if (retryCheck.rows.length > 0) {
+            const existingAttempt = retryCheck.rows[0]
+            if (existingAttempt.status === 'in_progress') {
+              return res.status(200).json({ 
+                success: true,
+                message: 'Exam attempt already in progress',
+                data: {
+                  attemptId: existingAttempt.id,
+                  examId: examId,
+                  userId: studentId,
+                  status: existingAttempt.status,
+                  startedAt: existingAttempt.started_at,
+                  exam: {
+                    id: exam.id,
+                    title: exam.title,
+                    description: exam.description,
+                    durationMinutes: exam.duration_minutes,
+                    startTime: exam.start_time,
+                    endTime: exam.end_time,
+                    courseName: exam.course_name,
+                    status: exam.status
+                  }
+                }
+              })
+            }
+          }
+        }
+        
+        console.error('Failed to create exam attempt:', insertError)
+        throw insertError
+      }
       
       // Update active exam count
       examActiveTotal.inc({ exam_id: examId })
