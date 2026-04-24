@@ -205,8 +205,7 @@ router.post('/attempts/:attemptId/answers',
          DO UPDATE SET 
            answer = EXCLUDED.answer,
            is_correct = EXCLUDED.is_correct,
-           points_earned = EXCLUDED.points_earned,
-           updated_at = NOW()`,
+           points_earned = EXCLUDED.points_earned`,
         [attemptId, questionId, answer, isCorrect, pointsEarned]
       )
 
