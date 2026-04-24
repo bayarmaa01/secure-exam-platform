@@ -64,7 +64,7 @@ export default function ExamRoom() {
       // First save all answers
       for (const [questionId, answer] of Object.entries(answers)) {
         await api.post(`/attempts/${attemptId}/answers`, {
-          question_id: questionId,
+          questionId: questionId,
           answer: answer
         })
       }

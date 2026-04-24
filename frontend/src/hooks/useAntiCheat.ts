@@ -2,14 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import api from '../api'
 
-// Type definition for window object with process env
-interface WindowWithProcessEnv extends Window {
-  process?: {
-    env?: {
-      REACT_APP_API_URL?: string
-    }
-  }
-}
 
 interface Violation {
   type: 'tab_switch' | 'fullscreen_exit' | 'copy_paste' | 'right_click'
@@ -81,7 +73,8 @@ export const useAntiCheat = (
 
   // Initialize socket connection
   useEffect(() => {
-    const apiUrl = (window as WindowWithProcessEnv).process?.env?.REACT_APP_API_URL || 'http://localhost:4000'
+    // Use the same API base URL as the rest of the application
+    const apiUrl = window.location.origin // This will use the current domain (https://secure-exam.duckdns.org)
     socketRef.current = io(apiUrl)
     
     socketRef.current.on('connect', () => {
