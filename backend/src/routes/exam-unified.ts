@@ -82,25 +82,21 @@ router.post('/exams/:id/start',
         })
         
         if (attempt.status === 'in_progress') {
-          return res.status(200).json({ 
-            success: true,
-            message: 'Exam attempt already in progress',
-            data: {
-              attemptId: attempt.id,
-              examId: examId,
-              userId: studentId,
-              status: attempt.status,
-              startedAt: attempt.started_at,
-              exam: {
-                id: exam.id,
-                title: exam.title,
-                description: exam.description,
-                durationMinutes: exam.duration_minutes,
-                startTime: exam.start_time,
-                endTime: exam.end_time,
-                courseName: exam.course_name,
-                status: exam.status
-              }
+          return res.status(200).json({
+            id: attempt.id,
+            exam_id: examId,
+            user_id: studentId,
+            status: attempt.status,
+            started_at: attempt.started_at,
+            exam: {
+              id: exam.id,
+              title: exam.title,
+              description: exam.description,
+              duration_minutes: exam.duration_minutes,
+              start_time: exam.start_time,
+              end_time: exam.end_time,
+              course_name: exam.course_name,
+              status: exam.status
             }
           })
         } else if (attempt.status === 'submitted' || attempt.status === 'graded') {
@@ -134,25 +130,21 @@ router.post('/exams/:id/start',
           if (retryCheck.rows.length > 0) {
             const existingAttempt = retryCheck.rows[0]
             if (existingAttempt.status === 'in_progress') {
-              return res.status(200).json({ 
-                success: true,
-                message: 'Exam attempt already in progress',
-                data: {
-                  attemptId: existingAttempt.id,
-                  examId: examId,
-                  userId: studentId,
-                  status: existingAttempt.status,
-                  startedAt: existingAttempt.started_at,
-                  exam: {
-                    id: exam.id,
-                    title: exam.title,
-                    description: exam.description,
-                    durationMinutes: exam.duration_minutes,
-                    startTime: exam.start_time,
-                    endTime: exam.end_time,
-                    courseName: exam.course_name,
-                    status: exam.status
-                  }
+              return res.status(200).json({
+                id: existingAttempt.id,
+                exam_id: examId,
+                user_id: studentId,
+                status: existingAttempt.status,
+                started_at: existingAttempt.started_at,
+                exam: {
+                  id: exam.id,
+                  title: exam.title,
+                  description: exam.description,
+                  duration_minutes: exam.duration_minutes,
+                  start_time: exam.start_time,
+                  end_time: exam.end_time,
+                  course_name: exam.course_name,
+                  status: exam.status
                 }
               })
             }
@@ -169,23 +161,20 @@ router.post('/exams/:id/start',
       console.log(`✅ Exam attempt started: ${attempt.id}`)
 
       res.json({
-        success: true,
-        data: {
-          attemptId: attempt.id,
-          examId: attempt.exam_id,
-          userId: attempt.user_id,
-          status: attempt.status,
-          startedAt: attempt.started_at,
-          exam: {
-            id: exam.id,
-            title: exam.title,
-            description: exam.description,
-            durationMinutes: exam.duration_minutes,
-            startTime: exam.start_time,
-            endTime: exam.end_time,
-            courseName: exam.course_name,
-            status: exam.status
-          }
+        id: attempt.id,
+        exam_id: attempt.exam_id,
+        user_id: attempt.user_id,
+        status: attempt.status,
+        started_at: attempt.started_at,
+        exam: {
+          id: exam.id,
+          title: exam.title,
+          description: exam.description,
+          duration_minutes: exam.duration_minutes,
+          start_time: exam.start_time,
+          end_time: exam.end_time,
+          course_name: exam.course_name,
+          status: exam.status
         }
       })
 
