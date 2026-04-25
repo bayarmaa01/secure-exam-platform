@@ -296,7 +296,6 @@ router.get('/attempts/:attemptId',
 
         const scoreData = scoreResult.rows[0]
         const totalEarned = scoreData.total_earned || 0
-        const answeredPoints = scoreData.total_points || 0
         
         // Fix scoring: always use exam total points as denominator
         const percentage = examTotalPoints > 0 ? (totalEarned / examTotalPoints) * 100 : 0

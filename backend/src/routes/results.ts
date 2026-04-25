@@ -283,15 +283,11 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
     const results = r.rows.map(row => {
       // Determine attendance status and display status
       let displayStatus = 'Not Attended';
-      let displayScore = '0/0';
-      let displayPercentage = '0.0%';
       
       if (row.attempt_status === 'in_progress') {
         displayStatus = 'In Progress';
       } else if (row.attempt_status === 'submitted') {
         displayStatus = row.percentage >= 50 ? 'Passed' : 'Failed';
-        displayScore = `${parseFloat(row.score || 0)}/${parseFloat(row.total_points || 0)}`;
-        displayPercentage = `${parseFloat(row.percentage || 0).toFixed(1)}%`;
       }
 
       return {

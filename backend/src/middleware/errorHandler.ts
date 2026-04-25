@@ -3,14 +3,14 @@ import { Request, Response, NextFunction } from 'express'
 export interface ApiError extends Error {
   statusCode?: number
   code?: string
-  details?: any
+  details?: unknown
 }
 
 export function errorHandler(
   err: ApiError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) {
   console.error(`[ERROR] ${req.method} ${req.path}:`, {
     message: err.message,

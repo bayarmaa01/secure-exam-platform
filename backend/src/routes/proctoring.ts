@@ -345,11 +345,13 @@ router.post('/proctoring/session/start',
           message: 'Proctoring session started successfully'
         })
         
-      } catch (aiError: any) {
-        console.error(`[PROCTORING] AI service error:`, aiError.message)
-        if (aiError.response) {
-          console.error(`[PROCTORING] AI service response status:`, aiError.response.status)
-          console.error(`[PROCTORING] AI service response data:`, JSON.stringify(aiError.response.data, null, 2))
+      } catch (aiError: unknown) {
+        const errorMessage = aiError instanceof Error ? aiError.message : 'Unknown AI service error'
+        console.error(`[PROCTORING] AI service error:`, errorMessage)
+        if (aiError && typeof aiError === 'object' && 'response' in aiError) {
+          const response = (aiError as any).response
+          console.error(`[PROCTORING] AI service response status:`, response?.status)
+          console.error(`[PROCTORING] AI service response data:`, JSON.stringify(response?.data, null, 2))
         }
         
         // Return local session even if AI service fails

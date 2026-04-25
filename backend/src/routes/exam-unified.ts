@@ -144,9 +144,11 @@ router.post('/exams/:id/start',
         )
         attempt = attemptResult.rows[0]
         console.log(`✅ New exam attempt created: ${attempt.id}`)
-      } catch (insertError: any) {
+      } catch (insertError: unknown) {
         // Handle potential race condition - check if attempt was created by another request
-        if (insertError.code === '23505' || insertError.message.includes('duplicate')) {
+        const errorCode = insertError && typeof insertError === 'object' && 'code' in insertError ? (insertError as any).code : undefined
+        const errorMessage = insertError instanceof Error ? insertError.message : ''
+        if (errorCode === '23505' || errorMessage.includes('duplicate')) {
           console.log('Race condition detected - checking for existing attempt')
           const retryCheck = await pool.query(
             'SELECT id, status, started_at FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
