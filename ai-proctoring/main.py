@@ -25,26 +25,14 @@ app.add_middleware(
 # Initialize MediaPipe Face Detection
 face_detection = None
 try:
-    # Try different MediaPipe API versions
-    if hasattr(mp, 'solutions') and hasattr(mp.solutions, 'face_detection'):
-        mp_face_detection = mp.solutions.face_detection
-        face_detection = mp_face_detection.FaceDetection(
-            model_selection=0, min_detection_confidence=0.5
-        )
-    elif hasattr(mp, 'face_detection'):
-        face_detection = mp.face_detection.FaceDetection(
-            model_selection=0, min_detection_confidence=0.5
-        )
-    else:
-        raise AttributeError("MediaPipe face detection not found in this version")
-    
+    # Initialize MediaPipe Face Detection with correct API
+    mp_face_detection = mp.solutions.face_detection
+    face_detection = mp_face_detection.FaceDetection(
+        model_selection=0, min_detection_confidence=0.5
+    )
     print("MediaPipe face detection initialized successfully")
-except AttributeError as e:
-    print(f"MediaPipe face detection not available: {e}")
-    print("Using fallback mode without face detection")
-    face_detection = None
 except Exception as e:
-    print(f"Error initializing MediaPipe: {e}")
+    print(f"MediaPipe face detection not available: {e}")
     print("Using fallback mode without face detection")
     face_detection = None
 

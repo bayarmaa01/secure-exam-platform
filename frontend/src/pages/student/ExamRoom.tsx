@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 import { Question, Exam } from '../../types/exam'
 import { useAntiCheat } from '../../hooks/useAntiCheat'
+import ViolationWarning from '../../components/ViolationWarning'
 
 // Production-grade ExamRoom component with strict React StrictMode safety
 export default function ExamRoom() {
@@ -26,6 +27,7 @@ export default function ExamRoom() {
   const [error, setError] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
   const [examError, setExamError] = useState<string | null>(null)
+  const [activeViolations, setActiveViolations] = useState<any[]>([])
 
   // Session ID for anti-cheat tracking
   const sessionId = useRef<string>(`session_${Date.now()}`) // Clean session ID without random decimals
@@ -49,9 +51,20 @@ export default function ExamRoom() {
     preventRightClick: true
   })
 
-  // Update cheating warnings when violations are detected
+  // Update cheating warnings and active violations when violations are detected
   useEffect(() => {
     setCheatingWarnings(violations.length)
+    
+    // Convert violations to format expected by ViolationWarning component
+    const formattedViolations = violations.map((v, index) => ({
+      id: `${sessionId.current}_${index}`,
+      type: v.type,
+      message: v.details || `${v.type} detected`,
+      timestamp: new Date(v.timestamp),
+      severity: 'medium' // Default severity for all violations
+    }))
+    
+    setActiveViolations(formattedViolations)
   }, [violations])
 
   // Production-grade submit exam with proper error handling and unmount protection
@@ -690,6 +703,14 @@ export default function ExamRoom() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Violation Warnings */}
+      <ViolationWarning 
+        violations={activeViolations}
+        onDismiss={(id) => {
+          setActiveViolations(prev => prev.filter(v => v.id !== id))
+        }}
+      />
+      
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

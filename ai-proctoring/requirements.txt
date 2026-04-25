@@ -9,4 +9,4 @@ httpx==0.25.2
 redis==5.0.1
 pydantic==2.5.3
 prometheus-client==0.20.0
-mediapipe==0.10.33
+mediapipe==0.10.11

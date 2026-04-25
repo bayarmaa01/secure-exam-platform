@@ -325,8 +325,11 @@ router.post('/proctoring/session/start',
       const axios = require('axios')
       try {
         console.log(`[PROCTORING] Calling AI service to start session...`)
-        // AI service expects query parameters, not JSON body
-        const aiResponse = await axios.post(`http://ai-proctoring:8000/ai/session/start?attempt_id=${attemptId}&student_id=${studentId}`, null, {
+        // AI service expects JSON body with attempt_id and student_id
+        const aiResponse = await axios.post(`http://ai-proctoring:8000/ai/session/start`, {
+          attempt_id: attemptId,
+          student_id: studentId
+        }, {
           headers: {
             'Content-Type': 'application/json'
           },

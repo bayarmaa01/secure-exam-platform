@@ -10,14 +10,19 @@ interface Student {
 }
 
 interface ExamResult {
-  studentId: string
-  studentName: string
-  studentEmail: string
+  id: string
   score: number
   totalPoints: number
   percentage: number
   status: string
+  attemptStatus: string
+  createdAt: string
   submittedAt?: string
+  student: {
+    name: string
+    email: string
+    rollNumber?: string
+  }
 }
 
 interface Exam {
@@ -55,14 +60,18 @@ export default function ExamResults() {
       })
       
       // Fetch exam results
-      const resultsResponse = await api.get(`/exams/${examId}/results`).catch(err => {
+      const resultsResponse = await api.get(`/teacher/exam/${examId}`).catch(err => {
         console.error('Results API error:', err)
         return { data: [] }
       })
       
       const examData = examResponse.data
       const studentsData = Array.isArray(studentsResponse.data) ? studentsResponse.data : studentsResponse.data?.data || []
-      const resultsData = Array.isArray(resultsResponse.data) ? resultsResponse.data : resultsResponse.data?.data || []
+      // Backend returns { success: true, results: [...] } structure
+      const resultsData = resultsResponse.data?.results || resultsResponse.data || []
+      
+      console.log('[DEBUG] Backend response structure:', resultsResponse.data)
+      console.log('[DEBUG] Mapped resultsData:', resultsData)
       
       setExam(examData)
       setAllStudents(studentsData)
@@ -81,20 +90,29 @@ export default function ExamResults() {
   }, [examId, fetchExamData])
 
   // Combine students with results
+  console.log('[DEBUG] Raw exam results from backend:', examResults)
+  console.log('[DEBUG] All students:', allStudents)
+  
+  // Backend returns results for students who attempted the exam
+  // We need to show all students, marking those without results as "Not Attended"
   const studentsWithResults = allStudents.map(student => {
-    const result = examResults.find(r => r.studentId === student.id)
+    const result = examResults.find(r => r.student.email === student.email)
+    const attended = result?.submittedAt !== null && result?.submittedAt !== undefined
+    
     return {
       ...student,
       score: result?.score || 0,
       totalPoints: result?.totalPoints || 0,
       percentage: result?.percentage || 0,
-      status: result?.status || 'not_attended',
+      status: attended ? (result?.status || 'submitted') : 'not_attended',
       submittedAt: result?.submittedAt
     }
   })
 
-  const attendedStudents = studentsWithResults.filter(s => s.status !== 'not_attended')
-  const notAttendedStudents = studentsWithResults.filter(s => s.status === 'not_attended')
+  console.log('[DEBUG] Students with results:', studentsWithResults)
+  
+  const attendedStudents = studentsWithResults.filter(s => s.submittedAt !== null && s.submittedAt !== undefined)
+  const notAttendedStudents = studentsWithResults.filter(s => s.submittedAt === null || s.submittedAt === undefined)
 
   if (loading) {
     return (

@@ -251,6 +251,7 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
       SELECT 
         u.name as student_name,
         u.email as student_email,
+        u.registration_number as student_roll_number,
         e.title as exam_title,
         a.id as attempt_id,
         COALESCE(a.score, 0) as score,
@@ -263,9 +264,9 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
       FROM exam_attempts a
       JOIN users u ON u.id = a.student_id
       JOIN exams e ON e.id = a.exam_id
-      WHERE e.teacher_id = $1 AND a.status IN ('in_progress', 'submitted')
+      WHERE e.id = $1 AND e.teacher_id = $2 AND a.status IN ('in_progress', 'submitted')
       ORDER BY a.started_at DESC
-    `, [teacherId])
+    `, [examId, teacherId])
 
     console.log(`[RESULTS DEBUG] Teacher dashboard query returned ${r.rows.length} attempts for exam`)
     console.log(`[RESULTS DEBUG] Raw attempts:`, r.rows.map(row => ({
