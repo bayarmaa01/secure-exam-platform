@@ -253,18 +253,29 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         u.email as student_email,
         e.title as exam_title,
         a.id as attempt_id,
-        a.score,
-        a.total_points,
-        a.percentage,
+        COALESCE(a.score, 0) as score,
+        COALESCE(a.total_points, e.total_marks) as total_points,
+        COALESCE(a.percentage, 0) as percentage,
         a.status as attempt_status,
         a.submitted_at,
-        a.started_at
+        a.started_at,
+        e.total_marks as exam_total_marks
       FROM exam_attempts a
       JOIN users u ON u.id = a.student_id
       JOIN exams e ON e.id = a.exam_id
       WHERE e.teacher_id = $1 AND a.status IN ('in_progress', 'submitted')
       ORDER BY a.started_at DESC
     `, [teacherId])
+
+    console.log(`[RESULTS DEBUG] Teacher dashboard query returned ${r.rows.length} attempts for exam`)
+    console.log(`[RESULTS DEBUG] Raw attempts:`, r.rows.map(row => ({
+      attempt_id: row.attempt_id,
+      attempt_status: row.attempt_status,
+      score: row.score,
+      total_points: row.total_points,
+      exam_total_marks: row.exam_total_marks,
+      percentage: row.percentage
+    })))
 
     const results = r.rows.map(row => {
       // Determine attendance status and display status

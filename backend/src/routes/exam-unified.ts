@@ -35,7 +35,7 @@ router.post('/exams/:id/start',
          FROM exams e
          JOIN courses c ON e.course_id = c.id
          WHERE e.id = $1 
-         AND e.is_published = true`,
+         AND (e.is_published = true OR e.status = 'draft')`,
         [examId]
       )
 

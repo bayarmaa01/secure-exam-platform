@@ -30,6 +30,7 @@ import { attemptsApiRoutes } from './routes/attempts-api'
 import { analyticsApiRoutes } from './routes/analytics-api'
 import proctoringRoutes from './routes/proctoring'
 import testRoutes from './routes/test-results'
+import debugExamRoutes from './routes/debug-exam'
 import { startExamStatusUpdater } from './jobs/examStatusUpdater'
 
 // Prometheus metrics
@@ -202,6 +203,7 @@ app.use('/api/ai', aiProctoringRoutes)
 app.use('/api', analyticsApiRoutes)
 app.use('/api', proctoringRoutes)
 app.use('/api/test', testRoutes)
+app.use('/api/debug', debugExamRoutes)
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
