@@ -743,6 +743,10 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
       timestamp: new Date()
     })
 
+    // Increment exam started metric
+    const { examStartedTotal } = await import('../index')
+    examStartedTotal.inc()
+
     res.json({ attemptId: r.rows[0].id })
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' })
@@ -926,6 +930,10 @@ router.post('/exams/attempts/:attemptId/submit', auth, requireStudent, async (re
         average_score = EXCLUDED.average_score,
         last_updated = NOW()
     `, [req.user!.id])
+
+    // Increment submissions metric
+    const { examSubmissionsTotal } = await import('../index')
+    examSubmissionsTotal.labels('submitted').inc()
 
     await client.query('COMMIT')
 

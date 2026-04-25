@@ -40,16 +40,14 @@ router.post('/proctoring/track',
 
       // Store violation in database
       await pool.query(
-        `INSERT INTO proctoring_violations (attempt_id, student_id, exam_id, violation_type, session_id, message, timestamp)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-        [attemptId, studentId, examId, type, sessionId || null, message || null]
+        `INSERT INTO proctoring_violations (attempt_id, student_id, exam_id, type, message, timestamp)
+         VALUES ($1, $2, $3, $4, $5, NOW())`,
+        [sessionId, studentId, examId, type, message]
       )
 
-      // Update violation count in attempt
-      await pool.query(
-        'UPDATE exam_attempts SET violations_count = violations_count + 1 WHERE id = $1',
-        [attemptId]
-      )
+      // Increment violations metric
+      const { examViolationsTotal } = await import('../index')
+      examViolationsTotal.labels(type, examId, 'placeholder-course-id', studentId).inc()
 
       // Send real-time notification to teachers
       const io = require('../utils/socketHelper').getIO()
