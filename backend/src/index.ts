@@ -65,19 +65,6 @@ const examSubmissionsTotal = new Counter({
   registers: [register]
 })
 
-// Additional metrics for Grafana dashboard
-const suspiciousStudentsTotal = new Counter({
-  name: 'suspicious_students_total',
-  help: 'Total students marked as suspicious',
-  registers: [register]
-})
-
-const cheatingDetectedTotal = new Counter({
-  name: 'cheating_detected_total',
-  help: 'Total cheating incidents detected',
-  registers: [register]
-})
-
 const app = express()
 const server = createServer(app)
 const io = new SocketIOServer(server, {
@@ -348,7 +335,5 @@ start()
 export { 
   app, 
   activeExamSessions, 
-  examSubmissionsTotal,
-  suspiciousStudentsTotal,
-  cheatingDetectedTotal
+  examSubmissionsTotal
 }
