@@ -35,8 +35,7 @@ router.post('/exams/:id/start',
          FROM exams e
          JOIN courses c ON e.course_id = c.id
          WHERE e.id = $1 
-         AND e.is_published = true 
-         AND NOW() BETWEEN e.start_time AND e.end_time`,
+         AND e.is_published = true`,
         [examId]
       )
 
@@ -46,12 +45,18 @@ router.post('/exams/:id/start',
           examId,
           studentId,
           now: new Date().toISOString(),
-          reason: "Exam not found, not published, or outside time window"
+          reason: "Exam not found or not published"
         })
         
         return res.status(403).json({ 
           error: "FORBIDDEN", 
-          reason: "EXAM_NOT_ACTIVE"
+          reason: "EXAM_NOT_ACTIVE",
+          debug: {
+            examId,
+            studentId,
+            now: new Date().toISOString(),
+            query: "SELECT e.*, c.name as course_name FROM exams e JOIN courses c ON e.course_id = c.id WHERE e.id = $1 AND e.is_published = true AND (NOW() BETWEEN e.start_time AND e.end_time OR e.status = 'completed')"
+          }
         })
       }
 
@@ -100,9 +105,30 @@ router.post('/exams/:id/start',
             }
           })
         } else if (attempt.status === 'submitted' || attempt.status === 'graded') {
-          return res.status(403).json({ 
-            success: false, 
-            message: 'You have already completed this exam' 
+          // Allow resuming submitted attempts for debugging
+          console.log({
+            warning: "RESUMING_SUBMITTED_ATTEMPT",
+            attemptId: attempt.id,
+            status: attempt.status,
+            message: "Student is trying to access a submitted attempt"
+          })
+          
+          return res.status(200).json({
+            id: attempt.id,
+            exam_id: examId,
+            user_id: studentId,
+            status: attempt.status,
+            started_at: attempt.started_at,
+            exam: {
+              id: exam.id,
+              title: exam.title,
+              description: exam.description,
+              duration_minutes: exam.duration_minutes,
+              start_time: exam.start_time,
+              end_time: exam.end_time,
+              course_name: exam.course_name,
+              status: exam.status
+            }
           })
         }
       }

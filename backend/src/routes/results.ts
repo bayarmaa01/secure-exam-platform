@@ -252,34 +252,54 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         u.name as student_name,
         u.email as student_email,
         e.title as exam_title,
+        a.id as attempt_id,
         a.score,
         a.total_points,
         a.percentage,
-        a.submitted_at
+        a.status as attempt_status,
+        a.submitted_at,
+        a.started_at
       FROM exam_attempts a
       JOIN users u ON u.id = a.student_id
       JOIN exams e ON e.id = a.exam_id
-      WHERE e.teacher_id = $1 AND a.status = 'submitted'
-      ORDER BY a.submitted_at DESC
+      WHERE e.teacher_id = $1 AND a.status IN ('in_progress', 'submitted')
+      ORDER BY a.started_at DESC
     `, [teacherId])
 
-    const results = r.rows.map(row => ({
-      id: row.id,
-      score: parseFloat(row.score),
-      totalPoints: parseFloat(row.total_points),
-      percentage: parseFloat(row.percentage),
-      status: row.status,
-      createdAt: row.created_at,
-      student: {
-        name: row.student_name,
-        email: row.student_email,
-        rollNumber: row.student_roll_number
-      },
-      attempt: {
-        startedAt: row.attempt_started_at,
-        submittedAt: row.attempt_submitted_at
+    const results = r.rows.map(row => {
+      // Determine attendance status and display status
+      let displayStatus = 'Not Attended';
+      let displayScore = '0/0';
+      let displayPercentage = '0.0%';
+      
+      if (row.attempt_status === 'in_progress') {
+        displayStatus = 'In Progress';
+      } else if (row.attempt_status === 'submitted') {
+        displayStatus = row.percentage >= 50 ? 'Passed' : 'Failed';
+        displayScore = `${parseFloat(row.score || 0)}/${parseFloat(row.total_points || 0)}`;
+        displayPercentage = `${parseFloat(row.percentage || 0).toFixed(1)}%`;
       }
-    }))
+
+      return {
+        id: row.attempt_id,
+        score: parseFloat(row.score || 0),
+        totalPoints: parseFloat(row.total_points || 0),
+        percentage: parseFloat(row.percentage || 0),
+        status: displayStatus, // Use calculated display status
+        attemptStatus: row.attempt_status, // Keep original status for reference
+        createdAt: row.started_at,
+        submittedAt: row.submitted_at,
+        student: {
+          name: row.student_name,
+          email: row.student_email,
+          rollNumber: row.student_roll_number
+        },
+        attempt: {
+          startedAt: row.started_at,
+          submittedAt: row.submitted_at
+        }
+      }
+    })
 
     res.json({
       success: true,
