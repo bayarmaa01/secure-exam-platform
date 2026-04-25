@@ -2,12 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../../api'
 
-interface Student {
-  id: string
-  name: string
-  email: string
-  registration_number?: string
-}
 
 interface ExamResult {
   id: string
@@ -39,7 +33,6 @@ interface Exam {
 export default function ExamResults() {
   const { examId } = useParams<{ examId: string }>()
   const [exam, setExam] = useState<Exam | null>(null)
-  const [allStudents, setAllStudents] = useState<Student[]>([])
   const [examResults, setExamResults] = useState<ExamResult[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -53,20 +46,13 @@ export default function ExamResults() {
         return { data: null }
       })
       
-      // Fetch all enrolled students for this exam's course
-      const studentsResponse = await api.get(`/teacher/students`).catch(err => {
-        console.error('Students API error:', err)
-        return { data: [] }
-      })
-      
       // Fetch exam results
-      const resultsResponse = await api.get(`/teacher/exam/${examId}`).catch(err => {
+      const resultsResponse = await api.get(`/results/teacher/exam/${examId}`).catch(err => {
         console.error('Results API error:', err)
         return { data: [] }
       })
       
       const examData = examResponse.data
-      const studentsData = Array.isArray(studentsResponse.data) ? studentsResponse.data : studentsResponse.data?.data || []
       // Backend returns { success: true, results: [...] } structure
       const resultsData = resultsResponse.data?.results || resultsResponse.data || []
       
@@ -74,7 +60,6 @@ export default function ExamResults() {
       console.log('[DEBUG] Mapped resultsData:', resultsData)
       
       setExam(examData)
-      setAllStudents(studentsData)
       setExamResults(resultsData)
     } catch (error) {
       console.error('Failed to fetch exam data:', error)
@@ -89,25 +74,22 @@ export default function ExamResults() {
     }
   }, [examId, fetchExamData])
 
-  // Combine students with results
+  // Process exam results from backend
   console.log('[DEBUG] Raw exam results from backend:', examResults)
-  console.log('[DEBUG] All students:', allStudents)
   
   // Backend returns results for students who attempted the exam
-  // We need to show all students, marking those without results as "Not Attended"
-  const studentsWithResults = allStudents.map(student => {
-    const result = examResults.find(r => r.student.email === student.email)
-    const attended = result?.submittedAt !== null && result?.submittedAt !== undefined
-    
-    return {
-      ...student,
-      score: result?.score || 0,
-      totalPoints: result?.totalPoints || 0,
-      percentage: result?.percentage || 0,
-      status: attended ? (result?.status || 'submitted') : 'not_attended',
-      submittedAt: result?.submittedAt
-    }
-  })
+  // Convert to display format
+  const studentsWithResults = examResults.map(result => ({
+    id: result.student.email, // Use email as unique identifier
+    name: result.student.name,
+    email: result.student.email,
+    registration_number: result.student.rollNumber,
+    score: result.score,
+    totalPoints: result.totalPoints,
+    percentage: result.percentage,
+    status: result.status,
+    submittedAt: result.submittedAt
+  }))
 
   console.log('[DEBUG] Students with results:', studentsWithResults)
   
