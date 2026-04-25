@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { auth, AuthRequest, requireTeacher } from '../middleware/auth'
-import { Counter, register } from 'prom-client'
+import { Counter } from 'prom-client'
+import { register } from '../index'
 import { pool } from '../db'
 
 const router = Router()

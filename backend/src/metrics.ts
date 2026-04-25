@@ -1,10 +1,8 @@
 import client from 'prom-client';
+import { register } from './index';
 
 // 🔥 PROMETHEUS METRICS FOR AI PROCTORING
-const register = new client.Registry();
-
-// Add default metrics (CPU, memory, etc.)
-client.collectDefaultMetrics({ register });
+// Using the same register as the main application to avoid conflicts
 
 // Custom metrics for AI proctoring
 const suspiciousEventsTotal = new client.Counter({

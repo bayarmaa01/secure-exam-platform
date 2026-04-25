@@ -335,5 +335,6 @@ start()
 export { 
   app, 
   activeExamSessions, 
-  examSubmissionsTotal
+  examSubmissionsTotal,
+  register
 }
