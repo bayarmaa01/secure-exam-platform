@@ -32,6 +32,7 @@ import proctoringRoutes from './routes/proctoring'
 import testRoutes from './routes/test-results'
 import debugExamRoutes from './routes/debug-exam'
 import { startExamStatusUpdater } from './jobs/examStatusUpdater'
+import { initRedis } from './redis'
 
 // Prometheus metrics
 collectDefaultMetrics({ register })
@@ -287,6 +288,11 @@ async function start() {
     console.log('Initializing database connection...')
     await initDb()
     console.log('Database connected successfully')
+
+    // Initialize Redis
+    console.log('Initializing Redis connection...')
+    initRedis()
+    console.log('Redis initialization completed')
 
     // Start background jobs
     console.log('Starting background jobs...')

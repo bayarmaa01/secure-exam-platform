@@ -276,7 +276,14 @@ router.get('/attempts/:attemptId',
           [attemptId]
         )
 
-        // Calculate and save score
+        // Get exam total points for accurate percentage calculation
+        const examTotalPointsQuery = await pool.query(
+          'SELECT COALESCE(SUM(points), 0) as total_points FROM questions WHERE exam_id = $1',
+          [attempt.exam_id]
+        )
+        const examTotalPoints = examTotalPointsQuery.rows[0].total_points
+
+        // Calculate earned points from answers
         const scoreResult = await pool.query(
           `SELECT 
              SUM(points_earned) as total_earned,
@@ -288,22 +295,24 @@ router.get('/attempts/:attemptId',
         )
 
         const scoreData = scoreResult.rows[0]
-        const totalPoints = scoreData.total_points || 0
         const totalEarned = scoreData.total_earned || 0
-        const percentage = totalPoints > 0 ? (totalEarned / totalPoints) * 100 : 0
+        const answeredPoints = scoreData.total_points || 0
+        
+        // Fix scoring: always use exam total points as denominator
+        const percentage = examTotalPoints > 0 ? (totalEarned / examTotalPoints) * 100 : 0
 
         await pool.query(
           `UPDATE exam_attempts 
            SET score = $1, total_points = $2, percentage = $3
            WHERE id = $4`,
-          [totalEarned, totalPoints, percentage, attemptId]
+          [totalEarned, examTotalPoints, percentage, attemptId]
         )
 
         // Create result record
         await pool.query(
           `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [studentId, attempt.exam_id, attemptId, totalEarned, totalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
+          [studentId, attempt.exam_id, attemptId, totalEarned, examTotalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
         )
 
         return res.json({

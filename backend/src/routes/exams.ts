@@ -846,12 +846,19 @@ router.post('/exams/attempts/:attemptId/submit', auth, requireStudent, async (re
       return res.status(400).json({ message: 'Exam already submitted' })
     }
 
-    // Grade the exam
+    // Get exam total points for accurate percentage calculation
+    const examTotalPointsQuery = await client.query(
+      'SELECT COALESCE(SUM(points), 0) as total_points FROM questions WHERE exam_id = $1',
+      [attempt.exam_id]
+    )
+    const examTotalPoints = parseFloat(examTotalPointsQuery.rows[0].total_points) || attempt.total_marks
+
+    // Grade exam
     const gradingResult = await client.query(`
       SELECT 
         COUNT(a.id) as total_answered,
         COUNT(CASE WHEN a.is_correct = true THEN 1 END) as correct_answers,
-        COALESCE(SUM(q.points), 0) as total_points,
+        COALESCE(SUM(q.points), 0) as answered_points,
         COALESCE(SUM(CASE WHEN a.is_correct = true THEN q.points ELSE 0 END), 0) as earned_points
       FROM answers a
       JOIN questions q ON a.question_id = q.id
@@ -859,9 +866,10 @@ router.post('/exams/attempts/:attemptId/submit', auth, requireStudent, async (re
     `, [attemptId])
 
     const grading = gradingResult.rows[0]
-    const totalPoints = parseFloat(grading.total_points) || attempt.total_marks
     const earnedPoints = parseFloat(grading.earned_points) || 0
-    const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0
+    
+    // Fix scoring: always use exam total points as denominator
+    const percentage = examTotalPoints > 0 ? (earnedPoints / examTotalPoints) * 100 : 0
     const status = percentage >= attempt.passing_marks ? 'passed' : 'failed'
 
     // Update attempt with results
@@ -869,14 +877,14 @@ router.post('/exams/attempts/:attemptId/submit', auth, requireStudent, async (re
       UPDATE exam_attempts 
       SET submitted_at = NOW(), score = $1, total_points = $2, percentage = $3, status = 'submitted'
       WHERE id = $4
-    `, [earnedPoints, totalPoints, percentage, attemptId])
+    `, [earnedPoints, examTotalPoints, percentage, attemptId])
 
     // Create result record
     const resultRecord = await client.query(`
       INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [req.user!.id, attempt.exam_id, attemptId, earnedPoints, totalPoints, percentage, status])
+    `, [req.user!.id, attempt.exam_id, attemptId, earnedPoints, examTotalPoints, percentage, status])
 
     // Update analytics
     await client.query(`
@@ -924,7 +932,7 @@ router.post('/exams/attempts/:attemptId/submit', auth, requireStudent, async (re
     res.json({
       success: true,
       score: earnedPoints,
-      totalPoints,
+      totalPoints: examTotalPoints,
       percentage,
       status,
       result: resultRecord.rows[0]

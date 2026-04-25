@@ -349,9 +349,9 @@ router.post('/attempts/submit',
         )
       }
 
-      // Use exam total points for accurate percentage calculation
-      // If no answers were submitted, totalPoints will be 0, but we still use examTotalPoints
-      const finalTotalPoints = totalPoints > 0 ? totalPoints : examTotalPoints
+      // Fix scoring calculation: always use exam total points as denominator
+      // If no answers submitted, score should be 0/examTotalPoints = 0%
+      const finalTotalPoints = examTotalPoints
       const percentage = finalTotalPoints > 0 ? (earnedPoints / finalTotalPoints) * 100 : 0
       
       console.log(`[SUBMIT DEBUG] Score calculation:`, {

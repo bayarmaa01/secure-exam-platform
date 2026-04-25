@@ -50,15 +50,25 @@ except Exception as e:
 
 # Redis connection for session management
 try:
+    redis_host = os.getenv('REDIS_HOST', 'redis')  # Use 'redis' for Docker environment
+    redis_port = int(os.getenv('REDIS_PORT', 6379))
+    print(f"Attempting to connect to Redis at {redis_host}:{redis_port}")
+    
     redis_client = redis.Redis(
-        host=os.getenv('REDIS_HOST', 'localhost'),
-        port=int(os.getenv('REDIS_PORT', 6379)),
-        decode_responses=True
+        host=redis_host,
+        port=redis_port,
+        decode_responses=True,
+        socket_connect_timeout=5,
+        socket_timeout=5
     )
+    
+    # Test connection
     redis_client.ping()
-except:
+    print(f"Successfully connected to Redis at {redis_host}:{redis_port}")
+    
+except Exception as e:
     redis_client = None
-    print("Warning: Redis not available, using in-memory storage")
+    print(f"Warning: Redis not available, using in-memory storage. Error: {e}")
 
 # In-memory fallback for sessions
 sessions = {}
@@ -232,24 +242,42 @@ def save_session(session: ProctoringSession):
     
     sessions[session.session_id] = session
 
+class SessionStartRequest(BaseModel):
+    attempt_id: str
+    student_id: str
+
 @app.post("/ai/session/start")
-async def start_session(attempt_id: str, student_id: str):
+async def start_session(request: SessionStartRequest):
     """Start a new proctoring session."""
+    print(f"[AI PROCTORING] ===== SESSION START REQUEST =====")
+    print(f"[AI PROCTORING] Request body: {request}")
+    print(f"[AI PROCTORING] Attempt ID: {request.attempt_id}")
+    print(f"[AI PROCTORING] Student ID: {request.student_id}")
+    
+    # Validate required fields
+    if not request.attempt_id or not request.student_id:
+        print(f"[AI PROCTORING] ERROR: Missing required fields")
+        raise HTTPException(status_code=400, detail="attempt_id and student_id are required")
+    
     session_id = str(uuid.uuid4())
     session = ProctoringSession(
         session_id=session_id,
-        attempt_id=attempt_id,
-        student_id=student_id,
+        attempt_id=request.attempt_id,
+        student_id=request.student_id,
         start_time=datetime.now()
     )
     
+    print(f"[AI PROCTORING] Creating session {session_id} for attempt {request.attempt_id}")
     save_session(session)
     
-    return {
+    response = {
         "session_id": session_id,
         "status": "started",
         "start_time": session.start_time.isoformat()
     }
+    
+    print(f"[AI PROCTORING] Session started successfully: {response}")
+    return response
 
 @app.post("/ai/analyze")
 async def analyze_frame_endpoint(

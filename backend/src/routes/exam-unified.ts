@@ -267,6 +267,13 @@ router.post('/exams/:id/submit',
         })
       }
 
+      // Get exam total points for accurate percentage calculation
+      const examTotalPointsQuery = await pool.query(
+        'SELECT COALESCE(SUM(points), 0) as total_points FROM questions WHERE exam_id = $1',
+        [examId]
+      )
+      const examTotalPoints = examTotalPointsQuery.rows[0].total_points
+
       // Calculate score and save answers
       let totalPoints = 0
       let earnedPoints = 0
@@ -313,7 +320,9 @@ router.post('/exams/:id/submit',
         )
       }
 
-      const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0
+      // Fix scoring: always use exam total points as denominator
+      const finalTotalPoints = examTotalPoints
+      const percentage = finalTotalPoints > 0 ? (earnedPoints / finalTotalPoints) * 100 : 0
 
       // Update attempt with results
       await pool.query(

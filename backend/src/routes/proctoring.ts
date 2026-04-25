@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent, requireTeacher } from '../middleware/auth'
+import { setRedisKey, getRedisKey, deleteRedisKey } from '../redis'
 
 const router = Router()
 
@@ -256,25 +257,34 @@ router.post('/proctoring/session/start',
   ],
   async (req: AuthRequest, res) => {
     try {
-      console.log(`[PROCTORING] Starting session for attempt ${req.body.attemptId}`)
+      console.log(`[PROCTORING] ===== SESSION START REQUEST =====`)
+      console.log(`[PROCTORING] Request body:`, JSON.stringify(req.body, null, 2))
+      console.log(`[PROCTORING] User ID: ${req.user!.id}, User: ${req.user!.name}`)
       
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
+        console.log(`[PROCTORING] Validation errors:`, errors.array())
         return res.status(400).json({ errors: errors.array() })
       }
 
       const { attemptId } = req.body
       const studentId = req.user!.id
 
+      console.log(`[PROCTORING] Processing session start for attempt ${attemptId}, student ${studentId}`)
+
       // Verify attempt belongs to student and is in progress
       const attemptCheck = await pool.query(
-        'SELECT id, exam_id FROM exam_attempts WHERE id = $1 AND user_id = $2 AND status = $3',
+        'SELECT id, exam_id, started_at FROM exam_attempts WHERE id = $1 AND user_id = $2 AND status = $3',
         [attemptId, studentId, 'in_progress']
       )
 
       if (attemptCheck.rows.length === 0) {
+        console.log(`[PROCTORING] ERROR: Attempt not found or not active for attempt ${attemptId}, student ${studentId}`)
         return res.status(404).json({ message: 'Attempt not found or not active' })
       }
+
+      const examId = attemptCheck.rows[0].exam_id
+      console.log(`[PROCTORING] Found valid attempt ${attemptId} for exam ${examId}`)
 
       // Create session summary record
       const sessionId = `session_${Date.now()}_${studentId.slice(0, 8)}`
@@ -289,13 +299,60 @@ router.post('/proctoring/session/start',
         [sessionId, attemptId, studentId]
       )
 
-      console.log(`[PROCTORING] Session started: ${sessionId} for attempt ${attemptId}`)
+      console.log(`[PROCTORING] Session created: ${sessionId} for attempt ${attemptId}`)
 
-      res.json({ 
-        success: true, 
+      // Store session data in Redis
+      const sessionData = {
         sessionId,
-        message: 'Proctoring session started'
-      })
+        attemptId,
+        studentId,
+        examId,
+        startTime: new Date().toISOString(),
+        status: 'active'
+      }
+      
+      try {
+        await setRedisKey(`proctoring_session:${sessionId}`, JSON.stringify(sessionData), 3600) // 1 hour TTL
+        console.log(`[PROCTORING] Session stored in Redis: ${sessionId}`)
+      } catch (redisError) {
+        console.warn(`[PROCTORING] Failed to store session in Redis:`, redisError)
+      }
+
+      // Call AI service to start session
+      const axios = require('axios')
+      try {
+        console.log(`[PROCTORING] Calling AI service to start session...`)
+        // AI service expects query parameters, not JSON body
+        const aiResponse = await axios.post(`http://ai-proctoring:8000/ai/session/start?attempt_id=${attemptId}&student_id=${studentId}`, null, {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000
+        })
+        
+        console.log(`[PROCTORING] AI service response:`, JSON.stringify(aiResponse.data, null, 2))
+        
+        res.json({ 
+          success: true, 
+          sessionId: aiResponse.data.session_id || sessionId,
+          aiSessionId: aiResponse.data.session_id,
+          message: 'Proctoring session started successfully'
+        })
+        
+      } catch (aiError: any) {
+        console.error(`[PROCTORING] AI service error:`, aiError.message)
+        if (aiError.response) {
+          console.error(`[PROCTORING] AI service response status:`, aiError.response.status)
+          console.error(`[PROCTORING] AI service response data:`, JSON.stringify(aiError.response.data, null, 2))
+        }
+        
+        // Return local session even if AI service fails
+        res.json({ 
+          success: true, 
+          sessionId,
+          message: 'Proctoring session started (AI service unavailable)'
+        })
+      }
 
     } catch (error) {
       console.error('[PROCTORING] Error starting session:', error)
