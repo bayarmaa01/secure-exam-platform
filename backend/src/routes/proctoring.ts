@@ -46,8 +46,8 @@ router.post('/proctoring/track',
       )
 
       // Increment violations metric
-      const { examViolationsTotal } = await import('../index')
-      examViolationsTotal.labels(type, examId, 'placeholder-course-id', studentId).inc()
+      const { incrementExamViolations } = await import('../metrics/examMetrics')
+      incrementExamViolations(type, examId, 'placeholder-course-id', studentId)
 
       // Send real-time notification to teachers
       const io = require('../utils/socketHelper').getIO()

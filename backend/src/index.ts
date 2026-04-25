@@ -66,25 +66,6 @@ const examSubmissionsTotal = new Counter({
 })
 
 // Additional metrics for Grafana dashboard
-const examActiveTotal = new Counter({
-  name: 'exam_active_total',
-  help: 'Total number of active exams currently running',
-  registers: [register]
-})
-
-const examStartedTotal = new Counter({
-  name: 'exam_started_total',
-  help: 'Total number of exams started',
-  registers: [register]
-})
-
-const examViolationsTotal = new Counter({
-  name: 'exam_violations_total',
-  help: 'Total number of exam violations detected',
-  labelNames: ['type', 'exam_id', 'course_id', 'user_id'],
-  registers: [register]
-})
-
 const suspiciousStudentsTotal = new Counter({
   name: 'suspicious_students_total',
   help: 'Total students marked as suspicious',
@@ -368,9 +349,6 @@ export {
   app, 
   activeExamSessions, 
   examSubmissionsTotal,
-  examActiveTotal,
-  examStartedTotal,
-  examViolationsTotal,
   suspiciousStudentsTotal,
   cheatingDetectedTotal
 }

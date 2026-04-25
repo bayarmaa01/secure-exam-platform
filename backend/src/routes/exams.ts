@@ -744,8 +744,8 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
     })
 
     // Increment exam started metric
-    const { examStartedTotal } = await import('../index')
-    examStartedTotal.inc()
+    const { incrementExamStarted } = await import('../metrics/examMetrics')
+    incrementExamStarted(examId, 'placeholder-course-id', userId)
 
     res.json({ attemptId: r.rows[0].id })
   } catch (error) {
@@ -932,8 +932,8 @@ router.post('/exams/attempts/:attemptId/submit', auth, requireStudent, async (re
     `, [req.user!.id])
 
     // Increment submissions metric
-    const { examSubmissionsTotal } = await import('../index')
-    examSubmissionsTotal.labels('submitted').inc()
+    const { incrementExamSubmitted } = await import('../metrics/examMetrics')
+    incrementExamSubmitted(attempt.exam_id, 'placeholder-course-id', req.user!.id)
 
     await client.query('COMMIT')
 
