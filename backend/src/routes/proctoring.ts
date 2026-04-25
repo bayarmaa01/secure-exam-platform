@@ -349,7 +349,7 @@ router.post('/proctoring/session/start',
         const errorMessage = aiError instanceof Error ? aiError.message : 'Unknown AI service error'
         console.error(`[PROCTORING] AI service error:`, errorMessage)
         if (aiError && typeof aiError === 'object' && 'response' in aiError) {
-          const response = (aiError as any).response
+          const response = (aiError as { response?: { status?: number; data?: unknown } }).response
           console.error(`[PROCTORING] AI service response status:`, response?.status)
           console.error(`[PROCTORING] AI service response data:`, JSON.stringify(response?.data, null, 2))
         }

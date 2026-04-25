@@ -146,7 +146,7 @@ router.post('/exams/:id/start',
         console.log(`✅ New exam attempt created: ${attempt.id}`)
       } catch (insertError: unknown) {
         // Handle potential race condition - check if attempt was created by another request
-        const errorCode = insertError && typeof insertError === 'object' && 'code' in insertError ? (insertError as any).code : undefined
+        const errorCode = insertError && typeof insertError === 'object' && 'code' in insertError ? (insertError as { code?: string }).code : undefined
         const errorMessage = insertError instanceof Error ? insertError.message : ''
         if (errorCode === '23505' || errorMessage.includes('duplicate')) {
           console.log('Race condition detected - checking for existing attempt')
