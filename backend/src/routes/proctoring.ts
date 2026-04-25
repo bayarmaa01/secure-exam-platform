@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent, requireTeacher } from '../middleware/auth'
-import { setRedisKey, getRedisKey, deleteRedisKey } from '../redis'
+// import { setRedisKey, getRedisKey, deleteRedisKey } from '../redis' // Temporarily disabled
 
 const router = Router()
 
@@ -301,7 +301,7 @@ router.post('/proctoring/session/start',
 
       console.log(`[PROCTORING] Session created: ${sessionId} for attempt ${attemptId}`)
 
-      // Store session data in Redis
+      // Store session data in Redis (temporarily disabled for debugging)
       const sessionData = {
         sessionId,
         attemptId,
@@ -311,12 +311,17 @@ router.post('/proctoring/session/start',
         status: 'active'
       }
       
-      try {
-        await setRedisKey(`proctoring_session:${sessionId}`, JSON.stringify(sessionData), 3600) // 1 hour TTL
-        console.log(`[PROCTORING] Session stored in Redis: ${sessionId}`)
-      } catch (redisError) {
-        console.warn(`[PROCTORING] Failed to store session in Redis:`, redisError)
-      }
+      console.log(`[PROCTORING] Session data prepared:`, JSON.stringify(sessionData, null, 2))
+      // TODO: Re-enable Redis storage after debugging
+      /*
+      setRedisKey(`proctoring_session:${sessionId}`, JSON.stringify(sessionData), 3600)
+        .then(() => {
+          console.log(`[PROCTORING] Session stored in Redis: ${sessionId}`)
+        })
+        .catch((redisError) => {
+          console.warn(`[PROCTORING] Failed to store session in Redis:`, redisError)
+        })
+      */
 
       // Call AI service to start session
       const axios = require('axios')
