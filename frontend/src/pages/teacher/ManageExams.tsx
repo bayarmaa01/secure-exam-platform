@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../api'
 
@@ -25,7 +25,7 @@ export default function ManageExams() {
   const [loading, setLoading] = useState(true)
   const [isFetching, setIsFetching] = useState(false)
 
-  const fetchExams = async () => {
+  const fetchExams = useCallback(async () => {
     // Prevent duplicate calls
     if (isFetching) {
       console.log('Already fetching exams, skipping...')
@@ -45,7 +45,7 @@ export default function ManageExams() {
       setLoading(false)
       setIsFetching(false)
     }
-  }
+  }, [isFetching])
 
   useEffect(() => {
     fetchExams()

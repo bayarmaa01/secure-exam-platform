@@ -68,8 +68,8 @@ export default function DynamicExamRoom() {
       setQuestions(questionsResponse.data as Question[])
     } catch (error: unknown) {
       console.error('ERROR:', error)
-      console.error('ERROR RESPONSE DATA:', (error as { response?: { data?: any } }).response?.data)
-      const errorData = (error as { response?: { data?: any } }).response?.data
+      console.error('ERROR RESPONSE DATA:', (error as { response?: { data?: unknown } }).response?.data)
+      const errorData = (error as { response?: { data?: { error?: string; reason?: string; message?: string } } }).response?.data
       
       if (errorData?.error === 'FORBIDDEN') {
         // Show user-friendly messages based on specific reason

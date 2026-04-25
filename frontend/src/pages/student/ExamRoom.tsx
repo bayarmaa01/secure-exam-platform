@@ -10,7 +10,7 @@ import ViolationWarning from '../../components/ViolationWarning'
 export default function ExamRoom() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const {} = useAuth()
 
   // State management
   const [exam, setExam] = useState<Exam | null>(null)
@@ -27,7 +27,7 @@ export default function ExamRoom() {
   const [error, setError] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
   const [examError, setExamError] = useState<string | null>(null)
-  const [activeViolations, setActiveViolations] = useState<any[]>([])
+  const [activeViolations, setActiveViolations] = useState<Array<{id: string; type: 'tab_switch' | 'fullscreen_exit' | 'camera_off' | 'no_face' | 'multiple_faces'; message: string; timestamp: Date; severity: 'low' | 'medium' | 'high'}>>([])
 
   // Session ID for anti-cheat tracking
   const sessionId = useRef<string>(`session_${Date.now()}`) // Clean session ID without random decimals
@@ -56,13 +56,33 @@ export default function ExamRoom() {
     setCheatingWarnings(violations.length)
     
     // Convert violations to format expected by ViolationWarning component
-    const formattedViolations = violations.map((v, index) => ({
-      id: `${sessionId.current}_${index}`,
-      type: v.type,
-      message: v.details || `${v.type} detected`,
-      timestamp: new Date(v.timestamp),
-      severity: 'medium' // Default severity for all violations
-    }))
+    const formattedViolations = violations.map((v, index) => {
+      // Map violation types to expected types
+      let mappedType: 'tab_switch' | 'fullscreen_exit' | 'camera_off' | 'no_face' | 'multiple_faces' = 'tab_switch'
+      
+      switch (v.type) {
+        case 'tab_switch':
+          mappedType = 'tab_switch'
+          break
+        case 'fullscreen_exit':
+          mappedType = 'fullscreen_exit'
+          break
+        case 'copy_paste':
+        case 'right_click':
+          mappedType = 'tab_switch' // Map to tab_switch as it represents cheating behavior
+          break
+        default:
+          mappedType = 'tab_switch'
+      }
+      
+      return {
+        id: `${sessionId.current}_${index}`,
+        type: mappedType,
+        message: v.details || `${v.type} detected`,
+        timestamp: new Date(v.timestamp),
+        severity: 'medium' as const
+      }
+    })
     
     setActiveViolations(formattedViolations)
   }, [violations])
@@ -395,7 +415,7 @@ export default function ExamRoom() {
   } catch (error) {
     console.error('Failed to start webcam:', error)
   }
-}, [attemptId, user?.id, id])
+}, [attemptId])
 
   // Production-grade webcam cleanup
   const stopWebcam = useCallback(() => {
