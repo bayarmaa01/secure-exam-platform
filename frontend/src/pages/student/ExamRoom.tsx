@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
 import api from '../../api'
 import { Question, Exam } from '../../types/exam'
 import { useAntiCheat } from '../../hooks/useAntiCheat'
@@ -10,8 +9,7 @@ import ViolationWarning from '../../components/ViolationWarning'
 export default function ExamRoom() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const {} = useAuth()
-
+  
   // State management
   const [exam, setExam] = useState<Exam | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -482,6 +480,7 @@ export default function ExamRoom() {
     loadExam()
     
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       const sessionIdValue = sessionId.current
       console.log(`[${sessionIdValue}] ExamRoom component unmounting, cleaning up`)
       isMounted.current = false
@@ -503,6 +502,7 @@ export default function ExamRoom() {
     antiCheatingSetup.current = true
     
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       const sessionIdValue = sessionId.current
       console.log(`[${sessionIdValue}] Cleaning up anti-cheating measures`)
       
