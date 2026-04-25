@@ -260,7 +260,7 @@ router.post('/attempts/submit',
 
       // Verify attempt belongs to student and is in progress
       const attemptCheck = await pool.query(
-        `SELECT a.*, e.title as exam_title, e.end_time
+        `SELECT a.*, e.title as exam_title, e.end_time, e.passing_threshold
          FROM exam_attempts a
          JOIN exams e ON a.exam_id = e.id
          WHERE a.id = $1 AND a.user_id = $2`,
@@ -276,6 +276,16 @@ router.post('/attempts/submit',
       }
 
       const attempt = attemptCheck.rows[0]
+      
+      // Debug log: Attempt state before submission
+      console.log(`[SUBMIT DEBUG] Attempt before submission:`, {
+        attemptId,
+        status: attempt.status,
+        currentScore: attempt.score,
+        currentPercentage: attempt.percentage,
+        submittedAt: attempt.submitted_at,
+        answersCount: answers.length
+      })
 
       if (attempt.status !== 'in_progress') {
         return res.status(400).json({ 
@@ -284,10 +294,19 @@ router.post('/attempts/submit',
         })
       }
 
+      // Get exam total points for proper scoring (even if no answers submitted)
+      const examPointsQuery = await pool.query(
+        'SELECT COALESCE(SUM(points), 0) as total_points FROM questions WHERE exam_id = $1',
+        [attempt.exam_id]
+      )
+      const examTotalPoints = examPointsQuery.rows[0].total_points
+
       // Calculate score and save answers
       let totalPoints = 0
       let earnedPoints = 0
       const processedAnswers = []
+
+      console.log(`[SUBMIT DEBUG] Processing ${answers.length} answers for exam total points: ${examTotalPoints}`)
 
       for (const answer of answers) {
         // Get question details
@@ -330,7 +349,18 @@ router.post('/attempts/submit',
         )
       }
 
-      const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0
+      // Use exam total points for accurate percentage calculation
+      // If no answers were submitted, totalPoints will be 0, but we still use examTotalPoints
+      const finalTotalPoints = totalPoints > 0 ? totalPoints : examTotalPoints
+      const percentage = finalTotalPoints > 0 ? (earnedPoints / finalTotalPoints) * 100 : 0
+      
+      console.log(`[SUBMIT DEBUG] Score calculation:`, {
+        earnedPoints,
+        totalPoints,
+        finalTotalPoints,
+        percentage,
+        passingThreshold: attempt.passing_threshold
+      })
 
       // Update attempt with results
       await pool.query(
@@ -342,14 +372,24 @@ router.post('/attempts/submit',
              submitted_at = NOW(),
              status = 'submitted'
          WHERE id = $5`,
-        [JSON.stringify(answers), earnedPoints, totalPoints, percentage, attemptId]
+        [JSON.stringify(answers), earnedPoints, finalTotalPoints, percentage, attemptId]
       )
+
+      // Determine pass/fail status using exam's passing threshold
+      const passingThreshold = attempt.passing_threshold || 50 // Default to 50 if not set
+      const passed = percentage >= passingThreshold
+      
+      console.log(`[SUBMIT DEBUG] Pass/Fail determination:`, {
+        percentage,
+        passingThreshold,
+        passed
+      })
 
       // Create result record
       await pool.query(
         `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [studentId, attempt.exam_id, attemptId, earnedPoints, totalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
+        [studentId, attempt.exam_id, attemptId, earnedPoints, finalTotalPoints, percentage, passed ? 'passed' : 'failed']
       )
 
       // Calculate attempt duration
@@ -360,7 +400,14 @@ router.post('/attempts/submit',
       submissionsTotal.labels(attempt.exam_id).inc()
       attemptsTotal.labels('submitted', attempt.exam_id).inc()
 
-      console.log(`Attempt ${attemptId} submitted successfully. Score: ${earnedPoints}/${totalPoints} (${percentage.toFixed(2)}%)`)
+      // Debug log: Verify attempt state after submission
+      const finalAttemptCheck = await pool.query(
+        'SELECT status, score, percentage, submitted_at FROM exam_attempts WHERE id = $1',
+        [attemptId]
+      )
+      
+      console.log(`[SUBMIT DEBUG] Attempt after submission:`, finalAttemptCheck.rows[0])
+      console.log(`Attempt ${attemptId} submitted successfully. Score: ${earnedPoints}/${finalTotalPoints} (${percentage.toFixed(2)}%) - Status: ${passed ? 'PASSED' : 'FAILED'}`)
 
       res.json({
         success: true,

@@ -207,6 +207,15 @@ export default function ExamRoom() {
           setAttemptId(attempt.id)
           attemptStarted.current = true
           console.log(`[${sessionId.current}] Exam attempt started/resumed: ${attempt.id}`)
+          
+          // Start proctoring session
+          api.post('/proctoring/session/start', {
+            attemptId: attempt.id
+          }).then(response => {
+            console.log(`[${sessionId.current}] Proctoring session started:`, response.data)
+          }).catch(error => {
+            console.error(`[${sessionId.current}] Failed to start proctoring session:`, error)
+          })
         }
       } else {
         throw new Error('Failed to start exam attempt - no attempt ID returned')
@@ -360,14 +369,35 @@ export default function ExamRoom() {
           const frame = canvas.toDataURL('image/jpeg', 0.8)
 
           // Send frame to AI for analysis (non-blocking)
-          api.post('/ai/analyze-frame', {
-            frame,
-            timestamp: Date.now(),
-            sessionId: sessionId.current,
-            attemptId,
-            userId: user?.id,
-            examId: id
-          }).catch((error: unknown) => console.error('Failed to analyze frame:', error))
+          // Convert base64 to blob for multipart form data
+          fetch(frame)
+            .then(res => res.blob())
+            .then(blob => {
+              const formData = new FormData()
+              formData.append('image', blob, 'frame.jpg')
+              formData.append('sessionId', sessionId.current)
+              
+              return fetch(`${window.location.origin}/api/ai-proctoring/analyze`, {
+                method: 'POST',
+                body: formData
+              })
+            })
+            .then(response => response.json())
+            .then(result => {
+              console.log(`[PROCTORING] Frame analysis result:`, result)
+              
+              // Send event to backend if suspicious activity detected
+              if (result.event_type !== 'face_detected_normally' && result.event_type !== 'face_detected') {
+                api.post('/proctoring/events', {
+                  sessionId: sessionId.current,
+                  eventType: result.event_type,
+                  eventData: result.event_data || {},
+                  riskScore: result.risk_score,
+                  cheatingProbability: result.cheating_probability
+                }).catch(error => console.error('Failed to record proctoring event:', error))
+              }
+            })
+            .catch((error: unknown) => console.error('Failed to analyze frame:', error))
         } catch (error) {
           console.error('Frame capture error:', error)
         }

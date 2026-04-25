@@ -144,10 +144,14 @@ router.get('/student/exams', auth, requireStudent, async (req: AuthRequest, res)
     console.log('=== STUDENT EXAMS DEBUG ===')
     console.log('User ID:', studentId)
     
-    // EXACT QUERY AS SPECIFIED IN REQUIREMENTS
+    // EXACT QUERY AS SPECIFIED IN REQUIREMENTS - Updated to check attempt status
     const result = await pool.query(
       `SELECT e.*, c.name as course_name,
-              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count
+              (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) as question_count,
+              (SELECT ea.status FROM exam_attempts ea WHERE ea.exam_id = e.id AND ea.user_id = $1 AND ea.status = 'submitted') as attempt_status,
+              (SELECT ea.score FROM exam_attempts ea WHERE ea.exam_id = e.id AND ea.user_id = $1 AND ea.status = 'submitted') as attempt_score,
+              (SELECT ea.percentage FROM exam_attempts ea WHERE ea.exam_id = e.id AND ea.user_id = $1 AND ea.status = 'submitted') as attempt_percentage,
+              (SELECT ea.submitted_at FROM exam_attempts ea WHERE ea.exam_id = e.id AND ea.user_id = $1 AND ea.status = 'submitted') as submitted_at
        FROM exams e
        JOIN enrollments en ON en.course_id = e.course_id
        JOIN courses c ON c.id = e.course_id
@@ -179,7 +183,10 @@ router.get('/student/exams', auth, requireStudent, async (req: AuthRequest, res)
       durationMinutes: exam.duration_minutes || 60,
       startTime: exam.start_time,
       endTime: exam.end_time,
-      status: exam.status,
+      status: exam.attempt_status || exam.status, // Use attempt status if submitted, otherwise exam status
+      score: exam.attempt_score ? parseFloat(exam.attempt_score) : null,
+      percentage: exam.attempt_percentage ? parseFloat(exam.attempt_percentage) : null,
+      submittedAt: exam.submitted_at,
       courseId: exam.course_id,
       courseName: exam.course_name || 'Unknown Course',
       questionCount: parseInt(exam.question_count) || 0

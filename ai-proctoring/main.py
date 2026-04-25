@@ -22,20 +22,31 @@ app.add_middleware(
     allow_methods=["*"],
 )
 
-# Initialize MediaPipe Face Detection (simplified for CI/CD)
+# Initialize MediaPipe Face Detection
 face_detection = None
 try:
-    mp_face_detection = mp.solutions.face_detection
-    face_detection = mp_face_detection.FaceDetection(
-        model_selection=0, min_detection_confidence=0.5
-    )
+    # Try different MediaPipe API versions
+    if hasattr(mp, 'solutions') and hasattr(mp.solutions, 'face_detection'):
+        mp_face_detection = mp.solutions.face_detection
+        face_detection = mp_face_detection.FaceDetection(
+            model_selection=0, min_detection_confidence=0.5
+        )
+    elif hasattr(mp, 'face_detection'):
+        face_detection = mp.face_detection.FaceDetection(
+            model_selection=0, min_detection_confidence=0.5
+        )
+    else:
+        raise AttributeError("MediaPipe face detection not found in this version")
+    
     print("MediaPipe face detection initialized successfully")
 except AttributeError as e:
     print(f"MediaPipe face detection not available: {e}")
     print("Using fallback mode without face detection")
+    face_detection = None
 except Exception as e:
     print(f"Error initializing MediaPipe: {e}")
     print("Using fallback mode without face detection")
+    face_detection = None
 
 # Redis connection for session management
 try:
@@ -109,20 +120,27 @@ def analyze_frame(image_bytes: bytes, session: ProctoringSession) -> dict:
 
     # Convert BGR to RGB for MediaPipe
     rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    results = face_detection.process(rgb_img)
     
     # Extract face information from MediaPipe results
     faces = []
-    if results.detections:
-        for detection in results.detections:
-            bbox = detection.location_data.relative_bounding_box
-            h, w, _ = img.shape
-            faces.append((
-                int(bbox.xmin * w),
-                int(bbox.ymin * h),
-                int(bbox.width * w),
-                int(bbox.height * h)
-            ))
+    if face_detection is not None:
+        try:
+            results = face_detection.process(rgb_img)
+            if results and results.detections:
+                for detection in results.detections:
+                    bbox = detection.location_data.relative_bounding_box
+                    h, w, _ = img.shape
+                    faces.append((
+                        int(bbox.xmin * w),
+                        int(bbox.ymin * h),
+                        int(bbox.width * w),
+                        int(bbox.height * h)
+                    ))
+        except Exception as e:
+            print(f"Error processing face detection: {e}")
+            # Continue without face detection
+    else:
+        print("Face detection not available - using fallback mode")
 
     event_data = {
         "timestamp": current_time,
@@ -239,16 +257,24 @@ async def analyze_frame_endpoint(
     image: UploadFile = File(...)
 ):
     """Analyze webcam frame for suspicious behavior."""
+    print(f"[AI PROCTORING] Frame analysis request for session: {session_id}")
+    
     if not session_id:
+        print("[AI PROCTORING] ERROR: Session ID required")
         raise HTTPException(status_code=400, detail="Session ID required")
     
     session = get_session(session_id)
     if not session:
+        print(f"[AI PROCTORING] ERROR: Session {session_id} not found")
         raise HTTPException(status_code=404, detail="Session not found")
+    
+    print(f"[AI PROCTORING] Analyzing frame for session {session_id}, current risk score: {session.risk_score}")
     
     contents = await image.read()
     AI_ANALYZE_TOTAL.inc()
     result = analyze_frame(contents, session)
+    
+    print(f"[AI PROCTORING] Analysis result: {result['event_type']}, risk_score: {result['risk_score']}")
     
     # Save updated session
     save_session(session)

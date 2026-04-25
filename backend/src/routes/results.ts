@@ -259,7 +259,7 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
       FROM exam_attempts a
       JOIN users u ON u.id = a.student_id
       JOIN exams e ON e.id = a.exam_id
-      WHERE e.teacher_id = $1 AND a.status = 'completed'
+      WHERE e.teacher_id = $1 AND a.status = 'submitted'
       ORDER BY a.submitted_at DESC
     `, [teacherId])
 
