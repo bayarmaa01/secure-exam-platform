@@ -293,112 +293,46 @@ export default function ExamRoom() {
       
       ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime = now;
       
-
-// Production-safe exam attempt starter with idempotent behavior
-const startExamAttempt = async (examId: string) => {
-// StrictMode-safe guards
-if (isStartingAttempt.current || attemptStarted.current || !isMounted.current) return
-  
-isStartingAttempt.current = true
-  
-try {
-  console.log(`[${sessionId.current}] Attempting to start exam attempt for: ${examId}`)
-  
-  const payload = { examId }
-  console.log(`[${sessionId.current}] Sending payload to /exams/${examId}/start:`, payload)
-  
-  const response = await api.post(`/exams/${examId}/start`, payload)
-  console.log(`[${sessionId.current}] FULL RESPONSE:`, response)
-  console.log(`[${sessionId.current}] RESPONSE DATA:`, response.data)
-  console.log(`[${sessionId.current}] RESPONSE.DATA.DATA:`, response.data.data)
-  
-  // CRITICAL FIX: Correct response parsing
-  const attempt = response.data
-  
-  if (attempt && attempt.id) {
-    // Success case - set attempt ID from correct location
-    if (isMounted.current) {
-      setAttemptId(attempt.id)
-      attemptStarted.current = true
-      console.log(`[${sessionId.current}] Exam attempt started/resumed: ${attempt.id}`)
+      if (isMounted.current) {
+        setCheatingWarnings(prev => prev + 1)
+      }
       
-      // Start proctoring session
-      api.post('/ai/session/start', {
-        attemptId: attempt.id
-      }).then(response => {
-        console.log(`[${sessionId.current}] Proctoring session started:`, response.data)
-      }).catch(error => {
-        console.error(`[${sessionId.current}] Failed to start proctoring session:`, error)
+      // Send warning asynchronously (non-blocking)
+      api.post('/ai/track', {
+        type: 'tab_switch',
+        examId: id,
+        sessionId: sessionId.current,
+        timestamp: new Date().toISOString(),
+        data: { url: document.URL }
+      }).catch(error => console.error('Failed to track tab switch:', error))
+    } else {
+      console.log(`[${sessionId.current}] Page became visible again`);
+    }
+  }, [attemptId, id])
+
+  const handleFullscreenChange = useCallback(() => {
+    if (!isMounted.current || document.fullscreenElement || !attemptId) return
+    
+    console.log(`[${sessionId.current}] Fullscreen change detected`)
+  }, [attemptId])
+
+  const startWebcam = useCallback(async () => {
+    if (!isMounted.current || !attemptId) return
+    
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: false 
       })
-    }
-  } else {
-    throw new Error('Failed to start exam attempt - no attempt ID returned')
-  }
-  
-} catch (attemptError) {
-  console.error(`[${sessionId.current}] Failed to start exam attempt:`, attemptError)
-  
-  // Simplified error handling - no complex recovery needed since backend is idempotent
-  if (attemptError instanceof Error) {
-    throw new Error(`Cannot start exam: ${attemptError.message}`)
-  } else {
-    throw new Error('Failed to start exam attempt')
-  }
-} finally {
-  isStartingAttempt.current = false
-}
-}
-
-// Production-grade event handlers with proper cleanup and memory leak prevention
-const preventContextMenu = useCallback((e: MouseEvent) => e.preventDefault(), [])
-const preventCopyPaste = useCallback((e: ClipboardEvent) => e.preventDefault(), [])
-  
-const handleKeyDown = useCallback((e: KeyboardEvent) => {
-  // Disable Ctrl+C, Ctrl+V, Ctrl+X
-  if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
-    e.preventDefault()
-  }
-}, [])
-
-const handleVisibilityChange = useCallback(() => {
-  if (!isMounted.current || !attemptId) return
-  
-  // Tab switch detected
-  if (document.hidden) {
-    console.log(`[${sessionId.current}] Tab switch detected - page hidden`);
     
-    // Apply cooldown to prevent spam
-    const now = Date.now()
-    const lastWarningTime = ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime
-    const timeSinceLastWarning = lastWarningTime ? now - lastWarningTime : 0
-    
-    if (timeSinceLastWarning < 5000) {
-      console.log(`[${sessionId.current}] Throttling tab switch warning - only ${timeSinceLastWarning}ms since last`);
-      return;
-    }
-    
-    ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime = now;
-    
-    if (isMounted.current) {
-      setCheatingWarnings(prev => prev + 1)
-    }
-    
-    // Send warning asynchronously (non-blocking)
-    api.post('/ai/track', {
-      type: 'tab_switch',
-      examId: id,
-      sessionId: sessionId.current,
-      timestamp: new Date().toISOString(),
-      data: { url: document.URL }
-    }).catch(error => console.error('Failed to track tab switch:', error))
-  } else {
-    console.log(`[${sessionId.current}] Page became visible again`);
-  }
-}, [attemptId, id])
-
-const handleFullscreenChange = useCallback(() => {
-  if (!isMounted.current || document.fullscreenElement || !attemptId) return
-        
+    if (videoRef.current && isMounted.current) {
+      videoRef.current.srcObject = stream
+      setWebcamActive(true)
+      
+      const video = videoRef.current
+      const videoTrack = stream.getVideoTracks()[0]
+      
+      if (videoTrack) {
         videoTrack.onunmute = () => {
           console.log(`[${sessionId.current}] Camera track unmuted`)
         }
@@ -457,10 +391,11 @@ const handleFullscreenChange = useCallback(() => {
         }
       }, 5000)
       
-    } catch (error) {
-      console.error('Failed to start webcam:', error)
     }
-  }, [attemptId, user?.id, id])
+  } catch (error) {
+    console.error('Failed to start webcam:', error)
+  }
+}, [attemptId, user?.id, id])
 
   // Production-grade webcam cleanup
   const stopWebcam = useCallback(() => {
