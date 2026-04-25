@@ -72,6 +72,21 @@ export default function ExamRoom() {
     if (!attemptId || submitting || !isMounted.current) return
     
     setSubmitting(true)
+    
+    // Check if exam is already submitted
+    try {
+      const attemptResponse = await api.get(`/attempts/${attemptId}`)
+      const attempt = attemptResponse.data
+      
+      if (attempt && attempt.status === 'submitted') {
+        setError('This exam has already been submitted.')
+        setSubmitting(false)
+        return
+      }
+    } catch (error) {
+      console.error('Failed to check attempt status:', error)
+      // Continue with submission attempt
+    }
 
     try {
       // First save all answers
@@ -222,7 +237,7 @@ export default function ExamRoom() {
           console.log(`[${sessionId.current}] Exam attempt started/resumed: ${attempt.id}`)
           
           // Start proctoring session
-          api.post('/proctoring/session/start', {
+          api.post('/ai/session/start', {
             attemptId: attempt.id
           }).then(response => {
             console.log(`[${sessionId.current}] Proctoring session started:`, response.data)
@@ -278,85 +293,111 @@ export default function ExamRoom() {
       
       ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime = now;
       
-      if (isMounted.current) {
-        setCheatingWarnings(prev => prev + 1)
-      }
-      
-      // Send warning asynchronously (non-blocking)
-      api.post('/proctoring/track', {
-        type: 'tab_switch',
-        examId: id,
-        sessionId: sessionId.current,
-        message: 'Student switched tabs during exam'
-      }).catch((error: unknown) => console.error('Failed to send tab switch warning:', error))
-    } else {
-      console.log(`[${sessionId.current}] Page became visible again`);
-    }
-  }, [attemptId, id])
 
-  const handleFullscreenChange = useCallback(() => {
-    if (!isMounted.current || document.fullscreenElement || !attemptId) return
+// Production-safe exam attempt starter with idempotent behavior
+const startExamAttempt = async (examId: string) => {
+// StrictMode-safe guards
+if (isStartingAttempt.current || attemptStarted.current || !isMounted.current) return
+  
+isStartingAttempt.current = true
+  
+try {
+  console.log(`[${sessionId.current}] Attempting to start exam attempt for: ${examId}`)
+  
+  const payload = { examId }
+  console.log(`[${sessionId.current}] Sending payload to /exams/${examId}/start:`, payload)
+  
+  const response = await api.post(`/exams/${examId}/start`, payload)
+  console.log(`[${sessionId.current}] FULL RESPONSE:`, response)
+  console.log(`[${sessionId.current}] RESPONSE DATA:`, response.data)
+  console.log(`[${sessionId.current}] RESPONSE.DATA.DATA:`, response.data.data)
+  
+  // CRITICAL FIX: Correct response parsing
+  const attempt = response.data
+  
+  if (attempt && attempt.id) {
+    // Success case - set attempt ID from correct location
+    if (isMounted.current) {
+      setAttemptId(attempt.id)
+      attemptStarted.current = true
+      console.log(`[${sessionId.current}] Exam attempt started/resumed: ${attempt.id}`)
+      
+      // Start proctoring session
+      api.post('/ai/session/start', {
+        attemptId: attempt.id
+      }).then(response => {
+        console.log(`[${sessionId.current}] Proctoring session started:`, response.data)
+      }).catch(error => {
+        console.error(`[${sessionId.current}] Failed to start proctoring session:`, error)
+      })
+    }
+  } else {
+    throw new Error('Failed to start exam attempt - no attempt ID returned')
+  }
+  
+} catch (attemptError) {
+  console.error(`[${sessionId.current}] Failed to start exam attempt:`, attemptError)
+  
+  // Simplified error handling - no complex recovery needed since backend is idempotent
+  if (attemptError instanceof Error) {
+    throw new Error(`Cannot start exam: ${attemptError.message}`)
+  } else {
+    throw new Error('Failed to start exam attempt')
+  }
+} finally {
+  isStartingAttempt.current = false
+}
+}
+
+// Production-grade event handlers with proper cleanup and memory leak prevention
+const preventContextMenu = useCallback((e: MouseEvent) => e.preventDefault(), [])
+const preventCopyPaste = useCallback((e: ClipboardEvent) => e.preventDefault(), [])
+  
+const handleKeyDown = useCallback((e: KeyboardEvent) => {
+  // Disable Ctrl+C, Ctrl+V, Ctrl+X
+  if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
+    e.preventDefault()
+  }
+}, [])
+
+const handleVisibilityChange = useCallback(() => {
+  if (!isMounted.current || !attemptId) return
+  
+  // Tab switch detected
+  if (document.hidden) {
+    console.log(`[${sessionId.current}] Tab switch detected - page hidden`);
     
-    // Exited fullscreen
-    console.log(`[${sessionId.current}] Fullscreen exit detected`)
+    // Apply cooldown to prevent spam
+    const now = Date.now()
+    const lastWarningTime = ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime
+    const timeSinceLastWarning = lastWarningTime ? now - lastWarningTime : 0
+    
+    if (timeSinceLastWarning < 5000) {
+      console.log(`[${sessionId.current}] Throttling tab switch warning - only ${timeSinceLastWarning}ms since last`);
+      return;
+    }
+    
+    ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime = now;
     
     if (isMounted.current) {
       setCheatingWarnings(prev => prev + 1)
     }
     
     // Send warning asynchronously (non-blocking)
-    api.post('/proctoring/track', {
-      type: 'fullscreen_exit',
+    api.post('/ai/track', {
+      type: 'tab_switch',
       examId: id,
       sessionId: sessionId.current,
-      message: 'Student exited fullscreen during exam'
-    }).catch((error: unknown) => console.error('Failed to send warning:', error))
-  }, [attemptId, id])
+      timestamp: new Date().toISOString(),
+      data: { url: document.URL }
+    }).catch(error => console.error('Failed to track tab switch:', error))
+  } else {
+    console.log(`[${sessionId.current}] Page became visible again`);
+  }
+}, [attemptId, id])
 
-  // Production-grade webcam with proper cleanup and memory leak prevention
-  const startWebcam = useCallback(async () => {
-    if (!isMounted.current) return
-    
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        }
-      })
-
-      const video = videoRef.current
-      if (video && isMounted.current) {
-        video.srcObject = stream
-        await video.play()
-        
-        if (isMounted.current) {
-          setWebcamActive(true)
-        }
-      }
-
-      // Add camera off detection
-      const videoTrack = stream.getVideoTracks()[0]
-      if (videoTrack) {
-        videoTrack.onended = () => {
-          console.log(`[${sessionId.current}] Camera track ended - camera turned off`)
-          if (isMounted.current) {
-            setWebcamActive(false)
-            setCheatingWarnings(prev => prev + 1)
-          }
-          
-          // Send warning asynchronously (non-blocking)
-          api.post('/proctoring/track', {
-            type: 'camera_off',
-            examId: id,
-            sessionId: sessionId.current,
-            message: 'Camera was turned off during exam'
-          }).catch((error: unknown) => console.error('Failed to send camera off warning:', error))
-        }
-        
-        videoTrack.onmute = () => {
-          console.log(`[${sessionId.current}] Camera track muted`)
-        }
+const handleFullscreenChange = useCallback(() => {
+  if (!isMounted.current || document.fullscreenElement || !attemptId) return
         
         videoTrack.onunmute = () => {
           console.log(`[${sessionId.current}] Camera track unmuted`)
@@ -390,7 +431,7 @@ export default function ExamRoom() {
               formData.append('image', blob, 'frame.jpg')
               formData.append('sessionId', sessionId.current)
               
-              return fetch(`${window.location.origin}/api/ai-proctoring/analyze`, {
+              return fetch(`${window.location.origin}/api/ai/analyze`, {
                 method: 'POST',
                 body: formData
               })
@@ -401,7 +442,7 @@ export default function ExamRoom() {
               
               // Send event to backend if suspicious activity detected
               if (result.event_type !== 'face_detected_normally' && result.event_type !== 'face_detected') {
-                api.post('/proctoring/events', {
+                api.post('/ai/events', {
                   sessionId: sessionId.current,
                   eventType: result.event_type,
                   eventData: result.event_data || {},

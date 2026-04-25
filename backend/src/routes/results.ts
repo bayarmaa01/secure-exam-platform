@@ -247,6 +247,8 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
       return res.status(403).json({ message: 'Access denied' })
     }
     
+    console.log(`[RESULTS DEBUG] Querying exam results for examId: ${examId}, teacherId: ${teacherId}`)
+    
     const r = await pool.query(`
       SELECT 
         u.name as student_name,
