@@ -14,18 +14,8 @@ const warningsTotal = new Counter({
   registers: [register]
 })
 
-const suspiciousStudentsTotal = new Counter({
-  name: 'suspicious_students_total',
-  help: 'Total students marked as suspicious',
-  registers: [register]
-})
-
-const cheatingDetectedTotal = new Counter({
-  name: 'cheating_detected_total',
-  help: 'Total cheating incidents detected',
-  labelNames: ['type'],
-  registers: [register]
-})
+// Note: suspicious_students_total and cheating_detected_total removed to avoid conflicts
+// These metrics are handled elsewhere in the metrics module
 
 // POST /api/warnings - Create warning from proctoring system
 router.post('/warnings',
@@ -70,7 +60,7 @@ router.post('/warnings',
       const warningCount = parseInt(recentWarnings.rows[0].count)
       
       if (warningCount >= 3) {
-        suspiciousStudentsTotal.inc()
+        // suspiciousStudentsTotal.inc() // Removed to avoid metric conflicts
         console.log(`⚠️ User ${userId} marked as suspicious (${warningCount} warnings in 1 hour)`)
       }
 
@@ -83,7 +73,7 @@ router.post('/warnings',
       const totalWarningCount = parseInt(totalWarnings.rows[0].count)
       
       if (totalWarningCount >= 5) {
-        cheatingDetectedTotal.labels('excessive_warnings').inc()
+        // cheatingDetectedTotal.labels('excessive_warnings').inc() // Removed to avoid metric conflicts
         
         // Auto-submit the exam
         await pool.query(
