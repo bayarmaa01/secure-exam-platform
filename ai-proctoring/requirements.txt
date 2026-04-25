@@ -1,12 +1,10 @@
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
-opencv-python==4.9.0.80
-numpy==1.26.3
-Pillow==10.0.0
-pytest==7.4.3
+opencv-python-headless==4.8.1.78
+numpy==1.24.3
+Pillow==9.5.0
 httpx==0.25.2
 redis==5.0.1
 pydantic==2.5.3
 prometheus-client==0.20.0
-mediapipe==0.10.11

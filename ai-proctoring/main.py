@@ -12,7 +12,8 @@ from datetime import datetime
 import redis
 import os
 from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
-import mediapipe as mp
+# MediaPipe removed to reduce Docker build size
+# import mediapipe as mp
 
 app = FastAPI(title="AI Proctoring Service")
 
@@ -22,19 +23,16 @@ app.add_middleware(
     allow_methods=["*"],
 )
 
-# Initialize MediaPipe Face Detection
-face_detection = None
+# Initialize OpenCV Face Detection (Haar Cascades)
+face_cascade = None
 try:
-    # Initialize MediaPipe Face Detection with correct API
-    mp_face_detection = mp.solutions.face_detection
-    face_detection = mp_face_detection.FaceDetection(
-        model_selection=0, min_detection_confidence=0.5
-    )
-    print("MediaPipe face detection initialized successfully")
+    # Load pre-trained Haar cascade for face detection
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    print("OpenCV Haar cascade face detection initialized successfully")
 except Exception as e:
-    print(f"MediaPipe face detection not available: {e}")
+    print(f"OpenCV face detection not available: {e}")
     print("Using fallback mode without face detection")
-    face_detection = None
+    face_cascade = None
 
 # Redis connection for session management
 try:
@@ -116,24 +114,21 @@ def analyze_frame(image_bytes: bytes, session: ProctoringSession) -> dict:
     
     session.last_frame_time = current_time
 
-    # Convert BGR to RGB for MediaPipe
-    rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # Convert to grayscale for OpenCV Haar cascade
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # Extract face information from MediaPipe results
+    # Extract face information using OpenCV Haar cascades
     faces = []
-    if face_detection is not None:
+    if face_cascade is not None:
         try:
-            results = face_detection.process(rgb_img)
-            if results and results.detections:
-                for detection in results.detections:
-                    bbox = detection.location_data.relative_bounding_box
-                    h, w, _ = img.shape
-                    faces.append((
-                        int(bbox.xmin * w),
-                        int(bbox.ymin * h),
-                        int(bbox.width * w),
-                        int(bbox.height * h)
-                    ))
+            # Detect faces in the grayscale image
+            detected_faces = face_cascade.detectMultiScale(
+                gray_img,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30)
+            )
+            faces = [(x, y, w, h) for (x, y, w, h) in detected_faces]
         except Exception as e:
             print(f"Error processing face detection: {e}")
             # Continue without face detection
