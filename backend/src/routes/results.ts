@@ -292,7 +292,6 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         a.graded_at,
         a.feedback,
         a.violations_count,
-        COALESCE(violation_details.violations, '[]') as violations,
         COALESCE(violation_details.risk_score, 0) as risk_score
       FROM exam_attempts a
       JOIN users u ON u.id = a.user_id
@@ -300,13 +299,6 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         SELECT 
           pv.attempt_id,
           COUNT(pv.id) as violation_count,
-          JSON_AGG(
-            JSON_BUILD_OBJECT(
-              'type', pv.type,
-              'time', pv.timestamp,
-              'details', pv.details
-            ) ORDER BY pv.timestamp DESC
-          ) as violations,
           COALESCE(SUM(pv.risk_score), 0) as risk_score
         FROM proctoring_violations pv
         GROUP BY pv.attempt_id
@@ -359,7 +351,7 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
       feedback: row.feedback,
       violations: {
         count: row.violations_count || 0,
-        details: row.violations || [],
+        details: [],
         riskScore: parseInt(row.risk_score) || 0,
         riskLevel: getRiskLevel(row.violations_count || 0)
       }
