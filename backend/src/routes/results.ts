@@ -318,7 +318,12 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
     console.log("[RESULTS DEBUG] ExamId:", examId)
     console.log("[RESULTS DEBUG] Executing fixed results query")
     const r = await pool.query(resultsQuery, [examId])
-    console.log("[RESULTS DEBUG] Query result:", r.rows.length, "rows found")
+    console.log("[RESULTS DEBUG] Attempts found:", r.rows.length)
+    
+    // Log each attempt for debugging
+    r.rows.forEach((row, index) => {
+      console.log(`[RESULTS DEBUG] Attempt ${index + 1}: ${row.name} (${row.email}) - Status: ${row.status} - Submitted: ${row.submitted_at || 'Not submitted'}`)
+    })
     
     console.log(`[RESULTS DEBUG] Query returned ${r.rows.length} results for exam ${examId}`)
     
