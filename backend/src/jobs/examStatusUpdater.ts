@@ -83,18 +83,20 @@ async function calculateAndSaveScore(attemptId: string, userId: string, examId: 
       [earnedPoints, totalPoints, percentage, attemptId]
     )
     
-    // Create result record
-    await pool.query(
-      `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (attempt_id) DO UPDATE SET
-         score = EXCLUDED.score,
-         total_points = EXCLUDED.total_points,
-         percentage = EXCLUDED.percentage,
-         status = EXCLUDED.status,
-         graded_at = NOW()`,
-      [userId, examId, attemptId, earnedPoints, totalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
+    // Check if result already exists
+    const existingResult = await pool.query(
+      'SELECT id FROM results WHERE attempt_id = $1',
+      [attemptId]
     )
+    
+    if (existingResult.rows.length === 0) {
+      // Create result record
+      await pool.query(
+        `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, examId, attemptId, earnedPoints, totalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
+      )
+    }
     
     console.log(`Auto-submitted attempt ${attemptId}: ${earnedPoints}/${totalPoints} (${percentage.toFixed(2)}%)`)
     

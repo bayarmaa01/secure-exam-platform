@@ -10,6 +10,7 @@ const router = Router()
 const examActiveTotal = new Counter({
   name: 'exam_active_total',
   help: 'Number of active exams currently running',
+  labelNames: ['exam_id'],
   registers: [register]
 })
 
