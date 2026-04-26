@@ -5,7 +5,7 @@ import api from '../../api'
 interface Violation {
   type: string
   time: string
-  details?: any
+  details?: string | object
 }
 
 interface ViolationData {
@@ -384,7 +384,7 @@ export default function ExamResults() {
                                   <span className="ml-4 text-sm font-medium">Risk Score: {student.violations.riskScore}</span>
                                 </div>
                                 <div className="space-y-1">
-                                  {student.violations.details.map((violation: any, index: number) => (
+                                  {student.violations.details.map((violation: Violation, index: number) => (
                                     <div key={index} className="flex items-center justify-between text-sm">
                                       <span className="font-medium text-gray-700">{violation.type}</span>
                                       <span className="text-gray-500">

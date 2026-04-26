@@ -31,7 +31,7 @@ interface Student {
     details: Array<{
       type: string
       time: string
-      details?: any
+      details?: string | object
     }>
     riskScore: number
     riskLevel: string
@@ -43,13 +43,13 @@ interface Question {
   question_text: string
   points: number
   type: string
-  options?: any
+  options?: string[] | Record<string, any>
   correct_answer?: string
 }
 
 interface Attempt {
   id: string
-  answers: any
+  answers: Record<string, string>
   score: number | null
   status: string
   submittedAt: string

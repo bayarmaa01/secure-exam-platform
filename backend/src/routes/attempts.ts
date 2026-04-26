@@ -169,6 +169,9 @@ router.post('/attempts/:attemptId/submit',
       const attemptId = req.params.attemptId
       const studentId = req.user!.id
       const { answers, cheatingWarnings, sessionId } = req.body
+      
+      console.log(`[ATTEMPTS] Submitting attempt ${attemptId} for student ${studentId}`)
+      console.log(`[ATTEMPTS] Session: ${sessionId}, Warnings: ${cheatingWarnings}, Answers: ${answers?.length || 0}`)
 
       // Verify attempt belongs to student
       const attemptCheck = await pool.query(
