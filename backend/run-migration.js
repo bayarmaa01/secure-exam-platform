@@ -15,7 +15,7 @@ async function runMigration() {
     console.log('Running proctoring violations migration...');
     
     const migrationSQL = fs.readFileSync(
-      path.join(__dirname, 'src', 'migrations', 'proctoring-violations.sql'), 
+      path.join(__dirname, 'src', 'migrations', '002_update_exam_attempts_schema.sql'), 
       'utf8'
     );
     
