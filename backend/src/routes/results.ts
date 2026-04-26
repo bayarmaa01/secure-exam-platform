@@ -276,14 +276,16 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
     
     console.log(`[RESULTS DEBUG] Exam found: ${exam.title}, status: ${exam.status}`)
     
-    // Enhanced query with violations aggregation
+    // Fixed query to return ALL attempts without restrictive filtering
     const resultsQuery = `
-      SELECT
+      SELECT 
+        a.id AS attempt_id,
+        a.exam_id,
+        a.user_id,
         u.name,
         u.email,
-        u.student_id,
-        a.id as attempt_id,
         a.score,
+        a.total_points,
         a.percentage,
         a.status,
         a.submitted_at,
@@ -293,7 +295,7 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         COALESCE(violation_details.violations, '[]') as violations,
         COALESCE(violation_details.risk_score, 0) as risk_score
       FROM exam_attempts a
-      JOIN users u ON a.user_id = u.id
+      JOIN users u ON u.id = a.user_id
       LEFT JOIN (
         SELECT 
           pv.attempt_id,
@@ -310,13 +312,13 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         GROUP BY pv.attempt_id
       ) violation_details ON violation_details.attempt_id = a.id
       WHERE a.exam_id = $1
-      AND a.status IN ('submitted', 'terminated', 'pending_review', 'graded')
-      AND a.submitted_at IS NOT NULL
-      ORDER BY a.submitted_at DESC
+      ORDER BY a.submitted_at DESC NULLS LAST, a.created_at DESC
     `
     
-    console.log(`[RESULTS DEBUG] Executing results query for exam: ${examId}`)
+    console.log("[RESULTS DEBUG] ExamId:", examId)
+    console.log("[RESULTS DEBUG] Executing fixed results query")
     const r = await pool.query(resultsQuery, [examId])
+    console.log("[RESULTS DEBUG] Query result:", r.rows.length, "rows found")
     
     console.log(`[RESULTS DEBUG] Query returned ${r.rows.length} results for exam ${examId}`)
     

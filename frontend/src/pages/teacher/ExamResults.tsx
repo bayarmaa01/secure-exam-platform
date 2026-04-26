@@ -400,6 +400,21 @@ export default function ExamResults() {
                       )}
                     </React.Fragment>
                   ))}
+                  {studentsWithResults.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-6 py-12 text-center">
+                        <div className="text-gray-500">
+                          <div className="text-lg font-medium mb-2">No students attempted yet</div>
+                          <div className="text-sm">
+                            {exam.status === 'draft' 
+                              ? 'Publish the exam to allow students to take it'
+                              : 'Students have not started this exam yet'
+                            }
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
