@@ -155,8 +155,8 @@ router.get('/grading/pending', auth, requireTeacher, async (req: AuthRequest, re
         ea.score,
         ea.percentage,
         ea.violations_count,
-        COALESCE(violation_details.violations, '[]') as violations,
-        COALESCE(violation_details.risk_score, 0) as risk_score,
+        COALESCE(violation_details.violation_count, 0) as violation_count,
+        0 as risk_score,
         e.title as exam_title,
         e.type as exam_type,
         e.total_marks,
@@ -170,15 +170,7 @@ router.get('/grading/pending', auth, requireTeacher, async (req: AuthRequest, re
       LEFT JOIN (
         SELECT 
           pv.attempt_id,
-          COUNT(pv.id) as violation_count,
-          JSON_AGG(
-            JSON_BUILD_OBJECT(
-              'type', pv.type,
-              'time', pv.timestamp,
-              'details', pv.details
-            ) ORDER BY pv.timestamp DESC
-          ) as violations,
-          COALESCE(SUM(pv.risk_score), 0) as risk_score
+          COUNT(pv.id) as violation_count
         FROM proctoring_violations pv
         GROUP BY pv.attempt_id
       ) violation_details ON violation_details.attempt_id = ea.id
