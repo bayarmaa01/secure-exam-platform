@@ -107,7 +107,7 @@ router.get('/grading/attempts/:attemptId', auth, requireTeacher, async (req: Aut
     
     // Get questions for context
     const questionsQuery = `
-      SELECT id, question_text, points, question_type
+      SELECT id, question_text, points, type
       FROM questions
       WHERE exam_id = $1
       ORDER BY id
