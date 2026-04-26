@@ -52,7 +52,28 @@ export async function auth(req: AuthRequest, res: Response, next: NextFunction) 
 
     if (userResult.rows.length === 0) {
       console.log('DEBUG: User not found in database for userId:', payload.userId)
-      return res.status(401).json({ message: 'Invalid token - User not found' })
+      console.log('DEBUG: Trying fallback authentication by email...')
+      
+      // Fallback: Try to find user by email
+      const emailFallbackResult = await pool.query(
+        'SELECT id, email, role, name FROM users WHERE email = $1 AND role = $2',
+        [payload.email, payload.role]
+      )
+      
+      if (emailFallbackResult.rows.length === 0) {
+        console.log('DEBUG: No user found with email:', payload.email)
+        return res.status(401).json({ message: 'Invalid token - User not found' })
+      }
+      
+      console.log('DEBUG: Found user by email fallback:', {
+        id: emailFallbackResult.rows[0].id,
+        email: emailFallbackResult.rows[0].email,
+        role: emailFallbackResult.rows[0].role
+      })
+      
+      req.user = emailFallbackResult.rows[0]
+      next()
+      return
     }
 
     console.log('DEBUG: User authenticated successfully:', {
