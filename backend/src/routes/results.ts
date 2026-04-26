@@ -292,14 +292,13 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         a.graded_at,
         a.feedback,
         a.violations_count,
-        COALESCE(violation_details.risk_score, 0) as risk_score
+        0 as risk_score
       FROM exam_attempts a
       JOIN users u ON u.id = a.user_id
       LEFT JOIN (
         SELECT 
           pv.attempt_id,
-          COUNT(pv.id) as violation_count,
-          COALESCE(SUM(pv.risk_score), 0) as risk_score
+          COUNT(pv.id) as violation_count
         FROM proctoring_violations pv
         GROUP BY pv.attempt_id
       ) violation_details ON violation_details.attempt_id = a.id
@@ -350,10 +349,10 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
       gradedAt: row.graded_at,
       feedback: row.feedback,
       violations: {
-        count: row.violations_count || 0,
+        count: row.violation_count || 0,
         details: [],
         riskScore: parseInt(row.risk_score) || 0,
-        riskLevel: getRiskLevel(row.violations_count || 0)
+        riskLevel: getRiskLevel(row.violation_count || 0)
       }
     }))
     
