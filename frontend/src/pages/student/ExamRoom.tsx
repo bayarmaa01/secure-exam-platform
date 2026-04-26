@@ -65,9 +65,21 @@ export default function ExamRoom() {
         case 'fullscreen_exit':
           mappedType = 'fullscreen_exit'
           break
-        case 'copy_paste':
+        case 'camera_off':
+          mappedType = 'camera_off'
+          break
+        case 'no_face':
+          mappedType = 'no_face'
+          break
+        case 'multiple_faces':
+          mappedType = 'multiple_faces'
+          break
+        case 'copy':
+        case 'paste':
         case 'right_click':
-          // For copy/paste violations, use tab_switch type but with correct message
+        case 'keyboard_copy_paste':
+        case 'copy_paste_attempt':
+          // For manual violations, use tab_switch type but with correct message
           mappedType = 'tab_switch'
           break
         default:
