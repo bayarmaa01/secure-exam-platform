@@ -103,12 +103,12 @@
       },
       {
         "id": 5,
-        "title": "Active Exam Sessions",
+        "title": "📊 Active Exams",
         "type": "stat",
         "targets": [
           {
-            "expr": "exam_sessions_active",
-            "legendFormat": "Active Sessions"
+            "expr": "exam_active_total",
+            "legendFormat": "Active Exams"
           }
         ],
         "gridPos": {
@@ -120,12 +120,12 @@
       },
       {
         "id": 6,
-        "title": "AI Analysis Requests",
+        "title": "📝 Exam Attempts",
         "type": "graph",
         "targets": [
           {
-            "expr": "rate(ai_analyze_requests_total[5m])",
-            "legendFormat": "AI Requests/sec"
+            "expr": "rate(attempts_total[5m])",
+            "legendFormat": "Exam Attempts/sec"
           }
         ],
         "gridPos": {
@@ -137,12 +137,12 @@
       },
       {
         "id": 7,
-        "title": "Tab Switch Events",
+        "title": "⚠️ Exam Violations",
         "type": "graph",
         "targets": [
           {
-            "expr": "rate(ai_tab_switch_events_total[5m])",
-            "legendFormat": "Tab Switch Rate"
+            "expr": "rate(exam_violations_total[5m])",
+            "legendFormat": "Violation Rate"
           }
         ],
         "gridPos": {
@@ -154,12 +154,12 @@
       },
       {
         "id": 8,
-        "title": "Current Risk Scores",
+        "title": "📈 Exam Submissions",
         "type": "stat",
         "targets": [
           {
-            "expr": "ai_current_risk_score",
-            "legendFormat": "Session {{session_id}}"
+            "expr": "rate(submissions_total[5m])",
+            "legendFormat": "Submissions/sec"
           }
         ],
         "gridPos": {
