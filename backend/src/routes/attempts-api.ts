@@ -559,5 +559,155 @@ router.post('/attempts/submit',
   }
 )
 
+// POST /api/attempts/:attemptId/submit - Submit exam attempt (alternative endpoint)
+router.post('/attempts/:attemptId/submit',
+  auth,
+  requireStudent,
+  [
+    body('answers').optional().isArray().withMessage('Answers must be an array'),
+    body('answers.*.questionId').notEmpty().withMessage('Question ID is required'),
+    body('answers.*.answer').notEmpty().withMessage('Answer is required')
+  ],
+  async (req: AuthRequest, res) => {
+    const startTime = Date.now()
+    console.log(`[${new Date().toISOString()}] POST /api/attempts/:attemptId/submit - User: ${req.user?.id}, Attempt: ${req.params.attemptId}`)
+    
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array())
+        return res.status(400).json({ 
+          success: false, 
+          errors: errors.array() 
+        })
+      }
+
+      const attemptId = req.params.attemptId
+      const { answers, cheatingWarnings, sessionId } = req.body
+      const studentId = req.user!.id
+
+      // Verify attempt belongs to student
+      const attemptCheck = await pool.query(
+        'SELECT id, exam_id, status, created_at FROM exam_attempts WHERE id = $1 AND user_id = $2',
+        [attemptId, studentId]
+      )
+
+      if (attemptCheck.rows.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Attempt not found' 
+        })
+      }
+
+      const attempt = attemptCheck.rows[0]
+      
+      if (attempt.status !== 'in_progress') {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Attempt is not active or already submitted' 
+        })
+      }
+
+      // Process answers similar to the main submit endpoint
+      const examPointsQuery = await pool.query(
+        'SELECT COALESCE(SUM(points), 0) as total_points FROM questions WHERE exam_id = $1',
+        [attempt.exam_id]
+      )
+      const examTotalPoints = examPointsQuery.rows[0].total_points
+
+      let earnedPoints = 0
+      const processedAnswers = []
+
+      if (answers && Array.isArray(answers)) {
+        for (const answerData of answers) {
+          const { questionId, answer } = answerData
+          
+          const questionQuery = await pool.query(
+            'SELECT id, type, points, correct_answer FROM questions WHERE id = $1 AND exam_id = $2',
+            [questionId, attempt.exam_id]
+          )
+          
+          if (questionQuery.rows.length > 0) {
+            const question = questionQuery.rows[0]
+            let isCorrect = false
+            let pointsEarned = 0
+            
+            if (question.type === 'mcq' && question.correct_answer) {
+              isCorrect = answer === question.correct_answer
+              pointsEarned = isCorrect ? question.points : 0
+            } else {
+              pointsEarned = answer && answer.trim() ? question.points : 0
+            }
+            
+            earnedPoints += pointsEarned
+            
+            // Insert or update answer
+            await pool.query(
+              `INSERT INTO answers (attempt_id, question_id, answer, is_correct, points_earned)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (attempt_id, question_id) 
+               DO UPDATE SET 
+                 answer = EXCLUDED.answer,
+                 is_correct = EXCLUDED.is_correct,
+                 points_earned = EXCLUDED.points_earned`,
+              [attemptId, questionId, answer, isCorrect, pointsEarned]
+            )
+            
+            processedAnswers.push({
+              questionId,
+              answer,
+              isCorrect,
+              pointsEarned
+            })
+          }
+        }
+      }
+
+      const percentage = examTotalPoints > 0 ? (earnedPoints / examTotalPoints) * 100 : 0
+      const finalStatus = 'submitted'
+
+      // Update attempt
+      await pool.query(
+        `UPDATE exam_attempts 
+         SET status = $1, submitted_at = NOW(), score = $2, total_points = $3, percentage = $4
+         WHERE id = $5`,
+        [finalStatus, earnedPoints, examTotalPoints, percentage, attemptId]
+      )
+
+      // Create result record
+      await pool.query(
+        `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [studentId, attempt.exam_id, attemptId, earnedPoints, examTotalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
+      )
+
+      const durationMs = Date.now() - startTime
+      console.log(`Attempt ${attemptId} submitted successfully via :attemptId/submit endpoint. Score: ${earnedPoints}/${examTotalPoints} (${percentage.toFixed(2)}%) - Status: ${percentage >= 50 ? 'PASSED' : 'FAILED'}`)
+
+      res.json({
+        success: true,
+        data: {
+          attemptId,
+          score: earnedPoints,
+          totalPoints: examTotalPoints,
+          percentage: Math.round(percentage * 100) / 100,
+          status: percentage >= 50 ? 'passed' : 'failed',
+          submittedAt: new Date().toISOString(),
+          answers: processedAnswers
+        }
+      })
+
+    } catch (error) {
+      const durationMs = Date.now() - startTime
+      console.error(`[${new Date().toISOString()}] POST /api/attempts/:attemptId/submit - Error after ${durationMs}ms:`, error)
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to submit exam', 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  }
+)
+
 export const attemptsApiRoutes = router
 export default router
