@@ -141,44 +141,21 @@ router.get('/teacher/exams',
     try {
       const teacherId = req.user!.id
       
-      // Updated query to show exams with attempts immediately after submission
-      // Following strict requirements: show exams if at least ONE attempt exists
+      // Show all exams for this teacher (including newly created exams without attempts)
       const result = await pool.query(
         `SELECT DISTINCT e.*, 
                 c.name as course_name,
                 COUNT(q.id) as question_count,
                 COUNT(ea.id) as attempt_count,
                 MAX(ea.submitted_at) as latest_submission_time,
-                CASE 
-                  WHEN EXISTS (
-                    SELECT 1 FROM exam_attempts a 
-                    WHERE a.exam_id = e.id 
-                    AND a.status = 'pending_review'
-                  ) THEN 'pending_review'
-                  WHEN EXISTS (
-                    SELECT 1 FROM exam_attempts a 
-                    WHERE a.exam_id = e.id 
-                    AND a.status = 'graded'
-                  ) THEN 'graded'
-                  WHEN EXISTS (
-                    SELECT 1 FROM exam_attempts a 
-                    WHERE a.exam_id = e.id 
-                    AND a.status = 'terminated'
-                  ) THEN 'terminated'
-                  ELSE 'submitted'
-                END as derived_status
+                e.status as exam_status
          FROM exams e
          LEFT JOIN courses c ON e.course_id = c.id
          LEFT JOIN questions q ON e.id = q.exam_id
          LEFT JOIN exam_attempts ea ON e.id = ea.exam_id
          WHERE e.teacher_id = $1
-         AND EXISTS (
-           SELECT 1 FROM exam_attempts a 
-           WHERE a.exam_id = e.id 
-           AND a.status IN ('submitted', 'pending_review', 'terminated')
-         )
          GROUP BY e.id, c.name
-         ORDER BY MAX(ea.submitted_at) DESC NULLS LAST, e.created_at DESC`,
+         ORDER BY e.created_at DESC`,
         [teacherId]
       )
       
@@ -189,7 +166,7 @@ router.get('/teacher/exams',
         durationMinutes: row.duration_minutes,
         startTime: row.start_time,
         endTime: row.end_time,
-        status: row.derived_status || row.status, // Use derived status from attempts
+        status: row.exam_status || 'draft', // Use exam status from database
         createdAt: row.created_at,
         courseId: row.course_id,
         courseName: row.course_name,
