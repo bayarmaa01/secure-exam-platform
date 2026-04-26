@@ -307,6 +307,11 @@ export default function ExamRoom() {
     }
     
     // Send violation to backend
+    if (!id) {
+      console.warn(`[${sessionId.current}] Cannot send violation ${type}: examId not available`)
+      return
+    }
+    
     api.post('/proctoring/track', {
       type,
       examId: id,

@@ -18,13 +18,18 @@ router.post('/proctoring/track',
   ],
   async (req: AuthRequest, res) => {
     try {
+      console.log(`[VIOLATION] Received violation request:`, JSON.stringify(req.body, null, 2))
+      
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
+        console.log(`[VIOLATION] Validation errors:`, errors.array())
         return res.status(400).json({ errors: errors.array() })
       }
 
       const { type, examId, message } = req.body
       const studentId = req.user!.id
+      
+      console.log(`[VIOLATION] Processing violation: type=${type}, examId=${examId}, studentId=${studentId}`)
 
       // Verify student has an active attempt for this exam
       const attemptCheck = await pool.query(
@@ -374,15 +379,21 @@ router.post('/proctoring/session/start',
       // Create session summary record
       const sessionId = `session_${Date.now()}_${studentId.slice(0, 8)}`
       
-      await pool.query(
-        `INSERT INTO proctoring_session_summary 
-         (session_id, attempt_id, student_id, start_time, final_risk_score, risk_level, total_events)
-         VALUES ($1, $2, $3, NOW(), 0, 'low', 0)
-         ON CONFLICT (session_id) DO UPDATE SET
-           start_time = EXCLUDED.start_time,
-           updated_at = NOW()`,
-        [sessionId, attemptId, studentId]
-      )
+      try {
+        await pool.query(
+          `INSERT INTO proctoring_session_summary 
+           (session_id, attempt_id, student_id, start_time, final_risk_score, risk_level, total_events)
+           VALUES ($1, $2, $3, NOW(), 0, 'low', 0)
+           ON CONFLICT (session_id) DO UPDATE SET
+             start_time = EXCLUDED.start_time,
+             updated_at = NOW()`,
+          [sessionId, attemptId, studentId]
+        )
+        console.log(`[PROCTORING] Session summary created: ${sessionId}`)
+      } catch (dbError) {
+        console.warn(`[PROCTORING] Failed to create session summary (continuing):`, dbError)
+        // Continue even if session summary fails
+      }
 
       console.log(`[PROCTORING] Session created: ${sessionId} for attempt ${attemptId}`)
 
