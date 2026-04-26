@@ -4,7 +4,7 @@ import api from '../api'
 
 
 interface Violation {
-  type: 'tab_switch' | 'fullscreen_exit' | 'copy_paste' | 'right_click'
+  type: 'tab_switch' | 'fullscreen_exit' | 'copy_paste' | 'right_click' | 'copy' | 'paste' | 'keyboard_copy_paste' | 'copy_paste_attempt'
   details: string
   timestamp: string
 }

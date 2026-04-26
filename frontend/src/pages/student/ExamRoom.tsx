@@ -25,7 +25,7 @@ export default function ExamRoom() {
   const [error, setError] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
   const [examError, setExamError] = useState<string | null>(null)
-  const [activeViolations, setActiveViolations] = useState<Array<{id: string; type: 'tab_switch' | 'fullscreen_exit' | 'camera_off' | 'no_face' | 'multiple_faces'; message: string; timestamp: Date; severity: 'low' | 'medium' | 'high'}>>([])
+  const [activeViolations, setActiveViolations] = useState<Array<{id: string; type: 'tab_switch' | 'fullscreen_exit' | 'copy_paste' | 'right_click'; message: string; timestamp: Date; severity: 'low' | 'medium' | 'high'}>>([])
 
   // Session ID for anti-cheat tracking
   const sessionId = useRef<string>(`session_${Date.now()}`) // Clean session ID without random decimals
@@ -55,8 +55,8 @@ export default function ExamRoom() {
     
     // Convert violations to format expected by ViolationWarning component
     const formattedViolations = violations.map((v, index) => {
-      // Map violation types to expected types - handle all violation types properly
-      let mappedType: 'tab_switch' | 'fullscreen_exit' | 'camera_off' | 'no_face' | 'multiple_faces' = 'tab_switch'
+      // Map violation types to expected types - only handle types that useAntiCheat generates
+      let mappedType: 'tab_switch' | 'fullscreen_exit' | 'copy_paste' | 'right_click' = 'tab_switch'
       
       switch (v.type) {
         case 'tab_switch':
@@ -65,22 +65,11 @@ export default function ExamRoom() {
         case 'fullscreen_exit':
           mappedType = 'fullscreen_exit'
           break
-        case 'camera_off':
-          mappedType = 'camera_off'
+        case 'copy_paste':
+          mappedType = 'copy_paste'
           break
-        case 'no_face':
-          mappedType = 'no_face'
-          break
-        case 'multiple_faces':
-          mappedType = 'multiple_faces'
-          break
-        case 'copy':
-        case 'paste':
         case 'right_click':
-        case 'keyboard_copy_paste':
-        case 'copy_paste_attempt':
-          // For manual violations, use tab_switch type but with correct message
-          mappedType = 'tab_switch'
+          mappedType = 'right_click'
           break
         default:
           mappedType = 'tab_switch'

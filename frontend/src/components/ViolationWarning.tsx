@@ -3,7 +3,7 @@ import { AlertTriangle, Eye, EyeOff, Monitor, Camera } from 'lucide-react'
 
 interface Violation {
   id: string
-  type: 'tab_switch' | 'fullscreen_exit' | 'camera_off' | 'no_face' | 'multiple_faces'
+  type: 'tab_switch' | 'fullscreen_exit' | 'copy_paste' | 'right_click'
   message: string
   timestamp: Date
   severity: 'low' | 'medium' | 'high'
