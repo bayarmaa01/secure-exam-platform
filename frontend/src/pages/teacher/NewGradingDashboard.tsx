@@ -43,7 +43,7 @@ interface Question {
   question_text: string
   points: number
   type: string
-  options?: string[] | Record<string, any>
+  options?: string[] | Record<string, string | number | boolean>
   correct_answer?: string
 }
 

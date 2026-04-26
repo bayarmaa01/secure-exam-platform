@@ -583,7 +583,7 @@ router.post('/attempts/:attemptId/submit',
       }
 
       const attemptId = req.params.attemptId
-      const { answers, cheatingWarnings, sessionId } = req.body
+      const { answers } = req.body
       const studentId = req.user!.id
 
       // Verify attempt belongs to student
@@ -681,7 +681,6 @@ router.post('/attempts/:attemptId/submit',
         [studentId, attempt.exam_id, attemptId, earnedPoints, examTotalPoints, percentage, percentage >= 50 ? 'passed' : 'failed']
       )
 
-      const durationMs = Date.now() - startTime
       console.log(`Attempt ${attemptId} submitted successfully via :attemptId/submit endpoint. Score: ${earnedPoints}/${examTotalPoints} (${percentage.toFixed(2)}%) - Status: ${percentage >= 50 ? 'PASSED' : 'FAILED'}`)
 
       res.json({
