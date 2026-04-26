@@ -14,7 +14,13 @@ router.post('/proctoring/track',
     body('type').isIn(['tab_switch', 'fullscreen_exit', 'camera_off', 'window_blur', 'copy_paste_attempt', 'copy', 'paste', 'right_click', 'keyboard_copy_paste']).withMessage('Invalid violation type'),
     body('examId').notEmpty().withMessage('Exam ID is required'),
     body('sessionId').optional().isString(),
-    body('message').optional().isString()
+    body('message').optional().custom((value) => {
+      // Allow string, object, or null for message field
+      if (value === undefined || value === null) return true
+      if (typeof value === 'string') return true
+      if (typeof value === 'object' && value !== null) return true
+      return false
+    }).withMessage('Message must be a string or object')
   ],
   async (req: AuthRequest, res) => {
     try {

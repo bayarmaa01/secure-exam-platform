@@ -476,7 +476,7 @@ router.post('/attempts/submit',
             `UPDATE exam_attempts 
              SET status = 'submitted', submitted_at = NOW(), score = $2, total_points = $3, percentage = $4
              WHERE id = $5`,
-            [scoreToSave, finalTotalPoints, percentageToSave, attemptId]
+            ['submitted', scoreToSave, finalTotalPoints, percentageToSave, attemptId]
           )
         } else {
           throw constraintError
