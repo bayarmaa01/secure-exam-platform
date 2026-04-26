@@ -23,7 +23,7 @@ router.post('/proctoring/track',
         return res.status(400).json({ errors: errors.array() })
       }
 
-      const { type, examId, sessionId, message } = req.body
+      const { type, examId, message } = req.body
       const studentId = req.user!.id
 
       // Verify student has an active attempt for this exam
