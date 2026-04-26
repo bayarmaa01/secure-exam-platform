@@ -409,6 +409,17 @@ router.post('/proctoring/session/start',
       }
       
       console.log(`[PROCTORING] Session data prepared:`, JSON.stringify(sessionData, null, 2))
+      
+      // Return success response
+      res.json({
+        success: true,
+        sessionId,
+        attemptId,
+        examId,
+        startTime: sessionData.startTime,
+        status: 'active'
+      })
+
       // TODO: Re-enable Redis storage after debugging
       /*
       setRedisKey(`proctoring_session:${sessionId}`, JSON.stringify(sessionData), 3600)

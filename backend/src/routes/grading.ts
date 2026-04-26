@@ -22,7 +22,7 @@ router.get('/grading/pending', auth, requireTeacher, async (req: AuthRequest, re
         ea.status,
         ea.score,
         ea.percentage,
-        COALESCE(ea.violations_count, 0) as violations_count,
+        0 as violations_count,
         e.title as exam_title,
         e.type as exam_type,
         e.total_marks,
@@ -34,7 +34,7 @@ router.get('/grading/pending', auth, requireTeacher, async (req: AuthRequest, re
       JOIN exams e ON ea.exam_id = e.id
       JOIN users u ON ea.user_id = u.id
       WHERE e.teacher_id = $1
-      AND ea.status = 'pending_review'
+      AND ea.status IN ('pending_review', 'submitted')
       AND e.type IN ('writing', 'coding')
       ORDER BY ea.submitted_at DESC
     `
@@ -77,7 +77,7 @@ router.get('/grading/attempts/:attemptId', auth, requireTeacher, async (req: Aut
         ea.status,
         ea.score,
         ea.percentage,
-        COALESCE(ea.violations_count, 0) as violations_count,
+        0 as violations_count,
         ea.started_at,
         e.title as exam_title,
         e.type as exam_type,

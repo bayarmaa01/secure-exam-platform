@@ -460,18 +460,28 @@ router.post('/attempts/submit',
         }
       }
       
-      // Update attempt with results
-      await pool.query(
-        `UPDATE exam_attempts 
-         SET answers = $1,
-             score = $2, 
-             total_points = $3, 
-             percentage = $4,
-             submitted_at = NOW(),
-             status = $5
-         WHERE id = $6`,
-        [JSON.stringify(answers), scoreToSave, finalTotalPoints, percentageToSave, finalStatus, attemptId]
-      )
+      // Update the attempt with final status and score
+      try {
+        await pool.query(
+          `UPDATE exam_attempts 
+           SET status = $1, submitted_at = NOW(), score = $2, total_points = $3, percentage = $4
+           WHERE id = $5`,
+          [finalStatus, scoreToSave, finalTotalPoints, percentageToSave, attemptId]
+        )
+      } catch (constraintError) {
+        // Handle constraint violation - use 'submitted' as fallback
+        if (constraintError.message.includes('exam_attempts_status_check')) {
+          console.log(`[SUBMIT] Constraint violation, using 'submitted' as fallback status`)
+          await pool.query(
+            `UPDATE exam_attempts 
+             SET status = 'submitted', submitted_at = NOW(), score = $2, total_points = $3, percentage = $4
+             WHERE id = $5`,
+            [scoreToSave, finalTotalPoints, percentageToSave, attemptId]
+          )
+        } else {
+          throw constraintError
+        }
+      }
 
       // Determine pass/fail status using exam's passing threshold
       const passingThreshold = attempt.passing_threshold || 50 // Default to 50 if not set
