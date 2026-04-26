@@ -232,6 +232,62 @@ router.post('/attempts/:attemptId/answers',
   }
 )
 
+// GET /api/attempts/:attemptId - Get attempt details
+router.get('/attempts/:attemptId',
+  auth,
+  requireStudent,
+  async (req: AuthRequest, res) => {
+    try {
+      const attemptId = req.params.attemptId
+      const studentId = req.user!.id
+
+      console.log(`[${new Date().toISOString()}] GET /api/attempts/${attemptId} - User: ${studentId}`)
+
+      // Get attempt details with exam info
+      const attemptQuery = await pool.query(
+        `SELECT a.*, e.title as exam_title, e.duration_minutes, e.end_time, e.passing_threshold
+         FROM exam_attempts a
+         JOIN exams e ON a.exam_id = e.id
+         WHERE a.id = $1 AND a.user_id = $2`,
+        [attemptId, studentId]
+      )
+
+      if (attemptQuery.rows.length === 0) {
+        console.log(`Attempt ${attemptId} not found for user ${studentId}`)
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Attempt not found' 
+        })
+      }
+
+      const attempt = attemptQuery.rows[0]
+
+      // Get answers for this attempt
+      const answersQuery = await pool.query(
+        `SELECT question_id, answer, is_correct, points_earned
+         FROM answers 
+         WHERE attempt_id = $1`,
+        [attemptId]
+      )
+
+      res.json({
+        success: true,
+        data: {
+          ...attempt,
+          answers: answersQuery.rows
+        }
+      })
+
+    } catch (error) {
+      console.error(`GET /api/attempts/${req.params.attemptId} - Error:`, error)
+      res.status(500).json({ 
+        success: false, 
+        message: 'Internal server error' 
+      })
+    }
+  }
+)
+
 // POST /api/attempts/submit - Submit exam answers
 router.post('/attempts/submit',
   auth,

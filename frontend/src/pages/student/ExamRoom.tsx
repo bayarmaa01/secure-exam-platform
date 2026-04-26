@@ -255,7 +255,7 @@ export default function ExamRoom() {
           console.log(`[${sessionId.current}] Exam attempt started/resumed: ${attempt.id}`)
           
           // Start proctoring session
-          api.post('/ai/session/start', {
+          api.post('/proctoring/session/start', {
             attemptId: attempt.id
           }).then(response => {
             console.log(`[${sessionId.current}] Proctoring session started:`, response.data)
