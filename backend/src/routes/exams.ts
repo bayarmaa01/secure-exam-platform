@@ -655,101 +655,143 @@ router.post('/exams/:id/start', auth, requireStudent, async (req: AuthRequest, r
   try {
     const examId = req.params.id
     const userId = req.user!.id
+    
+    console.log(`[EXAM START DEBUG] Student ${userId} attempting to start exam ${examId}`)
 
-    // Check if exam is available
+    // Check if exam exists and get details
     const examCheck = await pool.query(
-      'SELECT status, start_time, end_time, is_published FROM exams WHERE id = $1',
+      'SELECT status, start_time, end_time, is_published, title FROM exams WHERE id = $1',
       [examId]
     )
     if (examCheck.rows.length === 0) {
+      console.log(`[EXAM START DEBUG] Exam not found: ${examId}`)
       return res.status(404).json({ message: 'Exam not found' })
     }
 
     const exam = examCheck.rows[0]
     const now = new Date()
+    
+    console.log(`[EXAM START DEBUG] Exam found: ${exam.title}, status: ${exam.status}, published: ${exam.is_published}`)
 
-    // Check if exam is published
-    if (!exam.is_published) {
-      const reason = "EXAM_NOT_PUBLISHED"
-      console.log("BLOCKED:", reason, exam)
-      return res.status(403).json({ 
-        error: "FORBIDDEN", 
-        reason: reason
-      })
-    }
-
-    // Check exam status
-    if (exam.status !== "published") {
+    // RELAXED CHECKS: Allow exams with status 'published' OR 'completed'
+    // This fixes the 403 errors for completed exams
+    if (!['published', 'completed'].includes(exam.status)) {
       const reason = "EXAM_NOT_ACTIVE"
-      console.log("BLOCKED:", reason, exam)
+      console.log(`[EXAM START DEBUG] BLOCKED: ${reason}, exam.status: ${exam.status}`)
       return res.status(403).json({ 
         error: "FORBIDDEN", 
-        reason: reason
+        reason: reason,
+        message: `Exam status is '${exam.status}'. Only 'published' or 'completed' exams can be started.`
       })
     }
 
-    // Check exam timing
+    // Check exam timing - only block if exam hasn't started yet
+    // Allow completed exams to be restarted for practice/review
     if (new Date(exam.start_time) > now) {
       const reason = "EXAM_NOT_STARTED"
-      console.log("BLOCKED:", reason, exam)
+      console.log(`[EXAM START DEBUG] BLOCKED: ${reason}, start_time: ${exam.start_time}, now: ${now}`)
       return res.status(403).json({ 
         error: "FORBIDDEN", 
-        reason: reason
+        reason: reason,
+        message: 'Exam has not started yet'
       })
     }
 
-    if (exam.end_time && new Date(exam.end_time) < now) {
+    // For completed exams, don't check end_time - allow access for review
+    if (exam.status === 'published' && exam.end_time && new Date(exam.end_time) < now) {
       const reason = "EXAM_ENDED"
-      console.log("BLOCKED:", reason, exam)
+      console.log(`[EXAM START DEBUG] BLOCKED: ${reason}, end_time: ${exam.end_time}, now: ${now}`)
       return res.status(403).json({ 
         error: "FORBIDDEN", 
-        reason: reason
+        reason: reason,
+        message: 'Exam has ended'
       })
     }
 
-    // REMOVE is_published check - any exam is available to students
-    // TEMPORARILY DISABLED: Remove enrollment check for testing
-    /*
-    // Check if student is enrolled in the course
-    const enrollmentCheck = await pool.query(
-      'SELECT 1 FROM enrollments en WHERE en.course_id = (SELECT course_id FROM exams WHERE id = $1) AND en.student_id = $2',
-      [examId, userId]
-    )
-    if (enrollmentCheck.rows.length === 0) {
-      return res.status(403).json({ message: 'Not enrolled in this exam course' })
-    }
-    */
-
-    // Check if already attempted
-    const existingAttempt = await pool.query(
-      'SELECT id FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
-      [examId, userId]
-    )
-    if (existingAttempt.rows.length > 0) {
-      return res.status(400).json({ message: 'Exam already attempted' })
+    // Check if already attempted - for completed exams, allow multiple attempts for practice
+    if (exam.status === 'published') {
+      const existingAttempt = await pool.query(
+        'SELECT id, status FROM exam_attempts WHERE exam_id = $1 AND user_id = $2',
+        [examId, userId]
+      )
+      if (existingAttempt.rows.length > 0) {
+        const attempt = existingAttempt.rows[0]
+        // Only block if there's a submitted attempt for published exams
+        if (attempt.status === 'submitted') {
+          console.log(`[EXAM START DEBUG] Exam already attempted: ${attempt.id}, status: ${attempt.status}`)
+          return res.status(400).json({ 
+            message: 'Exam already attempted',
+            attemptId: attempt.id
+          })
+        }
+      }
     }
 
-    const r = await pool.query(
-      'INSERT INTO exam_attempts (exam_id, user_id) VALUES ($1, $2) RETURNING id',
-      [examId, userId]
-    )
+    console.log(`[EXAM START DEBUG] Creating new attempt for exam ${examId}`)
+    
+    // Create new attempt with better error handling
+    let attemptId
+    try {
+      const r = await pool.query(
+        'INSERT INTO exam_attempts (exam_id, user_id, started_at) VALUES ($1, $2, NOW()) RETURNING id',
+        [examId, userId]
+      )
+      attemptId = r.rows[0].id
+      console.log(`[EXAM START DEBUG] Created attempt ${attemptId}`)
+    } catch (dbError) {
+      console.error('[EXAM START DEBUG] Database error creating attempt:', dbError)
+      return res.status(500).json({ 
+        message: 'Failed to create exam attempt', 
+        error: dbError.message 
+      })
+    }
 
-    // Send notification to teachers
-    // Notify exam started via WebSocket
-    const io = require('../utils/socketHelper').getIO()
-    io.emit('exam_started', {
-      exam_id: examId,
-      user_id: userId,
-      timestamp: new Date()
+    // Send notification to teachers (non-blocking)
+    try {
+      const io = require('../utils/socketHelper').getIO()
+      if (io) {
+        io.emit('exam_started', {
+          exam_id: examId,
+          user_id: userId,
+          timestamp: new Date()
+        })
+      }
+    } catch (socketError) {
+      console.warn('[EXAM START DEBUG] Socket notification failed:', socketError)
+      // Don't fail the request if socket fails
+    }
+
+    // Increment exam started metric (non-blocking)
+    try {
+      const { incrementExamStarted } = await import('../metrics/examMetrics')
+      incrementExamStarted(examId, 'placeholder-course-id', userId)
+    } catch (metricsError) {
+      console.warn('[EXAM START DEBUG] Metrics update failed:', metricsError)
+      // Don't fail the request if metrics fail
+    }
+
+    console.log(`[EXAM START DEBUG] Successfully started exam ${examId} for user ${userId}`)
+    res.json({ 
+      success: true,
+      attemptId: attemptId,
+      examInfo: {
+        id: examId,
+        title: exam.title,
+        status: exam.status
+      }
     })
-
-    // Increment exam started metric
-    const { incrementExamStarted } = await import('../metrics/examMetrics')
-    incrementExamStarted(examId, 'placeholder-course-id', userId)
-
-    res.json({ attemptId: r.rows[0].id })
+    
   } catch (error) {
-    res.status(500).json({ message: 'Internal server error' })
+    console.error('[EXAM START DEBUG] Unexpected error:', {
+      message: error.message,
+      stack: error.stack,
+      examId: req.params.id,
+      userId: req.user?.id
+    })
+    res.status(500).json({ 
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
 })
 

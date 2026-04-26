@@ -233,93 +233,126 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
     const { examId } = req.params
     const teacherId = req.user!.id
     
-    // Verify teacher owns this exam
-    const examCheck = await pool.query(
-      'SELECT teacher_id FROM exams WHERE id = $1',
-      [examId]
-    )
-    
-    if (examCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'Exam not found' })
-    }
-    
-    if (examCheck.rows[0].teacher_id !== teacherId) {
-      return res.status(403).json({ message: 'Access denied' })
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(examId)) {
+      console.log(`[RESULTS DEBUG] Invalid examId format: ${examId}`)
+      return res.status(400).json({ message: 'Invalid exam ID format' })
     }
     
     console.log(`[RESULTS DEBUG] Querying exam results for examId: ${examId}, teacherId: ${teacherId}`)
     
-    const r = await pool.query(`
-      SELECT 
-        u.name as student_name,
-        u.email as student_email,
-        u.registration_number as student_roll_number,
-        e.title as exam_title,
-        a.id as attempt_id,
-        COALESCE(a.score, 0) as score,
-        COALESCE(a.total_points, e.total_marks) as total_points,
-        COALESCE(a.percentage, 0) as percentage,
-        a.status as attempt_status,
-        a.submitted_at,
-        a.started_at,
-        e.total_marks as exam_total_marks
+    // Verify teacher owns this exam and exam is completed
+    const examCheck = await pool.query(
+      'SELECT teacher_id, status, title FROM exams WHERE id = $1',
+      [examId]
+    )
+    
+    if (examCheck.rows.length === 0) {
+      console.log(`[RESULTS DEBUG] Exam not found: ${examId}`)
+      return res.status(404).json({ message: 'Exam not found' })
+    }
+    
+    const exam = examCheck.rows[0]
+    if (exam.teacher_id !== teacherId) {
+      console.log(`[RESULTS DEBUG] Access denied for teacher ${teacherId} on exam ${examId}`)
+      return res.status(403).json({ message: 'Access denied' })
+    }
+    
+    console.log(`[RESULTS DEBUG] Exam found: ${exam.title}, status: ${exam.status}`)
+    
+    // Use the exact query provided in requirements - NO DATE FILTERING
+    const resultsQuery = `
+      SELECT
+        u.name,
+        u.email,
+        u.student_id,
+        a.score,
+        a.percentage,
+        a.status,
+        a.submitted_at
       FROM exam_attempts a
-      JOIN users u ON u.id = a.student_id
-      JOIN exams e ON e.id = a.exam_id
-      WHERE e.id = $1 AND e.teacher_id = $2 AND a.status IN ('in_progress', 'submitted')
-      ORDER BY a.started_at DESC
-    `, [examId, teacherId])
-
-    console.log(`[RESULTS DEBUG] Teacher dashboard query returned ${r.rows.length} attempts for exam`)
-    console.log(`[RESULTS DEBUG] Raw attempts:`, r.rows.map(row => ({
-      attempt_id: row.attempt_id,
-      attempt_status: row.attempt_status,
-      score: row.score,
-      total_points: row.total_points,
-      exam_total_marks: row.exam_total_marks,
-      percentage: row.percentage
-    })))
-
-    const results = r.rows.map(row => {
-      // Determine attendance status and display status
-      let displayStatus = 'Not Attended';
-      
-      if (row.attempt_status === 'in_progress') {
-        displayStatus = 'In Progress';
-      } else if (row.attempt_status === 'submitted') {
-        displayStatus = row.percentage >= 50 ? 'Passed' : 'Failed';
-      }
-
-      return {
-        id: row.attempt_id,
-        score: parseFloat(row.score || 0),
-        totalPoints: parseFloat(row.total_points || 0),
-        percentage: parseFloat(row.percentage || 0),
-        status: displayStatus, // Use calculated display status
-        attemptStatus: row.attempt_status, // Keep original status for reference
-        createdAt: row.started_at,
-        submittedAt: row.submitted_at,
-        student: {
-          name: row.student_name,
-          email: row.student_email,
-          rollNumber: row.student_roll_number
-        },
-        attempt: {
-          startedAt: row.started_at,
-          submittedAt: row.submitted_at
-        }
-      }
-    })
-
+      JOIN users u ON a.user_id = u.id
+      WHERE a.exam_id = $1
+      AND a.status = 'submitted'
+      ORDER BY a.submitted_at DESC
+    `
+    
+    console.log(`[RESULTS DEBUG] Executing results query for exam: ${examId}`)
+    const r = await pool.query(resultsQuery, [examId])
+    
+    console.log(`[RESULTS DEBUG] Query returned ${r.rows.length} results for exam ${examId}`)
+    
+    // Get total enrolled students for attendance calculation
+    const enrolledQuery = `
+      SELECT COUNT(DISTINCT en.student_id) as total_enrolled
+      FROM enrollments en
+      JOIN courses c ON en.course_id = c.id
+      JOIN exams e ON e.course_id = c.id
+      WHERE e.id = $1
+    `
+    
+    const enrolledResult = await pool.query(enrolledQuery, [examId])
+    const totalEnrolled = parseInt(enrolledResult.rows[0]?.total_enrolled) || 0
+    const attendedCount = r.rows.length
+    const notAttendedCount = Math.max(0, totalEnrolled - attendedCount)
+    
+    console.log(`[RESULTS DEBUG] Enrollment stats - Total: ${totalEnrolled}, Attended: ${attendedCount}, Not Attended: ${notAttendedCount}`)
+    
+    // Map results to match frontend format
+    const results = r.rows.map(row => ({
+      student: {
+        name: row.name,
+        email: row.email,
+        rollNumber: row.student_id
+      },
+      score: parseFloat(row.score) || 0,
+      percentage: parseFloat(row.percentage) || 0,
+      status: row.status,
+      submittedAt: row.submitted_at
+    }))
+    
+    // Return summary counts along with results
     res.json({
       success: true,
       results,
-      total: results.length,
-      averageScore: results.length > 0 ? results.reduce((sum, r) => sum + r.percentage, 0) / results.length : 0
+      summary: {
+        total: totalEnrolled,
+        attended: attendedCount,
+        notAttended: notAttendedCount
+      },
+      examInfo: {
+        id: examId,
+        title: exam.title,
+        status: exam.status
+      }
     })
+    
+    console.log(`[RESULTS DEBUG] Successfully returned ${results.length} results with summary`)
+    
   } catch (error) {
-    console.error('Get exam results error:', error)
-    res.status(500).json({ message: 'Internal server error' })
+    console.error('[RESULTS DEBUG] Get exam results error:', {
+      message: error.message,
+      stack: error.stack,
+      examId: req.params.examId,
+      teacherId: req.user?.id
+    })
+    
+    // Don't swallow SQL errors - log them clearly and return proper error
+    if (error.code === '42703') {
+      // Column does not exist error
+      console.error('[RESULTS DEBUG] SQL Column Error:', error.detail)
+      return res.status(500).json({ 
+        message: 'Database query error - column does not exist', 
+        error: error.message,
+        detail: error.detail
+      })
+    }
+    
+    res.status(500).json({ 
+      message: 'Failed to fetch exam results', 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
 })
 
