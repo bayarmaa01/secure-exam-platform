@@ -95,7 +95,8 @@ export default function ExamResults() {
     totalPoints: result.totalPoints,
     percentage: result.percentage,
     status: result.status,
-    submittedAt: result.submittedAt
+    submittedAt: result.submittedAt,
+    violationsCount: result.violationsCount || 0
   }))
 
   console.log('[DEBUG] Students with results:', studentsWithResults)
@@ -223,6 +224,9 @@ export default function ExamResults() {
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Violations
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Submitted At
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -277,6 +281,15 @@ export default function ExamResults() {
                            student.status === 'graded' ? 'Graded' :
                            student.status === 'terminated' ? 'Terminated' :
                            student.status.charAt(0).toUpperCase() + student.status.slice(1)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${
+                          (student.violationsCount || 0) >= 3 ? 'bg-red-100 text-red-800' :
+                          (student.violationsCount || 0) > 0 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {student.violationsCount || 0}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

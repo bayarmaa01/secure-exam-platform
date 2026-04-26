@@ -55,7 +55,7 @@ export default function ExamRoom() {
     
     // Convert violations to format expected by ViolationWarning component
     const formattedViolations = violations.map((v, index) => {
-      // Map violation types to expected types
+      // Map violation types to expected types - handle all violation types properly
       let mappedType: 'tab_switch' | 'fullscreen_exit' | 'camera_off' | 'no_face' | 'multiple_faces' = 'tab_switch'
       
       switch (v.type) {
@@ -67,14 +67,15 @@ export default function ExamRoom() {
           break
         case 'copy_paste':
         case 'right_click':
-          mappedType = 'tab_switch' // Map to tab_switch as it represents cheating behavior
+          // For copy/paste violations, use tab_switch type but with correct message
+          mappedType = 'tab_switch'
           break
         default:
           mappedType = 'tab_switch'
       }
       
       return {
-        id: `${sessionId.current}_${index}`,
+        id: `violation-${index}`,
         type: mappedType,
         message: v.details || `${v.type} detected`,
         timestamp: new Date(v.timestamp),
