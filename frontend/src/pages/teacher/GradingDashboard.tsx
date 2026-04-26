@@ -19,7 +19,7 @@ interface PendingAttempt {
   exam_title: string
   exam_type: string
   submitted_at: string
-  answers: any
+  answers: Record<string, unknown>
   total_marks: number
   passing_marks: number
 }
@@ -36,7 +36,7 @@ interface AttemptDetail {
   exam_description: string
   submitted_at: string
   started_at: string
-  answers: any
+  answers: Record<string, unknown>
   total_marks: number
   passing_marks: number
   questions: Array<{
@@ -57,7 +57,6 @@ export default function GradingDashboard() {
   const [feedback, setFeedback] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [activeTab, setActiveTab] = useState<'pending' | 'graded'>('pending')
 
   // Fetch pending grading attempts
   const fetchPendingAttempts = useCallback(async () => {
@@ -144,7 +143,7 @@ export default function GradingDashboard() {
     fetchPendingAttempts()
   }, [fetchPendingAttempts])
 
-  const formatAnswers = (answers: any) => {
+  const formatAnswers = (answers: Record<string, unknown> | string) => {
     if (!answers) return 'No answers provided'
     
     if (typeof answers === 'string') {

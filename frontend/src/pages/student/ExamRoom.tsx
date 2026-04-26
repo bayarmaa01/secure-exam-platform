@@ -282,7 +282,7 @@ export default function ExamRoom() {
   }
 
   // Helper function to send violations
-  const sendViolation = useCallback((type: string, details?: any) => {
+  const sendViolation = useCallback((type: string, details?: Record<string, unknown> | string) => {
     if (!isMounted.current || !attemptId) return
     
     // Apply cooldown to prevent spam (except for critical violations)

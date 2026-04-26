@@ -430,7 +430,6 @@ router.post('/attempts/submit',
       console.log(`[SUBMIT DEBUG] Exam type: ${examType}`)
       
       // Writing and coding exams are NEVER auto-graded
-      const isAutoGraded = !['writing', 'coding'].includes(examType)
       
       // Set status based on exam type
       let finalStatus: string
