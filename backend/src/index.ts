@@ -51,20 +51,6 @@ const httpRequestTotal = new Counter({
   registers: [register]
 })
 
-// Exam session metrics
-const activeExamSessions = new Gauge({
-  name: 'exam_sessions_active',
-  help: 'Number of active exam sessions',
-  registers: [register]
-})
-
-const examSubmissionsTotal = new Counter({
-  name: 'exam_submissions_total',
-  help: 'Total number of exam submissions',
-  labelNames: ['status'],
-  registers: [register]
-})
-
 const app = express()
 const server = createServer(app)
 const io = new SocketIOServer(server, {
@@ -334,7 +320,5 @@ start()
 // Export app and metrics for testing
 export { 
   app, 
-  activeExamSessions, 
-  examSubmissionsTotal,
   register
 }

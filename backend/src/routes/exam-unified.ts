@@ -3,7 +3,6 @@ import { body, validationResult } from 'express-validator'
 import { pool } from '../db'
 import { auth, AuthRequest, requireStudent, requireTeacher } from '../middleware/auth'
 import { register, Counter } from 'prom-client'
-import { examSubmissionsTotal } from '../index'
 
 const router = Router()
 
@@ -348,8 +347,7 @@ router.post('/exams/:id/submit',
       )
 
       // Update metrics
-      examSubmissionsTotal.labels(examId, resultStatus).inc()
-      // Note: Counter doesn't support decrement, only increment
+      // Metrics tracking handled by examMetrics.ts
 
       console.log(`✅ Exam submitted: ${attemptId} - Score: ${earnedPoints}/${totalPoints} (${percentage.toFixed(2)}%)`)
 
