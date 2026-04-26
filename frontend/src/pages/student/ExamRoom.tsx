@@ -281,58 +281,96 @@ export default function ExamRoom() {
     }
   }
 
+  // Helper function to send violations
+  const sendViolation = useCallback((type: string, details?: any) => {
+    if (!isMounted.current || !attemptId) return
+    
+    // Apply cooldown to prevent spam (except for critical violations)
+    const now = Date.now()
+    const lastWarningTime = ((window as unknown) as { lastViolationTime?: number }).lastViolationTime
+    const timeSinceLastWarning = lastWarningTime ? now - lastWarningTime : 0
+    
+    // Skip cooldown for critical violations like copy/paste
+    const skipCooldown = ['copy', 'paste', 'right_click', 'keyboard_copy_paste'].includes(type)
+    
+    if (!skipCooldown && timeSinceLastWarning < 1000) {
+      console.log(`[${sessionId.current}] Throttling ${type} violation - only ${timeSinceLastWarning}ms since last`);
+      return;
+    }
+    
+    if (!skipCooldown) {
+      ((window as unknown) as { lastViolationTime?: number }).lastViolationTime = now;
+    }
+    
+    if (isMounted.current) {
+      setCheatingWarnings(prev => prev + 1)
+    }
+    
+    // Send violation to backend
+    api.post('/proctoring/track', {
+      type,
+      examId: id,
+      sessionId: sessionId.current,
+      timestamp: new Date().toISOString(),
+      message: details || `${type} violation detected`
+    }).then(response => {
+      console.log(`[${sessionId.current}] Violation ${type} recorded:`, response.data)
+      
+      // Check if exam was terminated
+      if (response.data.forceSubmit) {
+        console.log(`[${sessionId.current}] Exam terminated due to violations`)
+        alert('Exam terminated due to multiple violations. You will be redirected to the dashboard.')
+        window.location.href = '/student/dashboard'
+      }
+    }).catch(error => {
+      console.error(`[${sessionId.current}] Failed to track ${type} violation:`, error)
+    })
+  }, [attemptId, id])
+
   // Production-grade event handlers with proper cleanup and memory leak prevention
-  const preventContextMenu = useCallback((e: MouseEvent) => e.preventDefault(), [])
-  const preventCopyPaste = useCallback((e: ClipboardEvent) => e.preventDefault(), [])
+  const preventContextMenu = useCallback((e: MouseEvent) => {
+    e.preventDefault()
+    sendViolation('right_click', 'Right click attempted')
+  }, [sendViolation])
+  
+  const preventCopyPaste = useCallback((e: ClipboardEvent) => {
+    e.preventDefault()
+    const type = e.type === 'copy' ? 'copy' : 'paste'
+    sendViolation(type, `${type} attempted`)
+  }, [sendViolation])
   
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Disable Ctrl+C, Ctrl+V, Ctrl+X
-    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
+    if (e.ctrlKey && ['c', 'v', 'x'].includes(e.key)) {
       e.preventDefault()
+      sendViolation('keyboard_copy_paste', { key: e.key })
     }
-  }, [])
+    // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
+    if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key))) {
+      e.preventDefault()
+      sendViolation('developer_tools', { key: e.key })
+    }
+  }, [sendViolation])
 
   const handleVisibilityChange = useCallback(() => {
     if (!isMounted.current || !attemptId) return
     
-    // Tab switch detected
     if (document.hidden) {
       console.log(`[${sessionId.current}] Tab switch detected - page hidden`);
-      
-      // Apply cooldown to prevent spam
-      const now = Date.now()
-      const lastWarningTime = ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime
-      const timeSinceLastWarning = lastWarningTime ? now - lastWarningTime : 0
-      
-      if (timeSinceLastWarning < 5000) {
-        console.log(`[${sessionId.current}] Throttling tab switch warning - only ${timeSinceLastWarning}ms since last`);
-        return;
-      }
-      
-      ((window as unknown) as { lastTabWarningTime?: number }).lastTabWarningTime = now;
-      
-      if (isMounted.current) {
-        setCheatingWarnings(prev => prev + 1)
-      }
-      
-      // Send warning asynchronously (non-blocking)
-      api.post('/ai/track', {
-        type: 'tab_switch',
-        examId: id,
-        sessionId: sessionId.current,
-        timestamp: new Date().toISOString(),
-        data: { url: document.URL }
-      }).catch(error => console.error('Failed to track tab switch:', error))
+      sendViolation('tab_switch', { url: document.URL })
     } else {
       console.log(`[${sessionId.current}] Page became visible again`);
     }
-  }, [attemptId, id])
+  }, [attemptId, sendViolation])
 
   const handleFullscreenChange = useCallback(() => {
-    if (!isMounted.current || document.fullscreenElement || !attemptId) return
+    if (!isMounted.current || !attemptId) return
     
-    console.log(`[${sessionId.current}] Fullscreen change detected`)
-  }, [attemptId])
+    if (!document.fullscreenElement) {
+      console.log(`[${sessionId.current}] Fullscreen exited`)
+      sendViolation('fullscreen_exit', 'User exited fullscreen mode')
+    }
+  }, [attemptId, sendViolation])
 
   const startWebcam = useCallback(async () => {
     if (!isMounted.current || !attemptId) return

@@ -299,7 +299,9 @@ router.post('/attempts/submit',
     body('answers.*.answer').notEmpty().withMessage('Answer is required')
   ],
   async (req: AuthRequest, res) => {
+    const startTime = Date.now()
     console.log(`[${new Date().toISOString()}] POST /api/attempts/submit - User: ${req.user?.id}, Attempt: ${req.body.attemptId}`)
+    console.log(`[SUBMIT] Request body:`, JSON.stringify(req.body, null, 2))
     
     try {
       const errors = validationResult(req)
@@ -418,6 +420,25 @@ router.post('/attempts/submit',
         passingThreshold: attempt.passing_threshold
       })
 
+      // Determine if this is auto-gradable (all questions have correct answers)
+      const questionsQuery = await pool.query(
+        'SELECT correct_answer FROM questions WHERE exam_id = $1',
+        [attempt.exam_id]
+      )
+      
+      const hasCorrectAnswers = questionsQuery.rows.some(q => q.correct_answer !== null && q.correct_answer !== '')
+      const isAutoGraded = hasCorrectAnswers && questionsQuery.rows.length > 0
+      
+      // Set status based on whether we can auto-grade
+      const finalStatus = isAutoGraded ? 'submitted' : 'pending_review'
+      
+      console.log(`[SUBMIT DEBUG] Final status determination:`, {
+        hasCorrectAnswers,
+        isAutoGraded,
+        finalStatus,
+        questionsCount: questionsQuery.rows.length
+      })
+
       // Update attempt with results
       await pool.query(
         `UPDATE exam_attempts 
@@ -426,9 +447,9 @@ router.post('/attempts/submit',
              total_points = $3, 
              percentage = $4,
              submitted_at = NOW(),
-             status = 'submitted'
-         WHERE id = $5`,
-        [JSON.stringify(answers), earnedPoints, finalTotalPoints, percentage, attemptId]
+             status = $5
+         WHERE id = $6`,
+        [JSON.stringify(answers), earnedPoints, finalTotalPoints, percentage, finalStatus, attemptId]
       )
 
       // Determine pass/fail status using exam's passing threshold
@@ -441,20 +462,29 @@ router.post('/attempts/submit',
         passed
       })
 
-      // Create result record
-      await pool.query(
-        `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [studentId, attempt.exam_id, attemptId, earnedPoints, finalTotalPoints, percentage, passed ? 'passed' : 'failed']
-      )
+      // Create result record only for submitted attempts (auto-graded)
+      if (finalStatus === 'submitted') {
+        await pool.query(
+          `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [studentId, attempt.exam_id, attemptId, earnedPoints, finalTotalPoints, percentage, passed ? 'passed' : 'failed']
+        )
+        console.log(`[SUBMIT DEBUG] Result record created for auto-graded attempt ${attemptId}`)
+      } else {
+        console.log(`[SUBMIT DEBUG] No result record created for pending_review attempt ${attemptId}`)
+      }
 
       // Calculate attempt duration
       const duration = Math.floor((new Date().getTime() - new Date(attempt.started_at).getTime()) / 1000)
-      attemptDuration.labels(attempt.exam_id).observe(duration)
-
-      // Record metrics
-      submissionsTotal.labels(attempt.exam_id).inc()
-      attemptsTotal.labels('submitted', attempt.exam_id).inc()
+      
+      // Record metrics with try/catch protection
+      try {
+        attemptDuration.labels(attempt.exam_id).observe(duration)
+        submissionsTotal.labels(attempt.exam_id).inc()
+        attemptsTotal.labels('submitted', attempt.exam_id).inc()
+      } catch (metricsError) {
+        console.warn('[METRICS] Failed to record submission metrics:', metricsError)
+      }
 
       // Debug log: Verify attempt state after submission
       const finalAttemptCheck = await pool.query(
@@ -463,7 +493,9 @@ router.post('/attempts/submit',
       )
       
       console.log(`[SUBMIT DEBUG] Attempt after submission:`, finalAttemptCheck.rows[0])
+      const durationMs = Date.now() - startTime
       console.log(`Attempt ${attemptId} submitted successfully. Score: ${earnedPoints}/${finalTotalPoints} (${percentage.toFixed(2)}%) - Status: ${passed ? 'PASSED' : 'FAILED'}`)
+      console.log(`[SUBMIT] Submission completed in ${durationMs}ms for user ${studentId}`)
 
       res.json({
         success: true,
@@ -480,7 +512,14 @@ router.post('/attempts/submit',
       })
 
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] POST /api/attempts/submit - Error:`, error)
+      const durationMs = Date.now() - startTime
+      console.error(`[${new Date().toISOString()}] POST /api/attempts/submit - Error after ${durationMs}ms:`, error)
+      console.error(`[SUBMIT] Error details:`, {
+        message: error.message,
+        stack: error.stack,
+        attemptId: req.body.attemptId,
+        userId: req.user?.id
+      })
       res.status(500).json({ 
         success: false, 
         message: 'Internal server error' 

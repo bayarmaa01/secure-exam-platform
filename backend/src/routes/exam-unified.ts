@@ -184,7 +184,11 @@ router.post('/exams/:id/start',
       }
       
       // Update active exam count
-      examActiveTotal.inc({ exam_id: examId })
+      try {
+        examActiveTotal.inc({ exam_id: examId })
+      } catch (metricsError) {
+        console.warn('[METRICS] Failed to increment active exam count:', metricsError)
+      }
 
       console.log(`✅ Exam attempt started: ${attempt.id}`)
 

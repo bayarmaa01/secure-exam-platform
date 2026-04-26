@@ -166,12 +166,12 @@ router.get('/teacher', auth, requireTeacher, async (req: AuthRequest, res) => {
     
     const r = await pool.query(`
       SELECT 
-        r.id,
-        r.score,
-        r.total_points,
-        r.percentage,
-        r.status,
-        r.created_at,
+        ea.id as attempt_id,
+        COALESCE(r.score, ea.score) as score,
+        COALESCE(r.total_points, ea.total_points) as total_points,
+        COALESCE(r.percentage, ea.percentage) as percentage,
+        ea.status,
+        ea.submitted_at,
         e.title as exam_title,
         e.type as exam_type,
         e.difficulty,
@@ -181,22 +181,23 @@ router.get('/teacher', auth, requireTeacher, async (req: AuthRequest, res) => {
         u.email as student_email,
         u.student_id as student_roll_number,
         ea.started_at as attempt_started_at,
-        ea.submitted_at as attempt_submitted_at
-      FROM results r
-      JOIN exams e ON r.exam_id = e.id
-      JOIN users u ON r.student_id = u.id
-      LEFT JOIN exam_attempts ea ON r.exam_id = ea.exam_id AND ea.user_id = r.student_id
+        r.created_at as result_created_at
+      FROM exam_attempts ea
+      JOIN exams e ON ea.exam_id = e.id
+      JOIN users u ON ea.user_id = u.id
+      LEFT JOIN results r ON ea.id = r.attempt_id
       WHERE e.teacher_id = $1
+      AND ea.status IN ('submitted', 'terminated', 'pending_review')
       ORDER BY r.created_at DESC
     `, [teacherId])
 
     const results = r.rows.map(row => ({
-      id: row.id,
-      score: parseFloat(row.score),
-      totalPoints: parseFloat(row.total_points),
-      percentage: parseFloat(row.percentage),
+      id: row.attempt_id,
+      score: parseFloat(row.score) || 0,
+      totalPoints: parseFloat(row.total_points) || 0,
+      percentage: parseFloat(row.percentage) || 0,
       status: row.status,
-      createdAt: row.created_at,
+      createdAt: row.submitted_at,
       exam: {
         title: row.exam_title,
         type: row.exam_type,
@@ -211,7 +212,7 @@ router.get('/teacher', auth, requireTeacher, async (req: AuthRequest, res) => {
       },
       attempt: {
         startedAt: row.attempt_started_at,
-        submittedAt: row.attempt_submitted_at
+        submittedAt: row.submitted_at
       }
     }))
 
@@ -274,7 +275,7 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
       FROM exam_attempts a
       JOIN users u ON a.user_id = u.id
       WHERE a.exam_id = $1
-      AND a.status = 'submitted'
+      AND a.status IN ('submitted', 'terminated', 'pending_review')
       ORDER BY a.submitted_at DESC
     `
     

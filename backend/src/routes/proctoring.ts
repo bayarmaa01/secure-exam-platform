@@ -11,7 +11,7 @@ router.post('/proctoring/track',
   auth,
   requireStudent,
   [
-    body('type').isIn(['tab_switch', 'fullscreen_exit', 'camera_off', 'window_blur', 'copy_paste_attempt']).withMessage('Invalid violation type'),
+    body('type').isIn(['tab_switch', 'fullscreen_exit', 'camera_off', 'window_blur', 'copy_paste_attempt', 'copy', 'paste', 'right_click', 'keyboard_copy_paste']).withMessage('Invalid violation type'),
     body('examId').notEmpty().withMessage('Exam ID is required'),
     body('sessionId').optional().isString(),
     body('message').optional().isString()
@@ -42,29 +42,116 @@ router.post('/proctoring/track',
       await pool.query(
         `INSERT INTO proctoring_violations (attempt_id, student_id, exam_id, type, message, timestamp)
          VALUES ($1, $2, $3, $4, $5, NOW())`,
-        [sessionId, studentId, examId, type, message]
+        [attemptId, studentId, examId, type, message]
       )
 
-      // Increment violations metric
-      const { incrementExamViolations } = await import('../metrics/examMetrics')
-      incrementExamViolations(type, examId, 'placeholder-course-id', studentId)
+      // Count violations for this attempt
+      const violationCountQuery = await pool.query(
+        'SELECT COUNT(*) as count FROM proctoring_violations WHERE attempt_id = $1',
+        [attemptId]
+      )
+      const violationCount = parseInt(violationCountQuery.rows[0].count)
+      
+      console.log(`[VIOLATION] Violation ${violationCount} recorded for attempt ${attemptId}: ${type}`)
+
+      // Update attempt violation count
+      await pool.query(
+        'UPDATE exam_attempts SET violations_count = $1 WHERE id = $2',
+        [violationCount, attemptId]
+      )
+
+      // Auto-terminate if 3 or more violations
+      let forceSubmit = false
+      if (violationCount >= 3) {
+        console.log(`[VIOLATION] Auto-terminating attempt ${attemptId} due to ${violationCount} violations`)
+        
+        // Get attempt details for scoring
+        const attemptDetails = await pool.query(
+          'SELECT exam_id, started_at FROM exam_attempts WHERE id = $1',
+          [attemptId]
+        )
+        
+        if (attemptDetails.rows.length > 0) {
+          const examId = attemptDetails.rows[0].exam_id
+          
+          // Calculate current score (only score what we have)
+          const currentScoreQuery = await pool.query(
+            `SELECT COALESCE(SUM(points_earned), 0) as earned_points 
+             FROM answers WHERE attempt_id = $1`,
+            [attemptId]
+          )
+          const earnedPoints = parseFloat(currentScoreQuery.rows[0].earned_points) || 0
+          
+          // Get exam total points
+          const examPointsQuery = await pool.query(
+            'SELECT COALESCE(SUM(points), 0) as total_points FROM questions WHERE exam_id = $1',
+            [examId]
+          )
+          const totalPoints = parseFloat(examPointsQuery.rows[0].total_points) || 0
+          const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0
+          
+          // Update attempt as terminated
+          await pool.query(
+            `UPDATE exam_attempts 
+             SET status = 'terminated',
+                 submitted_at = NOW(),
+                 score = $1,
+                 total_points = $2,
+                 percentage = $3,
+                 answers = COALESCE(answers, '{}'::jsonb)
+             WHERE id = $4`,
+            [earnedPoints, totalPoints, percentage, attemptId]
+          )
+          
+          // Create result record if we have some answers
+          if (earnedPoints > 0) {
+            await pool.query(
+              `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (attempt_id) DO NOTHING`,
+              [studentId, examId, attemptId, earnedPoints, totalPoints, percentage, 'failed']
+            )
+          }
+          
+          forceSubmit = true
+        }
+      }
+
+      // Increment violations metric (wrapped in try/catch)
+      try {
+        const { incrementExamViolations } = await import('../metrics/examMetrics')
+        incrementExamViolations(type, examId, 'placeholder-course-id', studentId)
+      } catch (metricsError) {
+        console.warn('[METRICS] Failed to increment violation metric:', metricsError)
+      }
 
       // Send real-time notification to teachers
-      const io = require('../utils/socketHelper').getIO()
-      io.emit('proctoring_violation', {
-        attemptId,
-        studentId,
-        examId,
-        type,
-        timestamp: new Date(),
-        studentName: req.user!.name
-      })
+      try {
+        const io = require('../utils/socketHelper').getIO()
+        io.emit('proctoring_violation', {
+          attemptId,
+          studentId,
+          examId,
+          type,
+          violationCount,
+          forceSubmit,
+          timestamp: new Date(),
+          studentName: req.user!.name
+        })
+      } catch (socketError) {
+        console.warn('[SOCKET] Failed to emit violation notification:', socketError)
+      }
 
-      res.json({ 
+      const response = { 
         success: true, 
         message: 'Violation recorded',
-        violationCount: (await pool.query('SELECT violations_count FROM exam_attempts WHERE id = $1', [attemptId])).rows[0].violations_count
-      })
+        violationCount,
+        forceSubmit
+      }
+      
+      console.log(`[VIOLATION] Response:`, response)
+      
+      res.json(response)
     } catch (error) {
       console.error('POST /api/proctoring/track - Error:', error)
       res.status(500).json({ message: 'Internal server error' })
