@@ -124,8 +124,7 @@ export default function ExamRoom() {
         answer
       }))
       
-      const response = await api.post(`/attempts/submit`, {
-        attemptId: attemptId,
+      const response = await api.post(`/attempts/${attemptId}/submit`, {
         answers: answersArray,
         cheatingWarnings,
         sessionId: sessionId.current

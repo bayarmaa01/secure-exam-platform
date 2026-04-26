@@ -262,13 +262,28 @@ router.get('/grading/attempts/:attemptId', auth, requireTeacher, async (req: Aut
     
     const questionsResult = await pool.query(questionsQuery, [attempt.exam_id])
     
-    console.log(`[GRADING] Retrieved attempt ${attemptId} with ${questionsResult.rows.length} questions`)
+    // Get student answers from answers table
+    const answersQuery = `
+      SELECT question_id, answer, points_earned, is_correct
+      FROM answers
+      WHERE attempt_id = $1
+    `
+    
+    const answersResult = await pool.query(answersQuery, [attemptId])
+    
+    // Format answers as question_id -> answer mapping for frontend
+    const formattedAnswers: Record<string, string> = {}
+    answersResult.rows.forEach(answer => {
+      formattedAnswers[answer.question_id] = answer.answer
+    })
+    
+    console.log(`[GRADING] Retrieved attempt ${attemptId} with ${questionsResult.rows.length} questions and ${answersResult.rows.length} answers`)
     
     res.json({
       success: true,
       attempt: {
         id: attempt.id,
-        answers: attempt.answers,
+        answers: formattedAnswers, // Use formatted answers from answers table
         score: attempt.score ? parseFloat(attempt.score) : null,
         status: attempt.status,
         submittedAt: attempt.submitted_at,

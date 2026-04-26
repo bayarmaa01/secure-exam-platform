@@ -159,10 +159,16 @@ router.post('/attempts/:attemptId/answers',
 router.post('/attempts/:attemptId/submit',
   auth,
   requireStudent,
+  [
+    body('answers').optional().isArray().withMessage('Answers must be an array'),
+    body('answers.*.questionId').notEmpty().withMessage('Question ID is required'),
+    body('answers.*.answer').notEmpty().withMessage('Answer is required')
+  ],
   async (req: AuthRequest, res) => {
     try {
       const attemptId = req.params.attemptId
       const studentId = req.user!.id
+      const { answers, cheatingWarnings, sessionId } = req.body
 
       // Verify attempt belongs to student
       const attemptCheck = await pool.query(
@@ -177,6 +183,48 @@ router.post('/attempts/:attemptId/submit',
       const attempt = attemptCheck.rows[0]
       if (attempt.status !== 'in_progress') {
         return res.status(400).json({ message: 'Attempt is already submitted' })
+      }
+
+      // Save answers if provided
+      if (answers && Array.isArray(answers)) {
+        console.log(`[ATTEMPTS] Saving ${answers.length} answers for attempt ${attemptId}`)
+        
+        for (const answerData of answers) {
+          const { questionId, answer } = answerData
+          
+          // Get question details for scoring
+          const questionQuery = await pool.query(
+            'SELECT id, type, points, correct_answer FROM questions WHERE id = $1',
+            [questionId]
+          )
+          
+          if (questionQuery.rows.length > 0) {
+            const question = questionQuery.rows[0]
+            let isCorrect = false
+            let pointsEarned = 0
+            
+            // Simple scoring for MCQ questions
+            if (question.type === 'mcq' && question.correct_answer) {
+              isCorrect = answer === question.correct_answer
+              pointsEarned = isCorrect ? question.points : 0
+            } else {
+              // For writing/coding questions, give full points for any answer (to be graded manually)
+              pointsEarned = answer && answer.trim() ? question.points : 0
+            }
+            
+            // Insert or update answer
+            await pool.query(
+              `INSERT INTO answers (attempt_id, question_id, answer, is_correct, points_earned)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (attempt_id, question_id) 
+               DO UPDATE SET 
+                 answer = EXCLUDED.answer,
+                 is_correct = EXCLUDED.is_correct,
+                 points_earned = EXCLUDED.points_earned`,
+              [attemptId, questionId, answer, isCorrect, pointsEarned]
+            )
+          }
+        }
       }
 
       // Calculate total score and points
