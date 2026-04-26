@@ -197,9 +197,8 @@ router.get('/teacher', auth, requireTeacher, async (req: AuthRequest, res) => {
       JOIN users u ON ea.user_id = u.id
       LEFT JOIN results r ON ea.id = r.attempt_id
       WHERE e.teacher_id = $1
-      AND ea.status IN ('submitted', 'terminated', 'pending_review', 'graded')
-      AND ea.submitted_at IS NOT NULL
-      ORDER BY ea.submitted_at DESC
+      AND ea.status IN ('submitted', 'terminated', 'pending_review', 'graded', 'in_progress')
+      ORDER BY ea.created_at DESC
     `, [teacherId])
 
     const results = r.rows.map(row => ({
@@ -284,6 +283,7 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         a.user_id,
         u.name,
         u.email,
+        u.student_id,
         a.score,
         a.total_points,
         a.percentage,

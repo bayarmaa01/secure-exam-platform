@@ -97,6 +97,7 @@ export default function ExamResults() {
       const resultsData = resultsResponse.data?.results || resultsResponse.data || []
       
       console.log('[DEBUG] Backend response structure:', resultsResponse.data)
+      console.log('[DEBUG] Results array length:', resultsData?.length || 0)
       console.log('[DEBUG] Mapped resultsData:', resultsData)
       
       setExam(examData)
@@ -410,6 +411,9 @@ export default function ExamResults() {
                               ? 'Publish the exam to allow students to take it'
                               : 'Students have not started this exam yet'
                             }
+                          </div>
+                          <div className="text-xs text-gray-400 mt-2">
+                            Debug: Backend returned {examResults.length} results
                           </div>
                         </div>
                       </td>
