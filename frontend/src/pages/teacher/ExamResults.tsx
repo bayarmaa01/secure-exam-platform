@@ -5,17 +5,24 @@ import api from '../../api'
 
 interface ExamResult {
   id: string
-  score: number
+  score: number | null
   totalPoints: number
-  percentage: number
+  percentage: number | null
   status: string
   attemptStatus: string
   createdAt: string
   submittedAt?: string
+  gradedAt?: string
+  feedback?: string
+  violationsCount?: number
   student: {
     name: string
     email: string
     rollNumber?: string
+  }
+  exam?: {
+    type: string
+    title: string
   }
 }
 
@@ -218,6 +225,9 @@ export default function ExamResults() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Submitted At
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -240,29 +250,57 @@ export default function ExamResults() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {student.score}/{student.totalPoints}
+                          {student.score !== null ? `${student.score}/${student.totalPoints}` : 'Pending Review'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className={`text-sm font-medium ${
-                          student.percentage >= 50 ? 'text-green-600' : 'text-red-600'
+                          student.percentage !== null && student.percentage >= 50 ? 'text-green-600' : 
+                          student.percentage !== null && student.percentage < 50 ? 'text-red-600' :
+                          'text-yellow-600'
                         }`}>
-                          {student.percentage.toFixed(1)}%
+                          {student.percentage !== null ? `${student.percentage.toFixed(1)}%` : 'Pending'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           student.status === 'passed' ? 'bg-green-100 text-green-800' :
                           student.status === 'failed' ? 'bg-red-100 text-red-800' :
+                          student.status === 'graded' ? 'bg-blue-100 text-blue-800' :
+                          student.status === 'pending_review' ? 'bg-yellow-100 text-yellow-800' :
+                          student.status === 'terminated' ? 'bg-red-100 text-red-800' :
                           student.status === 'not_attended' ? 'bg-gray-100 text-gray-800' :
-                          'bg-yellow-100 text-yellow-800'
+                          'bg-gray-100 text-gray-800'
                         }`}>
                           {student.status === 'not_attended' ? 'Not Attended' : 
+                           student.status === 'pending_review' ? 'Pending Review' :
+                           student.status === 'graded' ? 'Graded' :
+                           student.status === 'terminated' ? 'Terminated' :
                            student.status.charAt(0).toUpperCase() + student.status.slice(1)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {student.submittedAt ? new Date(student.submittedAt).toLocaleString() : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {student.status === 'pending_review' && (
+                          <Link
+                            to={`/teacher/grading?attempt=${student.id}`}
+                            className="text-blue-600 hover:text-blue-900 font-medium"
+                          >
+                            Grade
+                          </Link>
+                        )}
+                        {student.status === 'graded' && (
+                          <span className="text-green-600 font-medium">
+                            Graded
+                          </span>
+                        )}
+                        {student.status === 'terminated' && (
+                          <span className="text-red-600 font-medium">
+                            Terminated
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

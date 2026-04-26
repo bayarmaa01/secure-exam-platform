@@ -420,25 +420,47 @@ router.post('/attempts/submit',
         passingThreshold: attempt.passing_threshold
       })
 
-      // Determine if this is auto-gradable (all questions have correct answers)
-      const questionsQuery = await pool.query(
-        'SELECT correct_answer FROM questions WHERE exam_id = $1',
+      // Get exam details to determine grading approach
+      const examQuery = await pool.query(
+        'SELECT type FROM exams WHERE id = $1',
         [attempt.exam_id]
       )
       
-      const hasCorrectAnswers = questionsQuery.rows.some(q => q.correct_answer !== null && q.correct_answer !== '')
-      const isAutoGraded = hasCorrectAnswers && questionsQuery.rows.length > 0
+      const examType = examQuery.rows[0]?.type
+      console.log(`[SUBMIT DEBUG] Exam type: ${examType}`)
       
-      // Set status based on whether we can auto-grade
-      const finalStatus = isAutoGraded ? 'submitted' : 'pending_review'
+      // Writing and coding exams are NEVER auto-graded
+      const isAutoGraded = !['writing', 'coding'].includes(examType)
       
-      console.log(`[SUBMIT DEBUG] Final status determination:`, {
-        hasCorrectAnswers,
-        isAutoGraded,
-        finalStatus,
-        questionsCount: questionsQuery.rows.length
-      })
-
+      // Set status based on exam type
+      let finalStatus: string
+      let scoreToSave: number | null = null
+      let percentageToSave: number | null = null
+      
+      if (['writing', 'coding'].includes(examType)) {
+        finalStatus = 'pending_review'
+        scoreToSave = null
+        percentageToSave = null
+        console.log(`[SUBMIT DEBUG] ${examType} exam set to pending_review`)
+      } else {
+        // For MCQ and other auto-gradable exams, calculate score
+        const questionsQuery = await pool.query(
+          'SELECT correct_answer FROM questions WHERE exam_id = $1',
+          [attempt.exam_id]
+        )
+        
+        const hasCorrectAnswers = questionsQuery.rows.some(q => q.correct_answer !== null && q.correct_answer !== '')
+        finalStatus = (hasCorrectAnswers && questionsQuery.rows.length > 0) ? 'submitted' : 'pending_review'
+        
+        if (finalStatus === 'submitted') {
+          scoreToSave = earnedPoints
+          percentageToSave = percentage
+        } else {
+          scoreToSave = null
+          percentageToSave = null
+        }
+      }
+      
       // Update attempt with results
       await pool.query(
         `UPDATE exam_attempts 
@@ -449,7 +471,7 @@ router.post('/attempts/submit',
              submitted_at = NOW(),
              status = $5
          WHERE id = $6`,
-        [JSON.stringify(answers), earnedPoints, finalTotalPoints, percentage, finalStatus, attemptId]
+        [JSON.stringify(answers), scoreToSave, finalTotalPoints, percentageToSave, finalStatus, attemptId]
       )
 
       // Determine pass/fail status using exam's passing threshold
@@ -462,16 +484,16 @@ router.post('/attempts/submit',
         passed
       })
 
-      // Create result record only for submitted attempts (auto-graded)
+      // Create result record only for auto-graded exams (finalStatus === 'submitted')
       if (finalStatus === 'submitted') {
         await pool.query(
           `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [studentId, attempt.exam_id, attemptId, earnedPoints, finalTotalPoints, percentage, passed ? 'passed' : 'failed']
+          [studentId, attempt.exam_id, attemptId, scoreToSave, finalTotalPoints, percentageToSave, passed ? 'passed' : 'failed']
         )
         console.log(`[SUBMIT DEBUG] Result record created for auto-graded attempt ${attemptId}`)
       } else {
-        console.log(`[SUBMIT DEBUG] No result record created for pending_review attempt ${attemptId}`)
+        console.log(`[SUBMIT DEBUG] No result record created for ${examType} exam - pending review`)
       }
 
       // Calculate attempt duration

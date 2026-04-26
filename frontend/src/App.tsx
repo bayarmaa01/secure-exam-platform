@@ -64,6 +64,7 @@ import CreateExam from './pages/teacher/CreateExam'
 import AddQuestions from './pages/teacher/AddQuestions'
 import ViewResults from './pages/teacher/ViewResults'
 import ExamResults from './pages/teacher/ExamResults'
+import GradingDashboard from './pages/teacher/GradingDashboard'
 
 // Admin Pages
 import AdminDashboard from './pages/AdminDashboard'
@@ -224,6 +225,16 @@ function AppRoutes() {
           <ProtectedRoute role="teacher">
             <TeacherLayout>
               <ExamResults />
+            </TeacherLayout>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/teacher/grading" 
+        element={
+          <ProtectedRoute role="teacher">
+            <TeacherLayout>
+              <GradingDashboard />
             </TeacherLayout>
           </ProtectedRoute>
         } 

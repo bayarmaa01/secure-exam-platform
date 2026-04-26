@@ -172,6 +172,9 @@ router.get('/teacher', auth, requireTeacher, async (req: AuthRequest, res) => {
         COALESCE(r.percentage, ea.percentage) as percentage,
         ea.status,
         ea.submitted_at,
+        ea.graded_at,
+        ea.feedback,
+        ea.violations_count,
         e.title as exam_title,
         e.type as exam_type,
         e.difficulty,
@@ -187,17 +190,21 @@ router.get('/teacher', auth, requireTeacher, async (req: AuthRequest, res) => {
       JOIN users u ON ea.user_id = u.id
       LEFT JOIN results r ON ea.id = r.attempt_id
       WHERE e.teacher_id = $1
-      AND ea.status IN ('submitted', 'terminated', 'pending_review')
-      ORDER BY r.created_at DESC
+      AND ea.status IN ('submitted', 'terminated', 'pending_review', 'graded')
+      AND ea.submitted_at IS NOT NULL
+      ORDER BY ea.submitted_at DESC
     `, [teacherId])
 
     const results = r.rows.map(row => ({
       id: row.attempt_id,
-      score: parseFloat(row.score) || 0,
+      score: row.score ? parseFloat(row.score) : null,
       totalPoints: parseFloat(row.total_points) || 0,
-      percentage: parseFloat(row.percentage) || 0,
+      percentage: row.percentage ? parseFloat(row.percentage) : null,
       status: row.status,
       createdAt: row.submitted_at,
+      gradedAt: row.graded_at,
+      feedback: row.feedback,
+      violationsCount: row.violations_count || 0,
       exam: {
         title: row.exam_title,
         type: row.exam_type,
@@ -271,11 +278,15 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
         a.score,
         a.percentage,
         a.status,
-        a.submitted_at
+        a.submitted_at,
+        a.graded_at,
+        a.feedback,
+        a.violations_count
       FROM exam_attempts a
       JOIN users u ON a.user_id = u.id
       WHERE a.exam_id = $1
-      AND a.status IN ('submitted', 'terminated', 'pending_review')
+      AND a.status IN ('submitted', 'terminated', 'pending_review', 'graded')
+      AND a.submitted_at IS NOT NULL
       ORDER BY a.submitted_at DESC
     `
     

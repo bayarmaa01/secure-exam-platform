@@ -106,9 +106,13 @@ async function ensureTablesExist(client: PoolClient) {
       score DECIMAL(5,2),
       total_points INT DEFAULT 0,
       percentage DECIMAL(5,2),
-      status VARCHAR(20) DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'submitted', 'graded')),
+      status VARCHAR(20) DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'submitted', 'pending_review', 'graded', 'terminated')),
       proctoring_session_id VARCHAR(255),
       risk_score INT DEFAULT 0,
+      violations_count INT DEFAULT 0,
+      feedback TEXT,
+      graded_at TIMESTAMP,
+      graded_by UUID REFERENCES users(id),
       created_at TIMESTAMP DEFAULT NOW()
     )`,
     
