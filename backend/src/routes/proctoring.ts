@@ -63,23 +63,40 @@ router.post('/proctoring/track',
 
       const attemptId = attemptCheck.rows[0].id
 
+      // Calculate risk score for this violation
+      let riskScore = 0
+      switch (type) {
+        case 'tab_switch': riskScore = 1; break
+        case 'copy_paste': riskScore = 2; break
+        case 'copy': riskScore = 2; break
+        case 'paste': riskScore = 2; break
+        case 'fullscreen_exit': riskScore = 3; break
+        case 'camera_off': riskScore = 2; break
+        case 'window_blur': riskScore = 1; break
+        case 'right_click': riskScore = 1; break
+        case 'keyboard_copy_paste': riskScore = 2; break
+        default: riskScore = 1;
+      }
+
       // Store violation in database (optional - don't fail if table doesn't exist)
       let violationCount = 1
       try {
         await pool.query(
-          `INSERT INTO proctoring_violations (attempt_id, student_id, exam_id, type, message, timestamp)
-           VALUES ($1, $2, $3, $4, $5, NOW())`,
-          [attemptId, studentId, examId, type, message]
+          `INSERT INTO proctoring_violations (attempt_id, student_id, exam_id, type, details, timestamp, risk_score)
+           VALUES ($1, $2, $3, $4, $5, NOW(), $6)`,
+          [attemptId, studentId, examId, type, message, riskScore]
         )
         
-        // Count violations for this attempt
+        // Count violations and total risk score for this attempt
         const violationCountQuery = await pool.query(
-          'SELECT COUNT(*) as count FROM proctoring_violations WHERE attempt_id = $1',
+          `SELECT COUNT(*) as count, COALESCE(SUM(risk_score), 0) as total_risk 
+           FROM proctoring_violations WHERE attempt_id = $1`,
           [attemptId]
         )
         violationCount = parseInt(violationCountQuery.rows[0].count)
+        const totalRiskScore = parseInt(violationCountQuery.rows[0].total_risk)
         
-        console.log(`[VIOLATION] Violation ${violationCount} recorded for attempt ${attemptId}: ${type}`)
+        console.log(`[VIOLATION] Violation ${violationCount} recorded for attempt ${attemptId}: ${type} (risk: ${riskScore}, total: ${totalRiskScore})`)
       } catch (dbError) {
         console.warn(`[VIOLATION] Failed to store violation (continuing):`, dbError)
         // Use in-memory count if database operations fail

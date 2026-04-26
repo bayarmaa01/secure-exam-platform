@@ -13,6 +13,7 @@ interface Exam {
   status: string
   questionCount?: number
   attemptCount?: number
+  latestSubmissionTime?: string
 }
 
 export default function ViewResults() {
@@ -30,11 +31,9 @@ export default function ViewResults() {
         return { data: [] }
       })
       const examsData = Array.isArray(response.data) ? response.data : response.data?.data || []
-      // Show all exams that can have results (not draft)
-      const availableExams = examsData.filter((exam: Exam) => 
-        exam.status !== 'draft'
-      )
-      setExams(availableExams)
+      // Backend now properly filters to show only exams with attempts
+      // No frontend filtering needed - show all exams returned by API
+      setExams(examsData)
     } catch (error) {
       console.error('Failed to fetch completed exams:', error)
       setExams([])
@@ -96,11 +95,17 @@ export default function ViewResults() {
                           <div className="flex items-center space-x-3">
                             <h4 className="text-lg font-medium text-gray-900">{exam.title}</h4>
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              exam.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              exam.status === 'published' ? 'bg-blue-100 text-blue-800' :
+                              exam.status === 'graded' ? 'bg-green-100 text-green-800' :
+                              exam.status === 'pending_review' ? 'bg-yellow-100 text-yellow-800' :
+                              exam.status === 'terminated' ? 'bg-red-100 text-red-800' :
+                              exam.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
-                              {exam.status}
+                              {exam.status === 'pending_review' ? 'Pending Review' :
+                               exam.status === 'graded' ? 'Graded' :
+                               exam.status === 'terminated' ? 'Terminated' :
+                               exam.status === 'submitted' ? 'Submitted' :
+                               exam.status}
                             </span>
                           </div>
                           <p className="text-sm text-gray-600 mt-1">{exam.description || 'No description'}</p>
@@ -109,7 +114,7 @@ export default function ViewResults() {
                             <span>Duration: {exam.durationMinutes} min</span>
                             <span>Questions: {exam.questionCount || 0}</span>
                             <span>Attempts: {exam.attemptCount || 0}</span>
-                            <span>Started: {exam.startTime ? new Date(exam.startTime).toLocaleDateString() : 'Not set'}</span>
+                            <span>Latest Submission: {exam.latestSubmissionTime ? new Date(exam.latestSubmissionTime).toLocaleDateString() : 'Not submitted'}</span>
                           </div>
                         </div>
                         <div className="ml-4">

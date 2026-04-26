@@ -2,6 +2,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../../api'
 
+interface Violation {
+  type: string
+  time: string
+  details?: any
+}
+
+interface ViolationData {
+  count: number
+  details: Violation[]
+  riskScore: number
+  riskLevel: string
+}
 
 interface ExamResult {
   id: string
@@ -12,14 +24,15 @@ interface ExamResult {
   attemptStatus: string
   createdAt: string
   submittedAt?: string
-  gradedAt?: string
-  feedback?: string
-  violationsCount?: number
   student: {
     name: string
     email: string
-    rollNumber?: string
+    rollNumber: string
   }
+  violations?: ViolationData
+  gradedAt?: string
+  feedback?: string
+  violationsCount?: number
   exam?: {
     type: string
     title: string
@@ -42,6 +55,26 @@ export default function ExamResults() {
   const [exam, setExam] = useState<Exam | null>(null)
   const [examResults, setExamResults] = useState<ExamResult[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedViolations, setExpandedViolations] = useState<Set<string>>(new Set())
+
+  const toggleViolations = (studentId: string) => {
+    const newExpanded = new Set(expandedViolations)
+    if (newExpanded.has(studentId)) {
+      newExpanded.delete(studentId)
+    } else {
+      newExpanded.add(studentId)
+    }
+    setExpandedViolations(newExpanded)
+  }
+
+  const getRiskLevelColor = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'HIGH': return 'bg-red-100 text-red-800'
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800'
+      case 'LOW': return 'bg-green-100 text-green-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
 
   const fetchExamData = useCallback(async () => {
     try {
@@ -92,11 +125,17 @@ export default function ExamResults() {
     email: result.student.email,
     registration_number: result.student.rollNumber,
     score: result.score,
-    totalPoints: result.totalPoints,
+    totalPoints: result.totalPoints || 0,
     percentage: result.percentage,
     status: result.status,
     submittedAt: result.submittedAt,
-    violationsCount: result.violationsCount || 0
+    violationsCount: result.violations?.count || 0,
+    violations: result.violations || {
+      count: 0,
+      details: [],
+      riskScore: 0,
+      riskLevel: 'LOW'
+    }
   }))
 
   console.log('[DEBUG] Students with results:', studentsWithResults)
@@ -224,7 +263,7 @@ export default function ExamResults() {
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Violations
+                      Violations & Risk
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Submitted At
@@ -284,13 +323,30 @@ export default function ExamResults() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${
-                          (student.violationsCount || 0) >= 3 ? 'bg-red-100 text-red-800' :
-                          (student.violationsCount || 0) > 0 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
-                          {student.violationsCount || 0}
-                        </span>
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <span className={`px-2 py-1 text-xs font-medium rounded ${
+                              (student.violations?.count || 0) >= 3 ? 'bg-red-100 text-red-800' :
+                              (student.violations?.count || 0) > 0 ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              ⚠️ {student.violations?.count || 0}
+                            </span>
+                            {student.violations?.riskLevel && (
+                              <span className={`px-2 py-1 text-xs font-medium rounded ${getRiskLevelColor(student.violations.riskLevel)}`}>
+                                {student.violations.riskLevel}
+                              </span>
+                            )}
+                          </div>
+                          {(student.violations?.count || 0) > 0 && (
+                            <button
+                              onClick={() => toggleViolations(student.id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 underline"
+                            >
+                              {expandedViolations.has(student.id) ? 'Hide' : 'View'} Details
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {student.submittedAt ? new Date(student.submittedAt).toLocaleString() : 'N/A'}
@@ -316,6 +372,31 @@ export default function ExamResults() {
                         )}
                       </td>
                     </tr>
+                    {expandedViolations.has(student.id) && student.violations && student.violations.count > 0 && (
+                      <tr className="bg-gray-50">
+                        <td colSpan={8} className="px-6 py-4">
+                          <div className="space-y-2">
+                            <h4 className="font-medium text-gray-900">Proctoring Violations</h4>
+                            <div className="bg-white border rounded p-3">
+                              <div className="mb-2">
+                                <span className="text-sm font-medium">Total Violations: {student.violations.count}</span>
+                                <span className="ml-4 text-sm font-medium">Risk Score: {student.violations.riskScore}</span>
+                              </div>
+                              <div className="space-y-1">
+                                {student.violations.details.map((violation, index) => (
+                                  <div key={index} className="flex items-center justify-between text-sm">
+                                    <span className="font-medium text-gray-700">{violation.type}</span>
+                                    <span className="text-gray-500">
+                                      {new Date(violation.time).toLocaleTimeString()}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   ))}
                 </tbody>
               </table>

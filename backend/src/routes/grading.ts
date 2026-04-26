@@ -5,6 +5,138 @@ import { auth, AuthRequest, requireTeacher } from '../middleware/auth'
 
 const router = Router()
 
+// Teacher: Get all exams that have attempts for grading
+router.get('/grading/exams', auth, requireTeacher, async (req: AuthRequest, res) => {
+  try {
+    const teacherId = req.user!.id
+    
+    console.log(`[GRADING] Fetching exams with attempts for teacher: ${teacherId}`)
+    
+    const query = `
+      SELECT 
+        e.id, 
+        e.title, 
+        e.course_id, 
+        c.name as course_name, 
+        e.type,
+        COUNT(a.id) as total_attempts,
+        COUNT(CASE WHEN a.status = 'pending_review' THEN 1 END) as pending_count,
+        COUNT(CASE WHEN a.status = 'graded' THEN 1 END) as graded_count,
+        COUNT(CASE WHEN a.status = 'submitted' THEN 1 END) as submitted_count,
+        MAX(a.submitted_at) as latest_submission
+      FROM exams e
+      JOIN exam_attempts a ON a.exam_id = e.id
+      LEFT JOIN courses c ON e.course_id = c.id
+      WHERE e.teacher_id = $1
+      GROUP BY e.id, c.name
+      ORDER BY MAX(a.submitted_at) DESC NULLS LAST
+    `
+    
+    const result = await pool.query(query, [teacherId])
+    
+    console.log(`[GRADING] Found ${result.rows.length} exams with attempts`)
+    
+    const exams = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      courseId: row.course_id,
+      courseName: row.course_name || 'Unknown Course',
+      type: row.type,
+      totalAttempts: parseInt(row.total_attempts),
+      pendingCount: parseInt(row.pending_count),
+      gradedCount: parseInt(row.graded_count),
+      submittedCount: parseInt(row.submitted_count),
+      latestSubmission: row.latest_submission
+    }))
+    
+    res.json({
+      success: true,
+      exams
+    })
+    
+  } catch (error) {
+    console.error('[GRADING] Error fetching exams:', error)
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch exams' 
+    })
+  }
+})
+
+// Teacher: Get students who attempted a specific exam
+router.get('/grading/exams/:examId/students', auth, requireTeacher, async (req: AuthRequest, res) => {
+  try {
+    const { examId } = req.params
+    const teacherId = req.user!.id
+    
+    console.log(`[GRADING] Fetching students for exam: ${examId}, teacher: ${teacherId}`)
+    
+    // Verify teacher owns this exam
+    const examCheck = await pool.query(
+      'SELECT id, title FROM exams WHERE id = $1 AND teacher_id = $2',
+      [examId, teacherId]
+    )
+    
+    if (examCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Exam not found or access denied' 
+      })
+    }
+    
+    const query = `
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.student_id,
+        a.id as attempt_id,
+        a.status,
+        a.score,
+        a.submitted_at,
+        a.graded_at,
+        a.feedback
+      FROM exam_attempts a
+      JOIN users u ON a.user_id = u.id
+      WHERE a.exam_id = $1
+      ORDER BY a.submitted_at DESC
+    `
+    
+    const result = await pool.query(query, [examId])
+    
+    console.log(`[GRADING] Found ${result.rows.length} students for exam ${examId}`)
+    
+    const students = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      studentId: row.student_id,
+      attemptId: row.attempt_id,
+      status: row.status,
+      score: row.score ? parseFloat(row.score) : null,
+      submittedAt: row.submitted_at,
+      gradedAt: row.graded_at,
+      feedback: row.feedback
+    }))
+    
+    res.json({
+      success: true,
+      exam: {
+        id: examCheck.rows[0].id,
+        title: examCheck.rows[0].title
+      },
+      students
+    })
+    
+  } catch (error) {
+    console.error('[GRADING] Error fetching students:', error)
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch students' 
+    })
+  }
+})
+
 // Teacher: Get pending grading attempts for writing/coding exams
 router.get('/grading/pending', auth, requireTeacher, async (req: AuthRequest, res) => {
   try {
@@ -22,7 +154,9 @@ router.get('/grading/pending', auth, requireTeacher, async (req: AuthRequest, re
         ea.status,
         ea.score,
         ea.percentage,
-        0 as violations_count,
+        ea.violations_count,
+        COALESCE(violation_details.violations, '[]') as violations,
+        COALESCE(violation_details.risk_score, 0) as risk_score,
         e.title as exam_title,
         e.type as exam_type,
         e.total_marks,
@@ -33,6 +167,21 @@ router.get('/grading/pending', auth, requireTeacher, async (req: AuthRequest, re
       FROM exam_attempts ea
       JOIN exams e ON ea.exam_id = e.id
       JOIN users u ON ea.user_id = u.id
+      LEFT JOIN (
+        SELECT 
+          pv.attempt_id,
+          COUNT(pv.id) as violation_count,
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'type', pv.type,
+              'time', pv.timestamp,
+              'details', pv.details
+            ) ORDER BY pv.timestamp DESC
+          ) as violations,
+          COALESCE(SUM(pv.risk_score), 0) as risk_score
+        FROM proctoring_violations pv
+        GROUP BY pv.attempt_id
+      ) violation_details ON violation_details.attempt_id = ea.id
       WHERE e.teacher_id = $1
       AND ea.status IN ('pending_review', 'submitted')
       AND e.type IN ('writing', 'coding')
@@ -66,31 +215,29 @@ router.get('/grading/attempts/:attemptId', auth, requireTeacher, async (req: Aut
     
     console.log(`[GRADING] Fetching attempt details: ${attemptId} for teacher: ${teacherId}`)
     
-    // Verify teacher owns this exam
+    // Verify teacher owns this exam and get full attempt details
     const query = `
       SELECT 
-        ea.id as attempt_id,
-        ea.exam_id,
-        ea.user_id as student_id,
-        ea.answers,
-        ea.submitted_at,
-        ea.status,
-        ea.score,
-        ea.percentage,
-        0 as violations_count,
-        ea.started_at,
-        e.title as exam_title,
-        e.type as exam_type,
+        a.id,
+        a.answers,
+        a.score,
+        a.status,
+        a.submitted_at,
+        a.started_at,
+        a.feedback,
+        a.total_points,
+        a.percentage,
+        e.title,
+        e.type,
         e.total_marks,
-        e.passing_marks,
-        e.description as exam_description,
+        e.description,
         u.name as student_name,
         u.email as student_email,
         u.student_id as student_roll_number
-      FROM exam_attempts ea
-      JOIN exams e ON ea.exam_id = e.id
-      JOIN users u ON ea.user_id = u.id
-      WHERE ea.id = $1
+      FROM exam_attempts a
+      JOIN exams e ON a.exam_id = e.id
+      JOIN users u ON a.user_id = u.id
+      WHERE a.id = $1
       AND e.teacher_id = $2
     `
     
@@ -107,7 +254,7 @@ router.get('/grading/attempts/:attemptId', auth, requireTeacher, async (req: Aut
     
     // Get questions for context
     const questionsQuery = `
-      SELECT id, question_text, points, type
+      SELECT id, question_text, points, type, options, correct_answer
       FROM questions
       WHERE exam_id = $1
       ORDER BY id
@@ -120,7 +267,26 @@ router.get('/grading/attempts/:attemptId', auth, requireTeacher, async (req: Aut
     res.json({
       success: true,
       attempt: {
-        ...attempt,
+        id: attempt.id,
+        answers: attempt.answers,
+        score: attempt.score ? parseFloat(attempt.score) : null,
+        status: attempt.status,
+        submittedAt: attempt.submitted_at,
+        startedAt: attempt.started_at,
+        feedback: attempt.feedback,
+        totalPoints: parseInt(attempt.total_points) || 0,
+        percentage: attempt.percentage ? parseFloat(attempt.percentage) : null,
+        exam: {
+          title: attempt.title,
+          type: attempt.type,
+          totalMarks: parseInt(attempt.total_marks) || 0,
+          description: attempt.description
+        },
+        student: {
+          name: attempt.student_name,
+          email: attempt.student_email,
+          studentId: attempt.student_roll_number
+        },
         questions: questionsResult.rows
       }
     })
@@ -129,7 +295,8 @@ router.get('/grading/attempts/:attemptId', auth, requireTeacher, async (req: Aut
     console.error('[GRADING] Error fetching attempt details:', error)
     res.status(500).json({ 
       success: false, 
-      message: 'Failed to fetch attempt details' 
+      message: 'Failed to fetch attempt details',
+      error: error instanceof Error ? error.message : 'Unknown error'
     })
   }
 })
@@ -156,14 +323,14 @@ router.post('/grading/attempts/:attemptId/grade',
       
       console.log(`[GRADING] Submitting grade for attempt: ${attemptId}, score: ${score}/${maxScore}`)
       
-      // Verify teacher owns this exam and attempt is pending review
+      // Verify teacher owns this exam and attempt is pending review or submitted
       const verifyQuery = `
-        SELECT ea.id, ea.exam_id, ea.user_id, e.total_marks, e.teacher_id
+        SELECT ea.id, ea.exam_id, ea.user_id, e.total_marks, e.teacher_id, e.passing_marks
         FROM exam_attempts ea
         JOIN exams e ON ea.exam_id = e.id
         WHERE ea.id = $1
         AND e.teacher_id = $2
-        AND ea.status = 'pending_review'
+        AND ea.status IN ('pending_review', 'submitted')
       `
       
       const verifyResult = await pool.query(verifyQuery, [attemptId, teacherId])
@@ -171,7 +338,7 @@ router.post('/grading/attempts/:attemptId/grade',
       if (verifyResult.rows.length === 0) {
         return res.status(404).json({ 
           success: false, 
-          message: 'Attempt not found, not pending review, or access denied' 
+          message: 'Attempt not found, not gradable, or access denied' 
         })
       }
       
@@ -189,65 +356,57 @@ router.post('/grading/attempts/:attemptId/grade',
       // Calculate percentage
       const percentage = examTotalMarks > 0 ? (score / examTotalMarks) * 100 : 0
       
-      // Determine pass/fail status
-      const passed = score >= (attempt.passing_marks || (examTotalMarks * 0.5))
-      
       console.log(`[GRADING] Grade calculation:`, {
         score,
         maxScore: examTotalMarks,
         percentage,
-        passed,
         passingThreshold: attempt.passing_marks
       })
       
-      // Update attempt with grade
-      await pool.query(
+      // Update attempt with grade using simple UPDATE (no INSERT...ON CONFLICT)
+      const updateResult = await pool.query(
         `UPDATE exam_attempts 
          SET score = $1,
              total_points = $2,
-             percentage = $3,
+             percentage = ($1::float / NULLIF($2,0)) * 100,
              status = 'graded',
+             feedback = $3,
              graded_at = NOW(),
-             graded_by = $4,
-             feedback = $5
-         WHERE id = $6`,
-        [score, examTotalMarks, percentage, teacherId, feedback, attemptId]
+             graded_by = $4
+         WHERE id = $5
+         RETURNING *`,
+        [score, examTotalMarks, feedback, teacherId, attemptId]
       )
       
-      // Create or update result record
-      await pool.query(
-        `INSERT INTO results (student_id, exam_id, attempt_id, score, total_points, percentage, status, feedback)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (attempt_id) 
-         DO UPDATE SET
-           score = EXCLUDED.score,
-           total_points = EXCLUDED.total_points,
-           percentage = EXCLUDED.percentage,
-           status = EXCLUDED.status,
-           feedback = EXCLUDED.feedback,
-           graded_at = NOW()`,
-        [attempt.user_id, attempt.exam_id, attemptId, score, examTotalMarks, percentage, passed ? 'passed' : 'failed', feedback]
-      )
+      const updatedAttempt = updateResult.rows[0]
       
       console.log(`[GRADING] Successfully graded attempt ${attemptId}`)
       
       res.json({
         success: true,
-        message: 'Attempt graded successfully',
-        grade: {
-          score,
-          totalPoints: examTotalMarks,
-          percentage: Math.round(percentage * 100) / 100,
-          status: passed ? 'passed' : 'failed',
-          gradedAt: new Date().toISOString()
+        attempt: {
+          id: updatedAttempt.id,
+          score: parseFloat(updatedAttempt.score),
+          totalPoints: parseInt(updatedAttempt.total_points),
+          percentage: parseFloat(updatedAttempt.percentage),
+          status: updatedAttempt.status,
+          feedback: updatedAttempt.feedback,
+          gradedAt: updatedAttempt.graded_at
         }
       })
       
     } catch (error) {
       console.error('[GRADING] Error grading attempt:', error)
+      if (error.code === '23505') {
+        return res.status(400).json({
+          success: false,
+          message: 'Constraint violation - attempt may already be graded'
+        })
+      }
       res.status(500).json({ 
         success: false, 
-        message: 'Failed to grade attempt' 
+        message: 'Failed to grade attempt',
+        error: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   }

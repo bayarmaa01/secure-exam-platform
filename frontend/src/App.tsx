@@ -65,6 +65,7 @@ import AddQuestions from './pages/teacher/AddQuestions'
 import ViewResults from './pages/teacher/ViewResults'
 import ExamResults from './pages/teacher/ExamResults'
 import GradingDashboard from './pages/teacher/GradingDashboard'
+import NewGradingDashboard from './pages/teacher/NewGradingDashboard'
 import MonitoringDashboard from './pages/teacher/MonitoringDashboard'
 
 // Admin Pages
@@ -237,6 +238,14 @@ function AppRoutes() {
             <TeacherLayout>
               <GradingDashboard />
             </TeacherLayout>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/teacher/new-grading" 
+        element={
+          <ProtectedRoute role="teacher">
+            <NewGradingDashboard />
           </ProtectedRoute>
         } 
       />

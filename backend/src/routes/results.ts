@@ -4,6 +4,13 @@ import { pool } from '../db'
 
 const router = Router()
 
+// Helper function to determine risk level
+function getRiskLevel(violationCount: number): string {
+  if (violationCount >= 3) return 'HIGH'
+  if (violationCount >= 2) return 'MEDIUM'
+  return 'LOW'
+}
+
 // Student: Get my results
 router.get('/student', auth, requireStudent, async (req: AuthRequest, res) => {
   try {
@@ -269,21 +276,39 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
     
     console.log(`[RESULTS DEBUG] Exam found: ${exam.title}, status: ${exam.status}`)
     
-    // Use the exact query provided in requirements - NO DATE FILTERING
+    // Enhanced query with violations aggregation
     const resultsQuery = `
       SELECT
         u.name,
         u.email,
         u.student_id,
+        a.id as attempt_id,
         a.score,
         a.percentage,
         a.status,
         a.submitted_at,
         a.graded_at,
         a.feedback,
-        a.violations_count
+        a.violations_count,
+        COALESCE(violation_details.violations, '[]') as violations,
+        COALESCE(violation_details.risk_score, 0) as risk_score
       FROM exam_attempts a
       JOIN users u ON a.user_id = u.id
+      LEFT JOIN (
+        SELECT 
+          pv.attempt_id,
+          COUNT(pv.id) as violation_count,
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'type', pv.type,
+              'time', pv.timestamp,
+              'details', pv.details
+            ) ORDER BY pv.timestamp DESC
+          ) as violations,
+          COALESCE(SUM(pv.risk_score), 0) as risk_score
+        FROM proctoring_violations pv
+        GROUP BY pv.attempt_id
+      ) violation_details ON violation_details.attempt_id = a.id
       WHERE a.exam_id = $1
       AND a.status IN ('submitted', 'terminated', 'pending_review', 'graded')
       AND a.submitted_at IS NOT NULL
@@ -311,8 +336,9 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
     
     console.log(`[RESULTS DEBUG] Enrollment stats - Total: ${totalEnrolled}, Attended: ${attendedCount}, Not Attended: ${notAttendedCount}`)
     
-    // Map results to match frontend format
+    // Map results to match frontend format with violations
     const results = r.rows.map(row => ({
+      attemptId: row.attempt_id,
       student: {
         name: row.name,
         email: row.email,
@@ -321,7 +347,15 @@ router.get('/teacher/exam/:examId', auth, requireTeacher, async (req: AuthReques
       score: parseFloat(row.score) || 0,
       percentage: parseFloat(row.percentage) || 0,
       status: row.status,
-      submittedAt: row.submitted_at
+      submittedAt: row.submitted_at,
+      gradedAt: row.graded_at,
+      feedback: row.feedback,
+      violations: {
+        count: row.violations_count || 0,
+        details: row.violations || [],
+        riskScore: parseInt(row.risk_score) || 0,
+        riskLevel: getRiskLevel(row.violations_count || 0)
+      }
     }))
     
     // Return summary counts along with results

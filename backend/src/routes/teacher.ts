@@ -141,18 +141,44 @@ router.get('/teacher/exams',
     try {
       const teacherId = req.user!.id
       
+      // Updated query to show exams with attempts immediately after submission
+      // Following strict requirements: show exams if at least ONE attempt exists
       const result = await pool.query(
-        `SELECT e.*, 
+        `SELECT DISTINCT e.*, 
                 c.name as course_name,
                 COUNT(q.id) as question_count,
-                COUNT(ea.id) as attempt_count
+                COUNT(ea.id) as attempt_count,
+                MAX(ea.submitted_at) as latest_submission_time,
+                CASE 
+                  WHEN EXISTS (
+                    SELECT 1 FROM exam_attempts a 
+                    WHERE a.exam_id = e.id 
+                    AND a.status = 'pending_review'
+                  ) THEN 'pending_review'
+                  WHEN EXISTS (
+                    SELECT 1 FROM exam_attempts a 
+                    WHERE a.exam_id = e.id 
+                    AND a.status = 'graded'
+                  ) THEN 'graded'
+                  WHEN EXISTS (
+                    SELECT 1 FROM exam_attempts a 
+                    WHERE a.exam_id = e.id 
+                    AND a.status = 'terminated'
+                  ) THEN 'terminated'
+                  ELSE 'submitted'
+                END as derived_status
          FROM exams e
          LEFT JOIN courses c ON e.course_id = c.id
          LEFT JOIN questions q ON e.id = q.exam_id
          LEFT JOIN exam_attempts ea ON e.id = ea.exam_id
          WHERE e.teacher_id = $1
+         AND EXISTS (
+           SELECT 1 FROM exam_attempts a 
+           WHERE a.exam_id = e.id 
+           AND a.status IN ('submitted', 'pending_review', 'terminated')
+         )
          GROUP BY e.id, c.name
-         ORDER BY e.created_at DESC`,
+         ORDER BY MAX(ea.submitted_at) DESC NULLS LAST, e.created_at DESC`,
         [teacherId]
       )
       
@@ -163,12 +189,13 @@ router.get('/teacher/exams',
         durationMinutes: row.duration_minutes,
         startTime: row.start_time,
         endTime: row.end_time,
-        status: row.status,
+        status: row.derived_status || row.status, // Use derived status from attempts
         createdAt: row.created_at,
         courseId: row.course_id,
         courseName: row.course_name,
         questionCount: parseInt(row.question_count),
-        attemptCount: parseInt(row.attempt_count)
+        attemptCount: parseInt(row.attempt_count),
+        latestSubmissionTime: row.latest_submission_time
       }))
       
       res.json(exams)
