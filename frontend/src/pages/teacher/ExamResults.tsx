@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../../api'
 
@@ -275,128 +275,130 @@ export default function ExamResults() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {studentsWithResults.map((student) => (
-                    <tr key={student.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {student.name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {student.email}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {student.registration_number || 'N/A'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {student.score !== null ? `${student.score}/${student.totalPoints}` : 'Pending Review'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className={`text-sm font-medium ${
-                          student.percentage !== null && student.percentage >= 50 ? 'text-green-600' : 
-                          student.percentage !== null && student.percentage < 50 ? 'text-red-600' :
-                          'text-yellow-600'
-                        }`}>
-                          {student.percentage !== null ? `${student.percentage.toFixed(1)}%` : 'Pending'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          student.status === 'passed' ? 'bg-green-100 text-green-800' :
-                          student.status === 'failed' ? 'bg-red-100 text-red-800' :
-                          student.status === 'graded' ? 'bg-blue-100 text-blue-800' :
-                          student.status === 'pending_review' ? 'bg-yellow-100 text-yellow-800' :
-                          student.status === 'terminated' ? 'bg-red-100 text-red-800' :
-                          student.status === 'not_attended' ? 'bg-gray-100 text-gray-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {student.status === 'not_attended' ? 'Not Attended' : 
-                           student.status === 'pending_review' ? 'Pending Review' :
-                           student.status === 'graded' ? 'Graded' :
-                           student.status === 'terminated' ? 'Terminated' :
-                           student.status.charAt(0).toUpperCase() + student.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <span className={`px-2 py-1 text-xs font-medium rounded ${
-                              (student.violations?.count || 0) >= 3 ? 'bg-red-100 text-red-800' :
-                              (student.violations?.count || 0) > 0 ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-green-100 text-green-800'
-                            }`}>
-                              ⚠️ {student.violations?.count || 0}
-                            </span>
-                            {student.violations?.riskLevel && (
-                              <span className={`px-2 py-1 text-xs font-medium rounded ${getRiskLevelColor(student.violations.riskLevel)}`}>
-                                {student.violations.riskLevel}
-                              </span>
-                            )}
-                          </div>
-                          {(student.violations?.count || 0) > 0 && (
-                            <button
-                              onClick={() => toggleViolations(student.id)}
-                              className="text-xs text-blue-600 hover:text-blue-800 underline"
-                            >
-                              {expandedViolations.has(student.id) ? 'Hide' : 'View'} Details
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {student.submittedAt ? new Date(student.submittedAt).toLocaleString() : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {student.status === 'pending_review' && (
-                          <Link
-                            to={`/teacher/grading?attempt=${student.id}`}
-                            className="text-blue-600 hover:text-blue-900 font-medium"
-                          >
-                            Grade
-                          </Link>
-                        )}
-                        {student.status === 'graded' && (
-                          <span className="text-green-600 font-medium">
-                            Graded
-                          </span>
-                        )}
-                        {student.status === 'terminated' && (
-                          <span className="text-red-600 font-medium">
-                            Terminated
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                    {expandedViolations.has(student.id) && student.violations && student.violations.count > 0 && (
-                      <tr className="bg-gray-50">
-                        <td colSpan={8} className="px-6 py-4">
-                          <div className="space-y-2">
-                            <h4 className="font-medium text-gray-900">Proctoring Violations</h4>
-                            <div className="bg-white border rounded p-3">
-                              <div className="mb-2">
-                                <span className="text-sm font-medium">Total Violations: {student.violations.count}</span>
-                                <span className="ml-4 text-sm font-medium">Risk Score: {student.violations.riskScore}</span>
-                              </div>
-                              <div className="space-y-1">
-                                {student.violations.details.map((violation, index) => (
-                                  <div key={index} className="flex items-center justify-between text-sm">
-                                    <span className="font-medium text-gray-700">{violation.type}</span>
-                                    <span className="text-gray-500">
-                                      {new Date(violation.time).toLocaleTimeString()}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                    <React.Fragment key={student.id}>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {student.name}
                           </div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {student.email}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {student.registration_number || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {student.score !== null ? `${student.score}/${student.totalPoints}` : 'Pending Review'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className={`text-sm font-medium ${
+                            student.percentage !== null && student.percentage >= 50 ? 'text-green-600' : 
+                            student.percentage !== null && student.percentage < 50 ? 'text-red-600' :
+                            'text-yellow-600'
+                          }`}>
+                            {student.percentage !== null ? `${student.percentage.toFixed(1)}%` : 'Pending'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            student.status === 'passed' ? 'bg-green-100 text-green-800' :
+                            student.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            student.status === 'graded' ? 'bg-blue-100 text-blue-800' :
+                            student.status === 'pending_review' ? 'bg-yellow-100 text-yellow-800' :
+                            student.status === 'terminated' ? 'bg-red-100 text-red-800' :
+                            student.status === 'not_attended' ? 'bg-gray-100 text-gray-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {student.status === 'not_attended' ? 'Not Attended' : 
+                             student.status === 'pending_review' ? 'Pending Review' :
+                             student.status === 'graded' ? 'Graded' :
+                             student.status === 'terminated' ? 'Terminated' :
+                             student.status.charAt(0).toUpperCase() + student.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                (student.violations?.count || 0) >= 3 ? 'bg-red-100 text-red-800' :
+                                (student.violations?.count || 0) > 0 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                              }`}>
+                                ⚠️ {student.violations?.count || 0}
+                              </span>
+                              {student.violations?.riskLevel && (
+                                <span className={`px-2 py-1 text-xs font-medium rounded ${getRiskLevelColor(student.violations.riskLevel)}`}>
+                                  {student.violations.riskLevel}
+                                </span>
+                              )}
+                            </div>
+                            {(student.violations?.count || 0) > 0 && (
+                              <button
+                                onClick={() => toggleViolations(student.id)}
+                                className="text-xs text-blue-600 hover:text-blue-800 underline"
+                              >
+                                {expandedViolations.has(student.id) ? 'Hide' : 'View'} Details
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {student.submittedAt ? new Date(student.submittedAt).toLocaleString() : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {student.status === 'pending_review' && (
+                            <Link
+                              to={`/teacher/grading?attempt=${student.id}`}
+                              className="text-blue-600 hover:text-blue-900 font-medium"
+                            >
+                              Grade
+                            </Link>
+                          )}
+                          {student.status === 'graded' && (
+                            <span className="text-green-600 font-medium">
+                              Graded
+                            </span>
+                          )}
+                          {student.status === 'terminated' && (
+                            <span className="text-red-600 font-medium">
+                              Terminated
+                            </span>
+                          )}
+                        </td>
                       </tr>
-                    )}
+                      {expandedViolations.has(student.id) && student.violations && student.violations.count > 0 && (
+                        <tr className="bg-gray-50">
+                          <td colSpan={8} className="px-6 py-4">
+                            <div className="space-y-2">
+                              <h4 className="font-medium text-gray-900">Proctoring Violations</h4>
+                              <div className="bg-white border rounded p-3">
+                                <div className="mb-2">
+                                  <span className="text-sm font-medium">Total Violations: {student.violations.count}</span>
+                                  <span className="ml-4 text-sm font-medium">Risk Score: {student.violations.riskScore}</span>
+                                </div>
+                                <div className="space-y-1">
+                                  {student.violations.details.map((violation: any, index: number) => (
+                                    <div key={index} className="flex items-center justify-between text-sm">
+                                      <span className="font-medium text-gray-700">{violation.type}</span>
+                                      <span className="text-gray-500">
+                                        {new Date(violation.time).toLocaleTimeString()}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
